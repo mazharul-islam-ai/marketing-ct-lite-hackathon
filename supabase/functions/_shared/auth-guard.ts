@@ -1,4 +1,3 @@
-import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from './cors.ts';
 
 /**
@@ -9,9 +8,10 @@ import { corsHeaders } from './cors.ts';
  * @param allowedRoles - Roles that are permitted to call this function
  * @returns The authenticated user object, or a Response to return early (401/403)
  */
+// deno-lint-ignore no-explicit-any
 export async function requireRole(
   req: Request,
-  supabase: SupabaseClient,
+  supabase: any,
   allowedRoles: string[],
 ): Promise<{ userId: string } | Response> {
   const authHeader = req.headers.get('Authorization');

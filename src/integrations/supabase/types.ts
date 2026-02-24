@@ -181,6 +181,51 @@ export type Database = {
           },
         ]
       }
+      ai_agent_knowledge_selection: {
+        Row: {
+          agent_id: string
+          category_id: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          priority: number
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          category_id: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          priority?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          category_id?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          priority?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_knowledge_selection_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_knowledge_selection_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_base_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_runs: {
         Row: {
           agent_id: string | null
@@ -256,8 +301,10 @@ export type Database = {
       ai_agents: {
         Row: {
           category: string | null
+          config: Json | null
           created_at: string | null
           created_by: string | null
+          data_sources: Json | null
           description: string | null
           external_data_sources: Json | null
           fallback_provider: string | null
@@ -268,14 +315,19 @@ export type Database = {
           model_provider: string | null
           model_version: string | null
           name: string
+          output_actions: Json | null
+          schedule_config: Json | null
+          scope: string | null
           slug: string | null
           system_prompt: string
           updated_at: string | null
         }
         Insert: {
           category?: string | null
+          config?: Json | null
           created_at?: string | null
           created_by?: string | null
+          data_sources?: Json | null
           description?: string | null
           external_data_sources?: Json | null
           fallback_provider?: string | null
@@ -286,14 +338,19 @@ export type Database = {
           model_provider?: string | null
           model_version?: string | null
           name: string
+          output_actions?: Json | null
+          schedule_config?: Json | null
+          scope?: string | null
           slug?: string | null
           system_prompt?: string
           updated_at?: string | null
         }
         Update: {
           category?: string | null
+          config?: Json | null
           created_at?: string | null
           created_by?: string | null
+          data_sources?: Json | null
           description?: string | null
           external_data_sources?: Json | null
           fallback_provider?: string | null
@@ -304,6 +361,9 @@ export type Database = {
           model_provider?: string | null
           model_version?: string | null
           name?: string
+          output_actions?: Json | null
+          schedule_config?: Json | null
+          scope?: string | null
           slug?: string | null
           system_prompt?: string
           updated_at?: string | null
@@ -392,27 +452,36 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          is_active: boolean | null
           metadata: Json | null
           name: string
+          resource_name: string | null
           resource_type: string | null
+          updated_at: string | null
         }
         Insert: {
           content?: Json | null
           created_at?: string | null
           created_by?: string | null
           id?: string
+          is_active?: boolean | null
           metadata?: Json | null
           name: string
+          resource_name?: string | null
           resource_type?: string | null
+          updated_at?: string | null
         }
         Update: {
           content?: Json | null
           created_at?: string | null
           created_by?: string | null
           id?: string
+          is_active?: boolean | null
           metadata?: Json | null
           name?: string
+          resource_name?: string | null
           resource_type?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -1223,8 +1292,11 @@ export type Database = {
           created_at: string | null
           doc_category: string | null
           id: string
+          is_active: boolean | null
           name: string
           output_format: string | null
+          sections_template: Json | null
+          system_prompt: string | null
           template: string
           template_name: string | null
         }
@@ -1233,8 +1305,11 @@ export type Database = {
           created_at?: string | null
           doc_category?: string | null
           id?: string
+          is_active?: boolean | null
           name: string
           output_format?: string | null
+          sections_template?: Json | null
+          system_prompt?: string | null
           template: string
           template_name?: string | null
         }
@@ -1243,8 +1318,11 @@ export type Database = {
           created_at?: string | null
           doc_category?: string | null
           id?: string
+          is_active?: boolean | null
           name?: string
           output_format?: string | null
+          sections_template?: Json | null
+          system_prompt?: string | null
           template?: string
           template_name?: string | null
         }
@@ -2221,6 +2299,8 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          is_active: boolean | null
+          last_synced: string | null
           name: string
           parent_id: string | null
           sort_order: number | null
@@ -2229,6 +2309,8 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_active?: boolean | null
+          last_synced?: string | null
           name: string
           parent_id?: string | null
           sort_order?: number | null
@@ -2237,6 +2319,8 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_active?: boolean | null
+          last_synced?: string | null
           name?: string
           parent_id?: string | null
           sort_order?: number | null
@@ -2326,6 +2410,7 @@ export type Database = {
           file_size: number | null
           file_type: string | null
           id: string
+          is_indexed: boolean | null
           processing_status: string | null
           source_id: string | null
           updated_at: string | null
@@ -2339,6 +2424,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           id?: string
+          is_indexed?: boolean | null
           processing_status?: string | null
           source_id?: string | null
           updated_at?: string | null
@@ -2352,6 +2438,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           id?: string
+          is_indexed?: boolean | null
           processing_status?: string | null
           source_id?: string | null
           updated_at?: string | null
@@ -2377,6 +2464,7 @@ export type Database = {
       knowledge_sources: {
         Row: {
           brand_id: string | null
+          category_id: string | null
           config: Json | null
           created_at: string | null
           created_by: string | null
@@ -2389,6 +2477,7 @@ export type Database = {
         }
         Insert: {
           brand_id?: string | null
+          category_id?: string | null
           config?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -2401,6 +2490,7 @@ export type Database = {
         }
         Update: {
           brand_id?: string | null
+          category_id?: string | null
           config?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -2412,6 +2502,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "knowledge_sources_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_base_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "knowledge_sources_created_by_fkey"
             columns: ["created_by"]
@@ -2478,8 +2575,12 @@ export type Database = {
           created_at: string | null
           id: string
           is_active: boolean | null
+          persona_tone: string | null
           prompt_template: string
+          role_category: string | null
+          system_prompt: string | null
           template_name: string
+          updated_at: string | null
           variables: Json | null
         }
         Insert: {
@@ -2487,8 +2588,12 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
+          persona_tone?: string | null
           prompt_template: string
+          role_category?: string | null
+          system_prompt?: string | null
           template_name: string
+          updated_at?: string | null
           variables?: Json | null
         }
         Update: {
@@ -2496,8 +2601,12 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
+          persona_tone?: string | null
           prompt_template?: string
+          role_category?: string | null
+          system_prompt?: string | null
           template_name?: string
+          updated_at?: string | null
           variables?: Json | null
         }
         Relationships: []
