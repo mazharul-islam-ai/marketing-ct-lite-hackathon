@@ -189,6 +189,7 @@ export type Database = {
           approved_at: string | null
           brand_id: string | null
           category: string | null
+          cost_usd: number | null
           created_at: string | null
           executed_by: string | null
           execution_context: Json | null
@@ -196,6 +197,8 @@ export type Database = {
           id: string
           output: Json | null
           status: string | null
+          title: string | null
+          total_tokens: number | null
         }
         Insert: {
           agent_id?: string | null
@@ -204,6 +207,7 @@ export type Database = {
           approved_at?: string | null
           brand_id?: string | null
           category?: string | null
+          cost_usd?: number | null
           created_at?: string | null
           executed_by?: string | null
           execution_context?: Json | null
@@ -211,6 +215,8 @@ export type Database = {
           id?: string
           output?: Json | null
           status?: string | null
+          title?: string | null
+          total_tokens?: number | null
         }
         Update: {
           agent_id?: string | null
@@ -219,6 +225,7 @@ export type Database = {
           approved_at?: string | null
           brand_id?: string | null
           category?: string | null
+          cost_usd?: number | null
           created_at?: string | null
           executed_by?: string | null
           execution_context?: Json | null
@@ -226,6 +233,8 @@ export type Database = {
           id?: string
           output?: Json | null
           status?: string | null
+          title?: string | null
+          total_tokens?: number | null
         }
         Relationships: [
           {
@@ -254,10 +263,12 @@ export type Database = {
           fallback_provider: string | null
           id: string
           is_active: boolean | null
+          is_enabled: boolean | null
           knowledge_sources: Json | null
           model_provider: string | null
           model_version: string | null
           name: string
+          slug: string | null
           system_prompt: string
           updated_at: string | null
         }
@@ -270,10 +281,12 @@ export type Database = {
           fallback_provider?: string | null
           id?: string
           is_active?: boolean | null
+          is_enabled?: boolean | null
           knowledge_sources?: Json | null
           model_provider?: string | null
           model_version?: string | null
           name: string
+          slug?: string | null
           system_prompt?: string
           updated_at?: string | null
         }
@@ -286,10 +299,12 @@ export type Database = {
           fallback_provider?: string | null
           id?: string
           is_active?: boolean | null
+          is_enabled?: boolean | null
           knowledge_sources?: Json | null
           model_provider?: string | null
           model_version?: string | null
           name?: string
+          slug?: string | null
           system_prompt?: string
           updated_at?: string | null
         }
@@ -377,6 +392,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          metadata: Json | null
           name: string
           resource_type: string | null
         }
@@ -385,6 +401,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          metadata?: Json | null
           name: string
           resource_type?: string | null
         }
@@ -393,6 +410,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          metadata?: Json | null
           name?: string
           resource_type?: string | null
         }
@@ -1203,23 +1221,32 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string | null
+          doc_category: string | null
           id: string
           name: string
+          output_format: string | null
           template: string
+          template_name: string | null
         }
         Insert: {
           category?: string | null
           created_at?: string | null
+          doc_category?: string | null
           id?: string
           name: string
+          output_format?: string | null
           template: string
+          template_name?: string | null
         }
         Update: {
           category?: string | null
           created_at?: string | null
+          doc_category?: string | null
           id?: string
           name?: string
+          output_format?: string | null
           template?: string
+          template_name?: string | null
         }
         Relationships: []
       }
@@ -1351,7 +1378,9 @@ export type Database = {
           id: string
           priority: string | null
           status: string | null
+          submitted_by: string | null
           title: string
+          type: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -1362,7 +1391,9 @@ export type Database = {
           id?: string
           priority?: string | null
           status?: string | null
+          submitted_by?: string | null
           title: string
+          type?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -1373,11 +1404,20 @@ export type Database = {
           id?: string
           priority?: string | null
           status?: string | null
+          submitted_by?: string | null
           title?: string
+          type?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "feedback_reports_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "feedback_reports_user_id_fkey"
             columns: ["user_id"]
@@ -1601,6 +1641,7 @@ export type Database = {
           end_date: string
           id: string
           is_active: boolean | null
+          location: string | null
           max_team_size: number | null
           min_team_size: number | null
           name: string
@@ -1608,6 +1649,8 @@ export type Database = {
           registration_deadline: string | null
           rules: string | null
           start_date: string
+          status: string | null
+          theme: string | null
         }
         Insert: {
           created_at?: string | null
@@ -1616,6 +1659,7 @@ export type Database = {
           end_date: string
           id?: string
           is_active?: boolean | null
+          location?: string | null
           max_team_size?: number | null
           min_team_size?: number | null
           name: string
@@ -1623,6 +1667,8 @@ export type Database = {
           registration_deadline?: string | null
           rules?: string | null
           start_date: string
+          status?: string | null
+          theme?: string | null
         }
         Update: {
           created_at?: string | null
@@ -1631,6 +1677,7 @@ export type Database = {
           end_date?: string
           id?: string
           is_active?: boolean | null
+          location?: string | null
           max_team_size?: number | null
           min_team_size?: number | null
           name?: string
@@ -1638,6 +1685,8 @@ export type Database = {
           registration_deadline?: string | null
           rules?: string | null
           start_date?: string
+          status?: string | null
+          theme?: string | null
         }
         Relationships: [
           {
@@ -1696,6 +1745,7 @@ export type Database = {
           registration_date: string | null
           skills: string[] | null
           status: string | null
+          team_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -1705,6 +1755,7 @@ export type Database = {
           registration_date?: string | null
           skills?: string[] | null
           status?: string | null
+          team_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -1714,6 +1765,7 @@ export type Database = {
           registration_date?: string | null
           skills?: string[] | null
           status?: string | null
+          team_id?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -1722,6 +1774,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "hackathon_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hackathon_participants_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "hackathon_teams"
             referencedColumns: ["id"]
           },
           {
@@ -1735,36 +1794,45 @@ export type Database = {
       }
       hackathon_scores: {
         Row: {
+          comments: string | null
           execution_score: number | null
           feedback: string | null
           id: string
+          impact_score: number | null
           innovation_score: number | null
           judge_id: string | null
           presentation_score: number | null
           scored_at: string | null
           submission_id: string | null
+          technical_score: number | null
           total_score: number | null
         }
         Insert: {
+          comments?: string | null
           execution_score?: number | null
           feedback?: string | null
           id?: string
+          impact_score?: number | null
           innovation_score?: number | null
           judge_id?: string | null
           presentation_score?: number | null
           scored_at?: string | null
           submission_id?: string | null
+          technical_score?: number | null
           total_score?: number | null
         }
         Update: {
+          comments?: string | null
           execution_score?: number | null
           feedback?: string | null
           id?: string
+          impact_score?: number | null
           innovation_score?: number | null
           judge_id?: string | null
           presentation_score?: number | null
           scored_at?: string | null
           submission_id?: string | null
+          technical_score?: number | null
           total_score?: number | null
         }
         Relationships: [
@@ -1792,9 +1860,11 @@ export type Database = {
           id: string
           is_finalized: boolean | null
           presentation_url: string | null
+          status: string | null
           submission_title: string
           submitted_at: string | null
           team_id: string | null
+          tech_stack: string[] | null
           video_url: string | null
         }
         Insert: {
@@ -1804,9 +1874,11 @@ export type Database = {
           id?: string
           is_finalized?: boolean | null
           presentation_url?: string | null
+          status?: string | null
           submission_title: string
           submitted_at?: string | null
           team_id?: string | null
+          tech_stack?: string[] | null
           video_url?: string | null
         }
         Update: {
@@ -1816,9 +1888,11 @@ export type Database = {
           id?: string
           is_finalized?: boolean | null
           presentation_url?: string | null
+          status?: string | null
           submission_title?: string
           submitted_at?: string | null
           team_id?: string | null
+          tech_stack?: string[] | null
           video_url?: string | null
         }
         Relationships: [
@@ -1877,6 +1951,7 @@ export type Database = {
           id: string
           project_description: string | null
           project_name: string | null
+          status: string | null
           team_lead_id: string | null
           team_name: string
         }
@@ -1886,6 +1961,7 @@ export type Database = {
           id?: string
           project_description?: string | null
           project_name?: string | null
+          status?: string | null
           team_lead_id?: string | null
           team_name: string
         }
@@ -1895,6 +1971,7 @@ export type Database = {
           id?: string
           project_description?: string | null
           project_name?: string | null
+          status?: string | null
           team_lead_id?: string | null
           team_name?: string
         }
@@ -1953,7 +2030,9 @@ export type Database = {
           execution_time_ms: number | null
           id: string
           integration_type: string | null
+          performed_by: string | null
           request_data: Json | null
+          request_payload: Json | null
           response_data: Json | null
           status: string | null
         }
@@ -1964,7 +2043,9 @@ export type Database = {
           execution_time_ms?: number | null
           id?: string
           integration_type?: string | null
+          performed_by?: string | null
           request_data?: Json | null
+          request_payload?: Json | null
           response_data?: Json | null
           status?: string | null
         }
@@ -1975,7 +2056,9 @@ export type Database = {
           execution_time_ms?: number | null
           id?: string
           integration_type?: string | null
+          performed_by?: string | null
           request_data?: Json | null
+          request_payload?: Json | null
           response_data?: Json | null
           status?: string | null
         }
@@ -2081,6 +2164,8 @@ export type Database = {
           created_by: string | null
           id: string
           is_active: boolean | null
+          keywords: string[] | null
+          knowledge_type: string | null
           source_url: string | null
           tags: string[] | null
           title: string
@@ -2093,6 +2178,8 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean | null
+          keywords?: string[] | null
+          knowledge_type?: string | null
           source_url?: string | null
           tags?: string[] | null
           title: string
@@ -2105,6 +2192,8 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean | null
+          keywords?: string[] | null
+          knowledge_type?: string | null
           source_url?: string | null
           tags?: string[] | null
           title?: string
@@ -2534,6 +2623,7 @@ export type Database = {
       }
       n8n_workflow_configs: {
         Row: {
+          base_url: string | null
           config: Json | null
           created_at: string | null
           id: string
@@ -2541,9 +2631,11 @@ export type Database = {
           updated_at: string | null
           webhook_url: string | null
           workflow_name: string
+          workflow_slug: string | null
           workflow_url: string | null
         }
         Insert: {
+          base_url?: string | null
           config?: Json | null
           created_at?: string | null
           id?: string
@@ -2551,9 +2643,11 @@ export type Database = {
           updated_at?: string | null
           webhook_url?: string | null
           workflow_name: string
+          workflow_slug?: string | null
           workflow_url?: string | null
         }
         Update: {
+          base_url?: string | null
           config?: Json | null
           created_at?: string | null
           id?: string
@@ -2561,6 +2655,7 @@ export type Database = {
           updated_at?: string | null
           webhook_url?: string | null
           workflow_name?: string
+          workflow_slug?: string | null
           workflow_url?: string | null
         }
         Relationships: []
@@ -3246,6 +3341,7 @@ export type Database = {
       }
       seo_blog_content: {
         Row: {
+          audience: string | null
           author_id: string | null
           brand_id: string | null
           brand_name: string | null
@@ -3255,10 +3351,15 @@ export type Database = {
           keywords: string[] | null
           meta_description: string | null
           primary_keyword: string | null
+          primary_reference: string | null
           published_at: string | null
+          secondary_keyword: string | null
+          third_keyword: string | null
           title: string
+          tone: string | null
         }
         Insert: {
+          audience?: string | null
           author_id?: string | null
           brand_id?: string | null
           brand_name?: string | null
@@ -3268,10 +3369,15 @@ export type Database = {
           keywords?: string[] | null
           meta_description?: string | null
           primary_keyword?: string | null
+          primary_reference?: string | null
           published_at?: string | null
+          secondary_keyword?: string | null
+          third_keyword?: string | null
           title: string
+          tone?: string | null
         }
         Update: {
+          audience?: string | null
           author_id?: string | null
           brand_id?: string | null
           brand_name?: string | null
@@ -3281,8 +3387,12 @@ export type Database = {
           keywords?: string[] | null
           meta_description?: string | null
           primary_keyword?: string | null
+          primary_reference?: string | null
           published_at?: string | null
+          secondary_keyword?: string | null
+          third_keyword?: string | null
           title?: string
+          tone?: string | null
         }
         Relationships: [
           {
