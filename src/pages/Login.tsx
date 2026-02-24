@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,20 @@ import { Loader2, Mail, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/logo-sji-login.png";
+
+// Demo credentials (for development/demo purposes)
+const DEMO_CREDENTIALS = {
+  admin: {
+    email: "demo.admin@sjinnovation.com",
+    password: "demo-password-123",
+    label: "Admin Demo",
+  },
+  user: {
+    email: "demo.user@sjinnovation.com",
+    password: "demo-password-123",
+    label: "User Demo",
+  },
+};
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -27,24 +41,45 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
 
   const from = location.state?.from?.pathname || "/dashboard";
 
   // If user is already logged in, redirect them
   if (user && !loading) {
+    console.log("[Login] User logged in, redirecting to:", from);
     return <Navigate to={from} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    
+
     try {
+      console.log("[Login] Attempting login with:", email);
       await login({ email, password });
-      // The redirect will happen automatically through the DashboardRedirect component
+      console.log("[Login] Login successful, user context should update...");
+
+      // Wait for auth state to update with user profile
+      // The useAuth hook's onAuthStateChange listener will set the user
+      // This timeout allows time for the listener to fetch the profile
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1000);
     } catch (err) {
+      console.error("[Login] Login error:", err);
       setError((err as Error).message || "Login failed");
     }
+  };
+
+  const fillDemoCredentials = (credentials: { email: string; password: string }) => {
+    setEmail(credentials.email);
+    setPassword(credentials.password);
+    setError("");
+    // Trigger form submission after state updates
+    setTimeout(() => {
+      formRef.current?.dispatchEvent(new Event("submit", { bubbles: true }));
+    }, 0);
   };
 
   const handleMagicLinkLogin = async () => {
@@ -168,7 +203,7 @@ export default function Login() {
               </TabsList>
 
               <TabsContent value="password">
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -191,7 +226,51 @@ export default function Login() {
                       placeholder="Enter your password"
                     />
                   </div>
-                  
+
+                  {/* Demo Credentials Section */}
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 my-4">
+                    <p className="text-sm font-medium text-amber-900 mb-3">
+                      Demo Credentials
+                    </p>
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                        onClick={() => fillDemoCredentials(DEMO_CREDENTIALS.admin)}
+                        disabled={loading}
+                      >
+                        <Mail className="mr-2 h-4 w-4 flex-shrink-0" />
+                        <div className="flex-1 text-left">
+                          <div className="text-sm font-medium">
+                            {DEMO_CREDENTIALS.admin.label}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {DEMO_CREDENTIALS.admin.email}
+                          </div>
+                        </div>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                        onClick={() => fillDemoCredentials(DEMO_CREDENTIALS.user)}
+                        disabled={loading}
+                      >
+                        <Mail className="mr-2 h-4 w-4 flex-shrink-0" />
+                        <div className="flex-1 text-left">
+                          <div className="text-sm font-medium">
+                            {DEMO_CREDENTIALS.user.label}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {DEMO_CREDENTIALS.user.email}
+                          </div>
+                        </div>
+                      </Button>
+                    </div>
+                  </div>
+
                   {error && (
                     <Alert variant="destructive">
                       <AlertDescription>{error}</AlertDescription>

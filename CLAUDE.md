@@ -190,6 +190,39 @@ The app uses Supabase Auth with a custom role-based permission system:
 
 **Implementation:** See `src/hooks/useAuth.tsx` for auth context. User roles are stored in the `user_roles` table and loaded with the user profile.
 
+### Demo Credentials for Testing
+
+For development and demo purposes, the login page includes quick-access demo credentials in the password tab:
+
+**Demo Admin Account:**
+- Email: `demo.admin@sjinnovation.com`
+- Password: `demo-password-123`
+- Role: `super_admin` (Full system access)
+- Access: All admin panel features at `/adminpanel`
+
+**Demo User Account:**
+- Email: `demo.user@sjinnovation.com`
+- Password: `demo-password-123`
+- Role: `user` (Basic user access)
+- Access: User dashboard and standard features
+
+**How to use:**
+1. Navigate to `/login`
+2. On the "Password" tab, scroll down to find the "Demo Credentials" section
+3. Click on "Admin Demo" or "User Demo" button
+4. Credentials auto-fill and login is automatic
+
+**Setup Instructions:**
+1. Run the migration: `supabase db push` (to create profiles and roles)
+2. Manually create auth users in Supabase dashboard or via Supabase Admin API:
+   - Email: `demo.admin@sjinnovation.com` with password `demo-password-123`
+   - Email: `demo.user@sjinnovation.com` with password `demo-password-123`
+3. Demo accounts are then ready to use
+
+**Files involved:**
+- Migration: `supabase/migrations/20260224000000_setup_demo_credentials.sql`
+- Frontend: `src/pages/Login.tsx` (demo credentials section in password tab)
+
 ### Routing Architecture
 
 The app uses React Router v6 with role-based protected routes:
