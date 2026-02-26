@@ -1,112 +1,84 @@
 
-# Fix Knowledge Vectorization - Switch to Gemini Embeddings
 
-## Problem Identified
+## Plan: Fix All Demo Seed Data SQL Migrations
 
-The issue is **NOT** the OpenAI API key itself. The logs clearly show:
+### Problem Summary
 
-```
-2026-01-28T22:35:03Z ERROR Memory limit exceeded
-```
+The four seed data migration files (`20260224_seed_demo_data_phase1.sql` through `phase4.sql`) contain numerous column mismatches against the actual database schema. These migrations would fail if re-run because they reference columns that don't exist on the actual tables. Here is a comprehensive inventory of every issue found.
 
-The Edge Function crashes when processing files because it exceeds the 150MB memory limit. Additionally, there's a bug where stuck jobs keep getting "recovered" but never actually get marked as `failed` so they're never retried properly.
+---
 
-## Available API Keys
+### Phase 1 Issues (`_phase1.sql`)
 
-You have these relevant secrets configured:
-- `OPENAI_KEY` ✅ (currently used, but causes memory issues)
-- `LOVABLE_API_KEY` ✅ (provides access to Gemini via Lovable AI Gateway)
-- `PERPLEXITY_API_KEY` ✅ (managed by connector)
+| Table | Issue | Fix |
+|-------|-------|-----|
+| `brands` | References `status`, `type`, `owner_id`, `monthly_budget` -- none of these columns exist. Actual columns: `name`, `slug`, `description`, `logo_url`, `website`, `industry`, `organization_id`, `is_active`, `created_by`, `created_at`, `updated_at` | Remove `status`, `type`, `monthly_budget`; rename `owner_id` to `created_by` |
+| `user_brands` | References `access_level`, `can_manage_team`, `can_manage_settings`, `can_view_analytics`, `can_manage_content` -- none exist. Actual columns: `id`, `user_id`, `brand_id`, `created_at` | Remove all extra columns; only insert `id`, `user_id`, `brand_id`, `created_at` |
 
-## Solution: Switch to Gemini Embeddings
+### Phase 2 Issues (`_phase2.sql`)
 
-I'll update `pgvector-lite.ts` to use **Gemini embeddings via the Lovable AI Gateway** instead of OpenAI. Benefits:
-- Gemini `text-embedding-004` model has 768 dimensions (vs OpenAI's 1536) - **50% less memory**
-- The Lovable AI Gateway is already configured and available
-- No additional API key setup needed
+| Table | Issue | Fix |
+|-------|-------|-----|
+| `generated_posts` | References `leader_id` FK to `leader-001-...` UUIDs -- `thought_leaders` table exists but no seed data creates those leader records, so FK will fail | Either remove `leader_id` values or add leader seed data before posts |
+| `ai_generated_images` | References `thumbnail_url`, `model_used`, `model_version`, `size` -- none exist. Actual columns: `id`, `prompt`, `image_url`, `model`, `brand_id`, `generated_by`, `metadata`, `created_at` | Remove `thumbnail_url`, `model_version`, `size`; rename `model_used` to `model` |
+| `sora_videos` | References `thumbnail_url`, `duration_seconds` -- don't exist. Actual columns: `id`, `prompt`, `video_url`, `status`, `brand_id`, `generated_by`, `metadata`, `created_at` | Remove `thumbnail_url`, `duration_seconds`; optionally set `status` |
+| `content_performance_metrics` | References `shares`, `comments`, `conversion_rate`, `measured_at` -- don't exist. Actual columns: `id`, `content_id`, `content_type`, `views`, `clicks`, `conversions`, `engagement_rate`, `brand_id`, `recorded_at` | Remove `shares`, `comments`, `conversion_rate`, `measured_at`; add `recorded_at` instead |
 
-## Implementation Steps
+### Phase 3 Issues (`_phase3.sql`)
 
-### 1. Fix the stuck-job recovery bug
-The current recovery logic updates `last_error` but doesn't actually change the status from `processing` to `failed`. Fix this in `process-knowledge-jobs/index.ts`.
+| Table | Issue | Fix |
+|-------|-------|-----|
+| `projects` | References `project_manager`, `assigned_team` -- don't exist. Actual columns use `project_manager_id`. No `assigned_team` column. | Rename `project_manager` to `project_manager_id`; remove `assigned_team` |
+| `project_tasks` | References `created_by`, `past_assignees` -- don't exist. Actual columns: `id`, `project_id`, `title`, `description`, `status`, `priority`, `assigned_to`, `due_date`, `activecollab_task_id`, `created_at`, `updated_at` | Remove `created_by`, `past_assignees` |
+| `project_task_comments` | References `comment_text` -- actual column name is `comment` | Rename `comment_text` to `comment` |
+| `eod_submissions` | Table does not exist | Remove EOD submission inserts entirely |
+| `weekly_client_summary` | References `project_ids`, `total_tasks`, `completed_tasks`, `summary_content`, `generated_by_agent` -- actual columns: `id`, `client_id`, `summary_text`, `week_start`, `week_end`, `generated_by`, `created_at` | Rewrite to match actual schema |
 
-### 2. Update pgvector-lite.ts to use Gemini embeddings
+### Phase 4 Issues (`_phase4.sql`)
 
-```text
-Current (OpenAI):
-- API: https://api.openai.com/v1/embeddings
-- Model: text-embedding-3-small
-- Dimensions: 1536
-- Key: OPENAI_KEY
+| Table | Issue | Fix |
+|-------|-------|-----|
+| `pods` | References `name`, `slug`, `lead_id`, `status`, `updated_at` -- actual columns: `pod_name`, `pod_lead_id`, `is_active`. No `slug`, `status`, `updated_at` | Rename `name` to `pod_name`, `lead_id` to `pod_lead_id`; remove `slug`, `status`, `updated_at`; use `ON CONFLICT (id)` instead of `(slug)` |
+| `employees` | References `role`, `status` -- actual columns: `job_title`, `is_active`. Also requires `employee_id` (text, NOT NULL) | Rename `role` to `job_title`, `status` to `is_active` (boolean); add `employee_id` text field |
+| `pod_members` | References `created_at` -- actual column is `joined_at` | Rename `created_at` to `joined_at` |
+| `hackathon_events` | References `max_participants` -- doesn't exist. Has `max_team_size`, `min_team_size`. Also uses `date` cast but columns are `timestamptz` | Remove `max_participants`; use `timestamptz` for dates |
+| `hackathon_teams` | References `hackathon_id`, `name`, `description`, `team_lead_id` -- actual columns: `event_id`, `team_name`, `project_name`, `project_description`, `team_lead_id` | Rename accordingly |
+| `hackathon_participants` | References `hackathon_id`, `employee_id`, `role` -- actual columns: `event_id`, `user_id`, `skills`, `interests`, `status` | Rename `hackathon_id` to `event_id`, `employee_id` to `user_id`; remove `role` |
+| `hackathon_submissions` | References `title`, `status` -- actual columns: `submission_title`, `is_finalized`, `submitted_at` | Rename `title` to `submission_title`; replace `status` with `is_finalized` |
+| `hackathon_judging_scores` | Table does not exist | Remove judging scores inserts entirely |
+| Missing tables | `activecollab_projects`, `activecollab_tasks`, `activecollab_time_tracking`, `google_analytics_data`, `hubspot_contacts` do not exist | Remove all inserts for these non-existent tables |
+| Indexes | References indexes on non-existent tables | Remove corresponding `CREATE INDEX` statements |
 
-New (Gemini via Lovable Gateway):
-- API: https://ai.gateway.lovable.dev/v1/embeddings
-- Model: gemini/text-embedding-004
-- Dimensions: 768
-- Key: LOVABLE_API_KEY
-```
+### Cross-Phase Issues
 
-### 3. Reduce batch size for memory efficiency
-- Reduce `EMBED_BATCH_SIZE` from 50 to 20 chunks per API call
-- Add smaller chunk size option to prevent memory spikes
+| Issue | Details |
+|-------|---------|
+| Invalid UUIDs | `f5d6e7b8-c9da-4e1f-b2g3-d4e5f6a7b8c9` and `a6e7f8c9-daeb-4f2g-c3h4-e5f6a7b8c9d0` contain `g` and `h` which are invalid hex -- UUIDs only allow `0-9a-f` | Replace with valid UUIDs |
+| Missing thought leaders | Phase 2 posts reference `leader-001-...` and `leader-002-...` but no leader records are seeded | Set `leader_id` to NULL or add thought_leader seed data |
 
-### 4. Reset stuck files to `failed` status
-Run a migration to properly reset the 2 stuck files so they can be processed with the new Gemini-based embeddings.
+---
 
-## Technical Details
+### Implementation Steps
 
-### pgvector-lite.ts changes
+1. **Rewrite Phase 1** -- Fix `brands` (remove `status`, `type`, `monthly_budget`, rename `owner_id`), fix `user_brands` (remove permission columns), fix invalid UUIDs throughout
 
-```typescript
-// Change from OpenAI to Gemini via Lovable AI Gateway
-export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
-  const apiKey = Deno.env.get('LOVABLE_API_KEY');
-  if (!apiKey) {
-    throw new Error('LOVABLE_API_KEY is not configured');
-  }
+2. **Rewrite Phase 2** -- Fix `ai_generated_images` (use `model` not `model_used`), fix `sora_videos` (remove `thumbnail_url`, `duration_seconds`), fix `content_performance_metrics` (remove non-existent columns), set `leader_id` to NULL in `generated_posts`
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gemini/text-embedding-004',
-      input: text,
-    }),
-  });
-  // ... rest of implementation
-}
-```
+3. **Rewrite Phase 3** -- Fix `projects` (use `project_manager_id`, remove `assigned_team`), fix `project_tasks` (remove `created_by`, `past_assignees`), fix `project_task_comments` (use `comment`), remove `eod_submissions` inserts, fix `weekly_client_summary` to match actual schema
 
-### Database consideration
-- Current `knowledge_embeddings` and `brand_knowledge_embeddings` store vectors as `vector(1536)`
-- Gemini produces `vector(768)` dimensions
-- pgvector can handle different dimension sizes, but we should verify compatibility
-- Alternative: Keep using OpenAI but with smaller batches and better memory management
+4. **Rewrite Phase 4** -- Fix `pods` (use `pod_name`, `pod_lead_id`), fix `employees` (add `employee_id`, use `job_title`), fix `pod_members` (use `joined_at`), fix `hackathon_events`/`teams`/`participants`/`submissions` column names, remove `hackathon_judging_scores`/`activecollab_*`/`google_analytics_data`/`hubspot_contacts` inserts (tables don't exist), clean up indexes
 
-## Recommended Approach
+5. **Replace all invalid UUIDs** across all files -- replace any UUID containing `g` or `h` hex digits with valid UUIDs
 
-**Option A (Faster fix - No schema change):** Keep OpenAI but fix memory issues
-- Reduce batch size from 50 → 10
-- Process one file at a time instead of 5
-- Add explicit garbage collection hints
+6. **Deploy** a single new migration that:
+   - Deletes existing seed data (by known IDs)
+   - Re-inserts corrected data
 
-**Option B (Better long-term - Requires verification):** Switch to Gemini
-- Use Gemini embeddings (768 dimensions)
-- Need to verify pgvector column allows different dimensions
-- More memory efficient
+### Technical Details
 
-## Immediate Fix (Will implement)
+The invalid UUIDs needing replacement:
+- `f5d6e7b8-c9da-4e1f-b2g3-d4e5f6a7b8c9` (brand_manager) -- replace with e.g. `f5d6e7b8-c9da-4e1f-b203-d4e5f6a7b8c9`
+- `a6e7f8c9-daeb-4f2g-c3h4-e5f6a7b8c9d0` (manager) -- replace with e.g. `a6e7f8c9-daeb-4f20-c304-e5f6a7b8c9d0`
 
-1. Fix the stuck-job recovery bug (processing → failed)
-2. Reduce batch sizes to prevent memory crashes
-3. Reset the 2 stuck files properly
-4. Add fallback: try Gemini first, fall back to OpenAI if needed
+These appear in all 4 phase files and must be updated consistently.
 
-## Expected Outcome
-
-- Stuck files will be properly reset to `failed` and retried
-- Reduced memory usage prevents Edge Function crashes
-- Files will successfully process and generate embeddings
