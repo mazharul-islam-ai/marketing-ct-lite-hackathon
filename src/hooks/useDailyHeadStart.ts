@@ -32,7 +32,7 @@ export function useDailyHeadStart() {
     queryFn: async () => {
       if (!user?.id) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('daily_head_starts')
         .select('*')
         .eq('user_id', user.id)
@@ -49,7 +49,7 @@ export function useDailyHeadStart() {
     mutationFn: async (input: HeadStartInput) => {
       if (!user?.id) throw new Error('User not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('daily_head_starts')
         .upsert({
           user_id: user.id,

@@ -110,7 +110,7 @@ export function useClients(params: UseClientsParams = {}) {
   const createClient = async (clientData: CreateClientData): Promise<Client> => {
     if (!user?.id) throw new Error("User not authenticated");
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('clients')
       .insert([{
         ...clientData,

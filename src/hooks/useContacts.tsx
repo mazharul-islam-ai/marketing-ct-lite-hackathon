@@ -51,7 +51,6 @@ export function useContacts(clientId?: string) {
       let query = supabase
         .from('contacts')
         .select('*')
-        .order('is_primary', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (clientId) {
@@ -62,7 +61,7 @@ export function useContacts(clientId?: string) {
 
       if (error) throw error;
 
-      setContacts((data || []) as Contact[]);
+      setContacts((data || []) as any);
     } catch (error) {
       console.error('Error fetching contacts:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch contacts');
@@ -75,7 +74,7 @@ export function useContacts(clientId?: string) {
   const createContact = async (contactData: CreateContactData): Promise<Contact> => {
     if (!user?.id) throw new Error("User not authenticated");
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('contacts')
       .insert([contactData])
       .select()
@@ -91,7 +90,7 @@ export function useContacts(clientId?: string) {
   const updateContact = async (contactId: string, contactData: UpdateContactData): Promise<Contact> => {
     if (!user?.id) throw new Error("User not authenticated");
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('contacts')
       .update(contactData)
       .eq('id', contactId)
@@ -102,7 +101,7 @@ export function useContacts(clientId?: string) {
 
     toast.success("Contact updated successfully");
     await fetchContacts();
-    return data as Contact;
+    return data as any;
   };
 
   const deleteContact = async (contactId: string): Promise<void> => {
@@ -129,7 +128,7 @@ export function useContacts(clientId?: string) {
       .maybeSingle();
 
     if (error) throw error;
-    return data as Contact | null;
+    return data as any;
   };
 
   useEffect(() => {

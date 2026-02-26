@@ -104,7 +104,7 @@ export function LinkedInAgentConfigSection({ agentId, onClose }: LinkedInAgentCo
         .select('*')
         .order('knowledge_type', { ascending: true });
       if (error) throw error;
-      return data as KnowledgeBase[];
+      return (data as unknown) as KnowledgeBase[];
     }
   });
 
@@ -117,7 +117,7 @@ export function LinkedInAgentConfigSection({ agentId, onClose }: LinkedInAgentCo
         .select('*')
         .order('influencer_name');
       if (error) throw error;
-      return data as InfluencerStyle[];
+      return (data as unknown) as InfluencerStyle[];
     }
   });
 

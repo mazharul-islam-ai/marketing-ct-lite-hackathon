@@ -125,7 +125,7 @@ export const HackathonBrandTab = () => {
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">{event.title}</h4>
+                      <h4 className="font-semibold">{(event as any).title || event.name}</h4>
                       {getStatusBadge(event.status)}
                     </div>
                     <p className="text-sm text-muted-foreground">

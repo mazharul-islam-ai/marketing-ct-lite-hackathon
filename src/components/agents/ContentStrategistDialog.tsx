@@ -72,7 +72,7 @@ export function ContentStrategistDialog({ open, onOpenChange, userId, brandId, b
     queryKey: ["leaders-for-brand", selectedBrand],
     queryFn: async () => {
       if (!selectedBrand) return [];
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("thought_leaders")
         .select("id, name")
         .eq("brand_id", selectedBrand)

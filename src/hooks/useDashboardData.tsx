@@ -113,7 +113,7 @@ export function useDashboardData() {
     if (user.role === 'super_admin' || user.role === 'manager') {
       const { data: brands, error } = await supabase
         .from('brands')
-        .select('*, owner:users!brands_owner_id_fkey(first_name, last_name, email)')
+        .select('*')
         .eq('is_active', true);
 
       if (error) throw error;
@@ -125,7 +125,7 @@ export function useDashboardData() {
       // Regular users only see their assigned brands
       const { data: userBrands, error } = await supabase
         .from('user_brands')
-        .select('brands(*, owner:users!brands_owner_id_fkey(first_name, last_name, email))')
+        .select('brands(*)')
         .eq('user_id', user.id);
 
       if (error) throw error;
@@ -316,7 +316,7 @@ export function useDashboardData() {
         activeTasks: Math.round(15 + Math.random() * 30),
         kpis: (kpis || []).map(kpi => ({
           id: kpi.id,
-          name: kpi.name,
+          name: (kpi as any).name || kpi.kpi_name,
           current_value: kpi.current_value,
           target_value: kpi.target_value
         }))
@@ -396,7 +396,7 @@ export function useDashboardData() {
         if (typeof brand.is_active === 'boolean') {
           return brand.is_active;
         }
-        return brand.status === 'active';
+         return (brand as any).status === 'active';
       }).length;
 
       setData({

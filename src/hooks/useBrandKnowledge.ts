@@ -45,7 +45,7 @@ export const useBrandKnowledge = (brandId?: string) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as BrandKnowledgeFile[];
+      return (data as unknown) as BrandKnowledgeFile[];
     },
     enabled: !!brandId,
   });

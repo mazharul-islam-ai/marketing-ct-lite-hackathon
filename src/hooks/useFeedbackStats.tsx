@@ -17,7 +17,7 @@ export function useFeedbackStats() {
   return useQuery({
     queryKey: ["feedback-stats"],
     queryFn: async (): Promise<FeedbackStats> => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("feedback_reports")
         .select("id, type, status, priority, deleted_at")
         .is("deleted_at", null);

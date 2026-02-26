@@ -20,7 +20,7 @@ export function useImageEditHistory() {
 
     try {
       // Try to use the database function first
-      const { data: chainData, error: rpcError } = await supabase.rpc(
+      const { data: chainData, error: rpcError } = await (supabase as any).rpc(
         "get_image_version_chain",
         { p_image_id: imageId }
       );
@@ -39,7 +39,7 @@ export function useImageEditHistory() {
       while (currentId && !visited.has(currentId)) {
         visited.add(currentId);
 
-        const { data: imageData, error: fetchError } = await supabase
+        const { data: imageData, error: fetchError } = await (supabase as any)
           .from("ai_generated_images")
           .select("*")
           .eq("id", currentId)
@@ -73,7 +73,7 @@ export function useImageEditHistory() {
 
     try {
       // Try database function
-      const { data: childrenData, error: rpcError } = await supabase.rpc(
+      const { data: childrenData, error: rpcError } = await (supabase as any).rpc(
         "get_image_children",
         { p_image_id: imageId }
       );
@@ -83,7 +83,7 @@ export function useImageEditHistory() {
       }
 
       // Fallback: simple query for direct children
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await (supabase as any)
         .from("ai_generated_images")
         .select("*")
         .eq("parent_id", imageId)

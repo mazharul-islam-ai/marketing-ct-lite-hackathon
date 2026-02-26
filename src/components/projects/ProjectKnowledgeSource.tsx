@@ -54,7 +54,7 @@ export const ProjectKnowledgeSource = ({ source, projectId, onSync, onDelete }: 
 
   const loadFileCount = async () => {
     try {
-      const { count, error } = await supabase
+      const { count, error } = await (supabase as any)
         .from("project_knowledge_files")
         .select("*", { count: "exact", head: true })
         .eq("source_id", source.id);
@@ -83,7 +83,7 @@ export const ProjectKnowledgeSource = ({ source, projectId, onSync, onDelete }: 
   const loadFiles = async () => {
     setError(null);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("project_knowledge_files")
         .select("*")
         .eq("source_id", source.id)

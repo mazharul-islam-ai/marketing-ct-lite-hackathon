@@ -127,11 +127,8 @@ export const useTestimonials = () => {
     queryKey: ["testimonials"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("client_testimonials")
-        .select(`
-          *,
-          assigned_user:users!client_testimonials_assigned_to_fkey(id, first_name, last_name)
-        `)
+        .from("testimonials")
+        .select(`*`)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -167,7 +164,7 @@ export const useTestimonials = () => {
       }
 
       const { error } = await supabase
-        .from("client_testimonials")
+        .from("testimonials")
         .update(updateData)
         .eq("id", id);
 

@@ -31,7 +31,7 @@ export const GoogleAnalyticsConfig = ({ brandId, onConfigured }: GoogleAnalytics
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from("brand_analytics_integrations")
           .select("ga4_property_id, service_account_email, updated_at, integration_type")
           .eq("brand_id", brandId)

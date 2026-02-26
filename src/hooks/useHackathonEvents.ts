@@ -11,14 +11,14 @@ export const useCreateHackathonEvent = () => {
     mutationFn: async (
       data: Omit<HackathonEvent, "id" | "created_at" | "updated_at">
     ) => {
-      const { data: result, error } = await supabase
+      const { data: result, error } = await (supabase as any)
         .from("hackathon_events")
         .insert(data)
         .select()
         .single();
 
       if (error) throw error;
-      return result as HackathonEvent;
+      return (result as unknown) as HackathonEvent;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hackathon-events"] });
@@ -36,7 +36,7 @@ export const useUpdateHackathonEvent = () => {
 
   return useMutation({
     mutationFn: async (data: { id: string; updates: Partial<HackathonEvent> }) => {
-      const { data: result, error } = await supabase
+      const { data: result, error } = await (supabase as any)
         .from("hackathon_events")
         .update(data.updates)
         .eq("id", data.id)
@@ -44,7 +44,7 @@ export const useUpdateHackathonEvent = () => {
         .single();
 
       if (error) throw error;
-      return result as HackathonEvent;
+      return (result as unknown) as HackathonEvent;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hackathon-events"] });

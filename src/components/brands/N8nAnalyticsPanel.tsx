@@ -20,7 +20,7 @@ export const N8nAnalyticsPanel = ({ brandId }: { brandId: string }) => {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from("brand_analytics_integrations")
           .select("ga4_property_id, is_active")
           .eq("brand_id", brandId)

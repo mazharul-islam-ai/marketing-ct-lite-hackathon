@@ -15,7 +15,7 @@ export const useEmployees = () => {
         .order("first_name", { ascending: true });
 
       if (error) throw error;
-      return data as Employee[];
+      return (data as unknown) as Employee[];
     },
   });
 };

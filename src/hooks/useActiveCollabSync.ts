@@ -119,7 +119,7 @@ export const useActiveCollabSync = () => {
   const { data: syncProgress } = useQuery({
     queryKey: ['sync-progress'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('activecollab_sync_logs')
         .select('*')
         .eq('status', 'in_progress')

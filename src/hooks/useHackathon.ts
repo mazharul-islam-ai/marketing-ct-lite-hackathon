@@ -19,7 +19,7 @@ export const useHackathonEvents = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as HackathonEvent[];
+      return (data as unknown) as HackathonEvent[];
     },
   });
 };
@@ -38,7 +38,7 @@ export const useHackathonEvent = (eventId: string | undefined) => {
         .single();
 
       if (error) throw error;
-      return data as HackathonEvent;
+      return (data as unknown) as HackathonEvent;
     },
     enabled: !!eventId,
   });
@@ -62,7 +62,7 @@ export const useParticipant = (eventId: string | undefined) => {
         .single();
 
       if (error && error.code !== "PGRST116") throw error;
-      return data as HackathonParticipant | null;
+      return (data as unknown) as HackathonParticipant | null;
     },
     enabled: !!eventId,
   });
@@ -195,7 +195,7 @@ export const useRegisterParticipant = () => {
 
       if (!mapping) throw new Error("Employee mapping not found");
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("hackathon_participants")
         .update({
           status: "registered",
@@ -494,7 +494,7 @@ export const useSubmitProject = () => {
 
       if (!participant) throw new Error("Participant not found");
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("hackathon_submissions")
         .upsert({
           event_id: data.eventId,

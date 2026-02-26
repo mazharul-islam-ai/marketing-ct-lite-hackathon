@@ -183,7 +183,7 @@ export const useImageGeneration = () => {
    */
   const getVersionHistory = useCallback(async (imageId: string): Promise<GeneratedImage[]> => {
     try {
-      const { data, error } = await supabase.rpc("get_image_version_chain", {
+      const { data, error } = await (supabase as any).rpc("get_image_version_chain", {
         p_image_id: imageId,
       });
 
@@ -238,7 +238,6 @@ export const useImageGeneration = () => {
       const { data, error } = await supabase
         .from("ai_generated_images")
         .select("*")
-        .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -261,7 +260,7 @@ export const useImageGeneration = () => {
       if (!user) return { used: 0, limit: 50, hasUnlimited: false };
 
       // Get quota from user_quotas table
-      const { data: quotaData } = await supabase
+      const { data: quotaData } = await (supabase as any)
         .from("image_user_quotas")
         .select("current_daily_count, daily_limit, has_unlimited")
         .eq("user_id", user.id)
@@ -333,7 +332,7 @@ export const useImageGeneration = () => {
     try {
       const { error } = await supabase
         .from("ai_generated_images")
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq("id", imageId);
 
       if (error) throw error;

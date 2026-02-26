@@ -59,7 +59,7 @@ export function SafetyAppealQueue() {
   const fetchBlocks = useCallback(async () => {
     setIsLoading(true);
     try {
-      let query = supabase
+      let query = (supabase as any)
         .from("image_safety_blocks")
         .select(`
           *,
@@ -118,7 +118,7 @@ export function SafetyAppealQueue() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("image_safety_blocks")
         .update({
           admin_status: approved ? "approved" : "rejected",

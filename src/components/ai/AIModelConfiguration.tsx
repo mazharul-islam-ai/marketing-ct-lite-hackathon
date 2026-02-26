@@ -124,7 +124,7 @@ export function AIModelConfiguration() {
 
   const loadConfiguration = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('ai_configurations')
         .select('configuration_data')
         .eq('configuration_type', 'model_settings')

@@ -89,7 +89,7 @@ export const LeaderFormDialog = ({ open, onOpenChange, onSubmit, isSaving, leade
     queryKey: ["leader-user-id", leader?.id],
     queryFn: async () => {
       if (!leader?.id) return null;
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("thought_leaders")
         .select("user_id")
         .eq("id", leader.id)

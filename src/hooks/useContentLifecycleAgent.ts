@@ -247,11 +247,11 @@ export function useContentPipelineMetrics() {
     queryFn: async () => {
       // Fetch counts in parallel
       const [seoResult, trendsResult, keywordsResult] = await Promise.all([
-        supabase
+        (supabase as any)
           .from('seo_blog_content')
           .select('status', { count: 'exact', head: false })
           .limit(500),
-        supabase
+        (supabase as any)
           .from('weekly_trends')
           .select('status', { count: 'exact', head: false })
           .limit(500),

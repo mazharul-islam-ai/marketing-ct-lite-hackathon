@@ -37,7 +37,7 @@ export const useAnalytics = (weeksBack: number = 8) => {
       const endDate = endOfWeek(new Date());
 
       // Fetch project tasks data for effort tracking
-      const { data: tasksData, error: tasksError } = await supabase
+      const { data: tasksData, error: tasksError } = await (supabase as any)
         .from('project_tasks')
         .select(`
           actual_hours,

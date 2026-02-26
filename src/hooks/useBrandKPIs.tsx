@@ -43,7 +43,7 @@ export const useBrandKPIs = () => {
         .order('name');
 
       if (error) throw error;
-      setBrands(data || []);
+      setBrands((data || []) as any);
     } catch (err: any) {
       setError(err.message);
       toast({
@@ -56,7 +56,7 @@ export const useBrandKPIs = () => {
 
   const fetchKPIs = async (brandId?: string) => {
     try {
-      let query = supabase
+      let query = (supabase as any)
         .from('brand_kpis')
         .select('*')
         .order('display_order');
@@ -67,7 +67,7 @@ export const useBrandKPIs = () => {
 
       const { data, error } = await query;
       if (error) throw error;
-      setKpis(data || []);
+      setKpis((data || []) as any);
     } catch (err: any) {
       setError(err.message);
       toast({
@@ -80,7 +80,7 @@ export const useBrandKPIs = () => {
 
   const createKPI = async (kpiData: Omit<BrandKPI, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('brand_kpis')
         .insert(kpiData)
         .select()
@@ -88,10 +88,10 @@ export const useBrandKPIs = () => {
 
       if (error) throw error;
       
-      setKpis(prev => [...prev, data]);
+      setKpis(prev => [...prev, data] as any);
       toast({
         title: "KPI created successfully",
-        description: `${data.name} has been added to the brand.`
+        description: `${(data as any).name || data.kpi_name} has been added to the brand.`
       });
       
       return data;
@@ -108,7 +108,7 @@ export const useBrandKPIs = () => {
 
   const updateKPI = async (id: string, updates: Partial<BrandKPI>) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('brand_kpis')
         .update(updates)
         .eq('id', id)
@@ -117,10 +117,10 @@ export const useBrandKPIs = () => {
 
       if (error) throw error;
       
-      setKpis(prev => prev.map(kpi => kpi.id === id ? data : kpi));
+      setKpis(prev => prev.map(kpi => kpi.id === id ? data : kpi) as any);
       toast({
         title: "KPI updated successfully",
-        description: `${data.name} has been updated.`
+        description: `${(data as any).name || data.kpi_name} has been updated.`
       });
       
       return data;

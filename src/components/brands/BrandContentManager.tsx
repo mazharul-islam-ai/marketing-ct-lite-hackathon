@@ -36,7 +36,7 @@ export const BrandContentManager = ({ brandId, brandSlug }: BrandContentManagerP
   const { data: brandLeaders } = useQuery({
     queryKey: ['brand-leaders', brandId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('thought_leaders')
         .select('*')
         .eq('brand_id', brandId);
@@ -118,7 +118,7 @@ export const BrandContentManager = ({ brandId, brandSlug }: BrandContentManagerP
           <BrandLeadersList 
             brandId={brandId} 
             brandSlug={brandSlug}
-            leaders={brandLeaders || []} 
+            leaders={(brandLeaders || []) as any} 
           />
         </TabsContent>
 
@@ -127,7 +127,7 @@ export const BrandContentManager = ({ brandId, brandSlug }: BrandContentManagerP
             brandId={brandId}
             brandSlug={brandSlug}
             brandName={brand?.name || ''}
-            leaders={brandLeaders || []}
+            leaders={(brandLeaders || []) as any}
             indexedFilesCount={indexedFilesCount}
           />
         </TabsContent>

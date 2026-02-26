@@ -28,7 +28,7 @@ export const QuickIdeaCapture = ({ leaderId, variant = "dialog", onIdeaSaved }: 
       const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
       const weekStart = new Date(now.setDate(diff)).toISOString().split("T")[0];
 
-      const { error } = await supabase.from("weekly_trends").insert({
+      const { error } = await (supabase as any).from("weekly_trends").insert({
         leader_id: leaderId,
         topic_title: idea.substring(0, 100),
         topic_summary: idea,

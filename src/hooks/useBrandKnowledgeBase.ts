@@ -43,7 +43,7 @@ export const useBrandKnowledgeBase = (brandId?: string) => {
     queryFn: async () => {
       if (!brandId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('knowledge_files')
         .select('*, knowledge_sources(*)')
         .eq('brand_id', brandId)

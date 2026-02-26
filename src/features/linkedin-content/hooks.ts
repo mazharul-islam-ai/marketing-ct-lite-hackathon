@@ -54,7 +54,7 @@ export const useLinkedInLeader = (leaderSlugOrId?: string) => {
       }
       
       // Otherwise, fetch by slug and transform to LinkedInLeader
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('thought_leaders')
         .select('*')
         .eq('url_slug', leaderSlugOrId)

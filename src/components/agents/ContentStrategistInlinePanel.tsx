@@ -94,7 +94,7 @@ export function ContentStrategistInlinePanel({ brandId: propBrandId, brandName: 
     enabled: Boolean(brandId),
     queryFn: async () => {
       if (!brandId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("thought_leaders")
         .select("id, name")
         .eq("brand_id", brandId)
