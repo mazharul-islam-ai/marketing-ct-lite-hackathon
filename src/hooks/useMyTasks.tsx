@@ -160,9 +160,9 @@ export const useUserInfo = (userId?: string) => {
     queryFn: async () => {
       if (!userId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('users')
-        .select('id, first_name, last_name, email, title')
+        .select('id, first_name, last_name, email')
         .eq('id', userId)
         .single();
 

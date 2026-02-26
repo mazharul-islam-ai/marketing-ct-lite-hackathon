@@ -17,7 +17,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useRunAIAgent } from "@/hooks/useRunAIAgent";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+const supabase = _supabase as any;
 import type { Database } from "@/integrations/supabase/types";
 import Unauthorized from "@/pages/Unauthorized";
 import {
@@ -51,6 +52,8 @@ type BrandKPIRow = Database["public"]["Tables"]["brand_kpis"]["Row"] & {
   data?: unknown;
   value?: unknown;
   metrics?: unknown;
+  source?: string | null;
+  name?: string | null;
 };
 type AgentRunRow = Database["public"]["Tables"]["ai_agent_runs"]["Row"];
 
@@ -278,9 +281,9 @@ function BrandHeader({ brand, lastAuditAt }: { brand: BrandRecord; lastAuditAt?:
           <div>
             <CardTitle className="text-2xl font-semibold">{brand.name}</CardTitle>
             <CardDescription className="flex flex-wrap items-center gap-3">
-              {brand.website_url && (
+              {(brand as any).website_url && (
                 <a
-                  href={brand.website_url.startsWith("http") ? brand.website_url : `https://${brand.website_url}`}
+                  href={(brand as any).website_url.startsWith("http") ? (brand as any).website_url : `https://${(brand as any).website_url}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

@@ -1,6 +1,7 @@
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+const supabase = _supabase as any;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -101,7 +102,7 @@ export default function TaskDetailPage() {
         .single();
 
       if (error) throw error;
-      return data as ProjectTask & { 
+      return data as unknown as ProjectTask & { 
         brands: { id: string; name: string; slug: string } | null;
         projects: { id: string; name: string } | null;
         clients: { id: string; name: string; company: string | null } | null;

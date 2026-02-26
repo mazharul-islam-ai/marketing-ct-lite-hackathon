@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { useActiveCollabSync } from '@/hooks/useActiveCollabSync';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase as _supabase } from '@/integrations/supabase/client';
+const supabase = _supabase as any;
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -297,8 +298,8 @@ export default function ActiveCollabSyncDashboard() {
 
   const stats = {
     totalProjects: projects?.length || 0,
-    lastSyncTime: lastSync?.created_at
-      ? formatDistanceToNow(new Date(lastSync.created_at), { addSuffix: true })
+    lastSyncTime: (lastSync as any)?.created_at
+      ? formatDistanceToNow(new Date((lastSync as any).created_at), { addSuffix: true })
       : 'Never',
     totalSyncs: syncLogs?.length || 0,
     successRate: syncLogs
@@ -878,13 +879,13 @@ export default function ActiveCollabSyncDashboard() {
                 {syncLogs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell>
-                      {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
+                      {formatDistanceToNow(new Date((log as any).created_at || (log as any).started_at), { addSuffix: true })}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{log.sync_type}</Badge>
                     </TableCell>
-                    <TableCell>{log.entity_type}</TableCell>
-                    <TableCell>{log.entity_count}</TableCell>
+                    <TableCell>{(log as any).entity_type || log.sync_type}</TableCell>
+                    <TableCell>{(log as any).entity_count || log.records_synced}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {log.status === 'success' || log.status === 'partial_success' ? (

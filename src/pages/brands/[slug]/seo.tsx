@@ -17,7 +17,8 @@ import {
   BreadcrumbSeparator, 
   BreadcrumbPage 
 } from "@/components/ui/breadcrumb";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+const supabase = _supabase as any;
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useRunAIAgent } from "@/hooks/useRunAIAgent";

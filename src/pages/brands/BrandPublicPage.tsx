@@ -13,7 +13,8 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as _supabase } from "@/integrations/supabase/client";
+const supabase = _supabase as any;
 import { useAuth } from "@/hooks/useAuth";
 import { BrandKPICard } from "@/components/brands/BrandKPICard";
 import { BrandMetricsPanel } from "@/components/brands/BrandMetricsPanel";
