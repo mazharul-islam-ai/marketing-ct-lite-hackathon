@@ -41,7 +41,7 @@ const ProjectManagement = () => {
   const canDeleteProjects = user && ['super_admin', 'manager'].includes(user.role);
 
   // Filter to show projects imported from ActiveCollab or Control Tower
-  const activeCollabProjects = projects.filter(p => p.activecollab_project_id || p.control_tower_project_id);
+  const activeCollabProjects = projects.filter(p => (p as any).activecollab_id || p.activecollab_project_id || p.control_tower_project_id);
 
   // Calculate pagination for filtered results
   const totalProjects = activeCollabProjects.length;
