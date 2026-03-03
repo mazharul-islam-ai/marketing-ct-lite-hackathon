@@ -329,7 +329,7 @@ export default function BrandPerformanceOptimizationPage() {
   }
 
   // Always allow rendering - show loading states in UI if needed
-  if (agentLoading) {
+  if (agentLoading || (slug && brandLoading)) {
     return (
       <div className="container max-w-4xl mx-auto py-8 space-y-6">
         <Skeleton className="h-10 w-64" />
@@ -389,7 +389,7 @@ export default function BrandPerformanceOptimizationPage() {
   return (
     <div className="container max-w-4xl mx-auto py-8 space-y-6">
       {/* Breadcrumb - only show if coming from brand page */}
-      {slug && (
+      {slug && brand && (
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
