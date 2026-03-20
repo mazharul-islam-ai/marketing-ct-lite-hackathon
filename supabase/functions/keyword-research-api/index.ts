@@ -101,10 +101,10 @@ async function suggestKeywords(supabase: any, userId: string, params: any) {
     });
   }
 
-  // Call Perplexity API for suggestions
-  const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
-  if (!PERPLEXITY_API_KEY) {
-    return new Response(JSON.stringify({ error: 'PERPLEXITY_API_KEY not configured' }), {
+  // Call Lovable AI Gateway for suggestions
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  if (!LOVABLE_API_KEY) {
+    return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY not configured' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -119,14 +119,14 @@ For each keyword, estimate:
 
 Return ONLY a JSON array of objects with: keyword, search_volume, competition, relevance_score. No markdown, no explanations.`;
 
-  const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+  const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'llama-3.1-sonar-small-128k-online',
+      model: 'google/gemini-3-flash-preview',
       messages: [
         { role: 'system', content: 'You are an SEO keyword research expert. Respond only with valid JSON.' },
         { role: 'user', content: prompt }
@@ -134,27 +134,38 @@ Return ONLY a JSON array of objects with: keyword, search_volume, competition, r
     }),
   });
 
-  if (!perplexityResponse.ok) {
-    const errorText = await perplexityResponse.text();
-    console.error('Perplexity API error:', errorText);
-    return new Response(JSON.stringify({ error: 'Failed to get suggestions from Perplexity' }), {
+  if (!aiResponse.ok) {
+    if (aiResponse.status === 429) {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (aiResponse.status === 402) {
+      return new Response(JSON.stringify({ error: 'AI credits exhausted. Please add funds to your workspace.' }), {
+        status: 402,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const errorText = await aiResponse.text();
+    console.error('Lovable AI Gateway error:', aiResponse.status, errorText);
+    return new Response(JSON.stringify({ error: 'Failed to get suggestions from AI' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  const perplexityData = await perplexityResponse.json();
-  const content = perplexityData.choices[0].message.content;
+  const aiData = await aiResponse.json();
+  const content = aiData.choices[0].message.content;
   
   // Parse JSON from response
   let suggestions: SuggestionResult[] = [];
   try {
-    // Try to extract JSON from markdown code blocks if present
     const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || content.match(/\[[\s\S]*\]/);
     const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content;
     suggestions = JSON.parse(jsonStr);
   } catch (e) {
-    console.error('Failed to parse Perplexity response:', content);
+    console.error('Failed to parse AI response:', content);
     return new Response(JSON.stringify({ error: 'Invalid response format from AI' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -169,7 +180,7 @@ Return ONLY a JSON array of objects with: keyword, search_volume, competition, r
       user_id: userId,
       seed_keyword,
       suggestions,
-      model_used: 'perplexity',
+      model_used: 'google/gemini-3-flash-preview',
       prompt_used: prompt,
     });
 

@@ -141,27 +141,8 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
         </Card>
       )}
 
-      {/* AI Model Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Model</CardTitle>
-          <CardDescription>Choose which AI model to use for keyword suggestions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedModel} onValueChange={setSelectedModel}>
-            <SelectTrigger className="w-full md:w-[300px]">
-              <SelectValue placeholder="Select model..." />
-            </SelectTrigger>
-            <SelectContent>
-              {MODEL_OPTIONS.map((model) => (
-                <SelectItem key={model.value} value={model.value}>
-                  {model.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
+
+
 
       {/* Brand Selection & Keyword Suggestions */}
       <Card>
