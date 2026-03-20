@@ -787,6 +787,8 @@ export type Database = {
       }
       brands: {
         Row: {
+          active_integrations: string[] | null
+          co_owner_id: string | null
           created_at: string | null
           created_by: string | null
           description: string | null
@@ -794,13 +796,21 @@ export type Database = {
           industry: string | null
           is_active: boolean | null
           logo_url: string | null
+          monthly_budget: number | null
           name: string
           organization_id: string | null
+          owner_id: string | null
           slug: string
+          status: string
+          team_members: string[] | null
+          type: string | null
           updated_at: string | null
           website: string | null
+          website_url: string | null
         }
         Insert: {
+          active_integrations?: string[] | null
+          co_owner_id?: string | null
           created_at?: string | null
           created_by?: string | null
           description?: string | null
@@ -808,13 +818,21 @@ export type Database = {
           industry?: string | null
           is_active?: boolean | null
           logo_url?: string | null
+          monthly_budget?: number | null
           name: string
           organization_id?: string | null
+          owner_id?: string | null
           slug: string
+          status?: string
+          team_members?: string[] | null
+          type?: string | null
           updated_at?: string | null
           website?: string | null
+          website_url?: string | null
         }
         Update: {
+          active_integrations?: string[] | null
+          co_owner_id?: string | null
           created_at?: string | null
           created_by?: string | null
           description?: string | null
@@ -822,13 +840,26 @@ export type Database = {
           industry?: string | null
           is_active?: boolean | null
           logo_url?: string | null
+          monthly_budget?: number | null
           name?: string
           organization_id?: string | null
+          owner_id?: string | null
           slug?: string
+          status?: string
+          team_members?: string[] | null
+          type?: string | null
           updated_at?: string | null
           website?: string | null
+          website_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "brands_co_owner_id_fkey"
+            columns: ["co_owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "brands_created_by_fkey"
             columns: ["created_by"]
@@ -841,6 +872,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brands_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
