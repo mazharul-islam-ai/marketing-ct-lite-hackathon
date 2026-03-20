@@ -2180,6 +2180,38 @@ export type Database = {
         }
         Relationships: []
       }
+      keyword_blog_usage: {
+        Row: {
+          blog_id: string | null
+          created_at: string | null
+          id: string
+          keyword_id: string | null
+          keyword_type: string | null
+        }
+        Insert: {
+          blog_id?: string | null
+          created_at?: string | null
+          id?: string
+          keyword_id?: string | null
+          keyword_type?: string | null
+        }
+        Update: {
+          blog_id?: string | null
+          created_at?: string | null
+          id?: string
+          keyword_id?: string | null
+          keyword_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_blog_usage_keyword_id_fkey"
+            columns: ["keyword_id"]
+            isOneToOne: false
+            referencedRelation: "keyword_research"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       keyword_ranking_history: {
         Row: {
           id: string
@@ -2214,33 +2246,86 @@ export type Database = {
       }
       keyword_research: {
         Row: {
+          brand_id: string | null
+          competition: string | null
           cpc: number | null
           created_at: string | null
+          current_rank: number | null
           difficulty: number | null
+          difficulty_score: number | null
           id: string
           keyword: string
+          keyword_normalized: string | null
+          last_checked_at: string | null
+          last_used_in_blog: string | null
+          notes: string | null
+          priority: string | null
           search_volume: number | null
+          status: string | null
+          tags: string[] | null
+          target_rank: number | null
           trends: Json | null
+          updated_at: string | null
+          used_in_blog_count: number | null
+          user_id: string
         }
         Insert: {
+          brand_id?: string | null
+          competition?: string | null
           cpc?: number | null
           created_at?: string | null
+          current_rank?: number | null
           difficulty?: number | null
+          difficulty_score?: number | null
           id?: string
           keyword: string
+          keyword_normalized?: string | null
+          last_checked_at?: string | null
+          last_used_in_blog?: string | null
+          notes?: string | null
+          priority?: string | null
           search_volume?: number | null
+          status?: string | null
+          tags?: string[] | null
+          target_rank?: number | null
           trends?: Json | null
+          updated_at?: string | null
+          used_in_blog_count?: number | null
+          user_id?: string
         }
         Update: {
+          brand_id?: string | null
+          competition?: string | null
           cpc?: number | null
           created_at?: string | null
+          current_rank?: number | null
           difficulty?: number | null
+          difficulty_score?: number | null
           id?: string
           keyword?: string
+          keyword_normalized?: string | null
+          last_checked_at?: string | null
+          last_used_in_blog?: string | null
+          notes?: string | null
+          priority?: string | null
           search_volume?: number | null
+          status?: string | null
+          tags?: string[] | null
+          target_rank?: number | null
           trends?: Json | null
+          updated_at?: string | null
+          used_in_blog_count?: number | null
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "keyword_research_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       keyword_suggestions: {
         Row: {
@@ -2249,8 +2334,13 @@ export type Database = {
           expires_at: string | null
           id: string
           keyword: string
+          model_used: string | null
+          prompt_used: string | null
           relevance_score: number | null
+          seed_keyword: string | null
           source: string | null
+          suggestions: Json | null
+          user_id: string | null
         }
         Insert: {
           brand_id?: string | null
@@ -2258,8 +2348,13 @@ export type Database = {
           expires_at?: string | null
           id?: string
           keyword: string
+          model_used?: string | null
+          prompt_used?: string | null
           relevance_score?: number | null
+          seed_keyword?: string | null
           source?: string | null
+          suggestions?: Json | null
+          user_id?: string | null
         }
         Update: {
           brand_id?: string | null
@@ -2267,8 +2362,13 @@ export type Database = {
           expires_at?: string | null
           id?: string
           keyword?: string
+          model_used?: string | null
+          prompt_used?: string | null
           relevance_score?: number | null
+          seed_keyword?: string | null
           source?: string | null
+          suggestions?: Json | null
+          user_id?: string | null
         }
         Relationships: []
       }
