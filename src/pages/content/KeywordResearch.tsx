@@ -57,7 +57,6 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
       const results = await suggestMutation.mutateAsync({
         brandId: selectedBrandId,
         seedKeyword,
-        model: selectedModel,
       });
       setSuggestions(results);
       setShowSuggestionsDialog(true);
