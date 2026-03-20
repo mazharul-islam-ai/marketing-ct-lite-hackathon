@@ -27,16 +27,6 @@ import { Loader2, Sparkles, FileText, AlertCircle, CheckCircle2, Info } from 'lu
 import Unauthorized from '@/pages/Unauthorized'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
-const MODEL_OPTIONS = [
-  { value: 'gpt-4o', label: 'GPT-4o', provider: 'openai' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai' },
-  { value: 'gpt-4.1-2025-04-14', label: 'GPT-4.1', provider: 'openai' },
-  { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'claude' },
-  { value: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', provider: 'claude' },
-  { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', provider: 'claude' },
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini' },
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini' },
-];
 
 interface SEOBlogGeneratorProps {
   brandId?: string
@@ -69,7 +59,6 @@ export default function SEOBlogGenerator({ brandId, brandName }: SEOBlogGenerato
 
   // Form state - use agent config defaults
   const [selectedBrandId, setSelectedBrandId] = useState(brandId || '')
-  const [selectedModel, setSelectedModel] = useState('gpt-4o-mini')
   const [primaryKeyword, setPrimaryKeyword] = useState('')
   const [primaryReference, setPrimaryReference] = useState('')
   const [secondaryKeyword, setSecondaryKeyword] = useState('')
@@ -143,7 +132,6 @@ export default function SEOBlogGenerator({ brandId, brandName }: SEOBlogGenerato
         additional_notes: additionalNotes,
         tone,
         audience,
-        model: selectedModel,
       })
 
       toast({
@@ -244,28 +232,6 @@ export default function SEOBlogGenerator({ brandId, brandName }: SEOBlogGenerato
           </CardContent>
         </Card>
       )}
-
-      {/* AI Model Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Model</CardTitle>
-          <CardDescription>Choose which AI model to use for blog generation</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedModel} onValueChange={setSelectedModel}>
-            <SelectTrigger className="w-full md:w-[300px]">
-              <SelectValue placeholder="Select model..." />
-            </SelectTrigger>
-            <SelectContent>
-              {MODEL_OPTIONS.map((model) => (
-                <SelectItem key={model.value} value={model.value}>
-                  {model.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
 
       {/* Keyword & Reference */}
       <Card>

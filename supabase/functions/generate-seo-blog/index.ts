@@ -5,7 +5,6 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { createOpenAIClient } from '../_shared/openai-client.ts'
 import { BlogValidator, ValidationResult } from '../_shared/blog-validator.ts'
 import { ReferenceSummarizer, getOrCreateSummary } from '../_shared/reference-summarizer.ts'
 import {
@@ -86,7 +85,7 @@ serve(async (req) => {
     console.log('Fetching SEO Blog Generator agent configuration...')
     const { data: agentConfig, error: agentError } = await supabaseClient
       .from('ai_agents')
-      .select('system_prompt, data_sources')
+      .select('system_prompt')
       .eq('slug', 'seo-blog-generator')
       .single()
 
@@ -94,21 +93,49 @@ serve(async (req) => {
       console.warn('Could not fetch agent config, using defaults:', agentError)
     }
 
-    // Extract configuration with fallbacks
-    const aiModel = (agentConfig?.data_sources as any)?.ai_model || 'gpt-4o'
     const systemPrompt = agentConfig?.system_prompt || SYSTEM_PROMPT
 
-    console.log('Using AI model:', aiModel)
+    // Initialize Lovable API client (OpenAI-compatible gateway)
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY not configured')
+    }
 
-    // Initialize OpenAI with configured model
-    const openai = createOpenAIClient({
-      model: aiModel,
-      temperature: 0.3,
-      maxTokens: 4000, // Increased to ensure sufficient space for 600-700 word content
-    })
+    const lovableClient = {
+      async chat(messages: Array<{ role: string; content: string }>) {
+        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages,
+            temperature: 0.3,
+            max_tokens: 4000,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Lovable AI error: ${response.status} - ${errorText}`)
+        }
+
+        const data = await response.json()
+        return {
+          content: data.choices[0].message.content,
+          usage: data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+          cost_usd: 0,
+          model: 'gpt-4o-mini',
+        }
+      },
+    }
+
+    console.log('Using Lovable AI gateway with gpt-4o-mini')
 
     // Initialize summarizer
-    const summarizer = new ReferenceSummarizer(openai)
+    const summarizer = new ReferenceSummarizer(lovableClient as any)
 
     // Step 1: Create blog record
     console.log('Creating blog record...')
@@ -196,7 +223,7 @@ serve(async (req) => {
     let totalCost = 0
 
     const initialResult = await generateAndValidate(
-      openai,
+      lovableClient as any,
       generationInput,
       systemPrompt,
       buildUserPrompt(generationInput),
@@ -228,7 +255,7 @@ serve(async (req) => {
       currentAttempt++
 
       const repairResult = await generateAndValidate(
-        openai,
+        lovableClient as any,
         generationInput,
         REPAIR_SYSTEM_PROMPT,
         buildRepairPrompt(blog.title, blog.paragraphs, validation.errors, generationInput),
@@ -445,15 +472,15 @@ async function generateAndValidate(
   tokens: number
   cost: number
 }> {
-  console.log(`Attempt ${attemptNumber} (${attemptType}): Calling OpenAI...`)
+  console.log(`Attempt ${attemptNumber} (${attemptType}): Calling Lovable AI...`)
 
-  // Call OpenAI
+  // Call Lovable AI gateway
   const response = await openai.chat([
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ])
 
-  console.log('OpenAI response received. Parsing...')
+  console.log('Lovable AI response received. Parsing...')
 
   // Parse response
   let blog: BlogOutput
