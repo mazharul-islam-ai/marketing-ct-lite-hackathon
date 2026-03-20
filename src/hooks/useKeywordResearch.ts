@@ -47,7 +47,6 @@ export function useKeywordSuggestions() {
           brand_id: brandId,
           seed_keyword: seedKeyword,
           count,
-          model,
         },
       });
 
