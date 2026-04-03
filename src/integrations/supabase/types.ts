@@ -3604,8 +3604,6 @@ export type Database = {
           primary_keyword: string | null
           primary_reference: string | null
           published_at: string | null
-          secondary_keyword: string | null
-          third_keyword: string | null
           title: string
           tone: string | null
         }
@@ -3623,8 +3621,6 @@ export type Database = {
           primary_keyword?: string | null
           primary_reference?: string | null
           published_at?: string | null
-          secondary_keyword?: string | null
-          third_keyword?: string | null
           title: string
           tone?: string | null
         }
@@ -3642,8 +3638,6 @@ export type Database = {
           primary_keyword?: string | null
           primary_reference?: string | null
           published_at?: string | null
-          secondary_keyword?: string | null
-          third_keyword?: string | null
           title?: string
           tone?: string | null
         }
