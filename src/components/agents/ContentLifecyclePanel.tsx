@@ -97,8 +97,8 @@ export function ContentLifecyclePanel({ brandId, brandName }: ContentLifecyclePa
         brand_name: blog.brand_name,
         primary_keyword: blog.primary_keyword,
         primary_reference: blog.primary_reference || '',
-        secondary_keyword: blog.secondary_keyword || '',
-        third_keyword: blog.third_keyword || '',
+        secondary_keyword: (blog as any).secondary_keyword || '',
+        third_keyword: (blog as any).third_keyword || '',
         tone: blog.tone || 'informative',
         audience: blog.audience || 'general business audience',
       });
