@@ -3596,16 +3596,31 @@ export type Database = {
           author_id: string | null
           brand_id: string | null
           brand_name: string | null
+          completion_tokens: number | null
           content: Json | null
+          cost_usd: number | null
           created_at: string | null
+          generation_attempts: number | null
+          generation_time_ms: number | null
           id: string
+          is_valid: boolean | null
           keywords: string[] | null
           meta_description: string | null
+          paragraphs: Json | null
           primary_keyword: string | null
           primary_reference: string | null
+          primary_reference_summary: string | null
+          prompt_tokens: number | null
           published_at: string | null
-          title: string
+          status: string | null
+          title: string | null
           tone: string | null
+          total_tokens_used: number | null
+          updated_at: string | null
+          user_id: string | null
+          validation_errors: string[] | null
+          validation_result: Json | null
+          validation_warnings: string[] | null
         }
         Insert: {
           additional_notes?: string | null
@@ -3613,16 +3628,31 @@ export type Database = {
           author_id?: string | null
           brand_id?: string | null
           brand_name?: string | null
+          completion_tokens?: number | null
           content?: Json | null
+          cost_usd?: number | null
           created_at?: string | null
+          generation_attempts?: number | null
+          generation_time_ms?: number | null
           id?: string
+          is_valid?: boolean | null
           keywords?: string[] | null
           meta_description?: string | null
+          paragraphs?: Json | null
           primary_keyword?: string | null
           primary_reference?: string | null
+          primary_reference_summary?: string | null
+          prompt_tokens?: number | null
           published_at?: string | null
-          title: string
+          status?: string | null
+          title?: string | null
           tone?: string | null
+          total_tokens_used?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          validation_errors?: string[] | null
+          validation_result?: Json | null
+          validation_warnings?: string[] | null
         }
         Update: {
           additional_notes?: string | null
@@ -3630,16 +3660,31 @@ export type Database = {
           author_id?: string | null
           brand_id?: string | null
           brand_name?: string | null
+          completion_tokens?: number | null
           content?: Json | null
+          cost_usd?: number | null
           created_at?: string | null
+          generation_attempts?: number | null
+          generation_time_ms?: number | null
           id?: string
+          is_valid?: boolean | null
           keywords?: string[] | null
           meta_description?: string | null
+          paragraphs?: Json | null
           primary_keyword?: string | null
           primary_reference?: string | null
+          primary_reference_summary?: string | null
+          prompt_tokens?: number | null
           published_at?: string | null
-          title?: string
+          status?: string | null
+          title?: string | null
           tone?: string | null
+          total_tokens_used?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          validation_errors?: string[] | null
+          validation_result?: Json | null
+          validation_warnings?: string[] | null
         }
         Relationships: [
           {
