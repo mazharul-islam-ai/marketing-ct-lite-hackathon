@@ -3591,6 +3591,7 @@ export type Database = {
       }
       seo_blog_content: {
         Row: {
+          additional_notes: string | null
           audience: string | null
           author_id: string | null
           brand_id: string | null
@@ -3609,6 +3610,7 @@ export type Database = {
           tone: string | null
         }
         Insert: {
+          additional_notes?: string | null
           audience?: string | null
           author_id?: string | null
           brand_id?: string | null
@@ -3627,6 +3629,7 @@ export type Database = {
           tone?: string | null
         }
         Update: {
+          additional_notes?: string | null
           audience?: string | null
           author_id?: string | null
           brand_id?: string | null
