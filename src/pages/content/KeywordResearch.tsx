@@ -121,7 +121,9 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
           <div className="flex items-center gap-3">
             <Search className="h-8 w-8 text-primary" />
             <div>
-              <CardTitle className="text-3xl">Keyword Research</CardTitle>
+              <CardTitle className="text-3xl">
+                Keyword Research{brandName ? `: ${brandName}` : ''}
+              </CardTitle>
               <CardDescription>
                 Find, track, and optimize keywords for your SEO strategy
               </CardDescription>
@@ -129,17 +131,6 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
           </div>
         </CardHeader>
       </Card>
-
-      {/* Show selected brand name when in brand context */}
-      {brandId && brandName && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-muted-foreground">
-              Researching keywords for: <strong className="text-foreground">{brandName}</strong>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
 
 
