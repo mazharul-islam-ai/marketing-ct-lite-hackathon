@@ -107,7 +107,6 @@ serve(async (req) => {
           body: JSON.stringify({
             model: "openai/gpt-5-mini",
             messages,
-            temperature: 0.3,
             max_completion_tokens: 4000,
           }),
         });
