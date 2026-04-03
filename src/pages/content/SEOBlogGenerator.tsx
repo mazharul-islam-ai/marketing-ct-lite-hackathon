@@ -61,8 +61,6 @@ export default function SEOBlogGenerator({ brandId, brandName }: SEOBlogGenerato
   const [selectedBrandId, setSelectedBrandId] = useState(brandId || '')
   const [primaryKeyword, setPrimaryKeyword] = useState('')
   const [primaryReference, setPrimaryReference] = useState('')
-  const [secondaryKeyword, setSecondaryKeyword] = useState('')
-  const [thirdKeyword, setThirdKeyword] = useState('')
   const [additionalNotes, setAdditionalNotes] = useState('')
   const [tone, setTone] = useState(agentConfig?.default_tone || 'informative')
   const [audience, setAudience] = useState(agentConfig?.default_audience || '')
@@ -127,8 +125,6 @@ export default function SEOBlogGenerator({ brandId, brandName }: SEOBlogGenerato
         brand_name: selectedBrand.name,
         primary_keyword: primaryKeyword,
         primary_reference: primaryReference,
-        secondary_keyword: secondaryKeyword,
-        third_keyword: thirdKeyword,
         additional_notes: additionalNotes,
         tone,
         audience,
@@ -273,38 +269,7 @@ export default function SEOBlogGenerator({ brandId, brandName }: SEOBlogGenerato
             </div>
           </div>
 
-          {/* Additional Keywords - OPTIONAL */}
-          <div className="space-y-3 p-4 border border-dashed rounded-lg bg-muted/30">
-            <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
-              <Info className="h-4 w-4" />
-              Additional Keywords (optional)
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Provide up to 2 additional keyword phrases for context. These will guide the AI but don't require strict placement.
-            </p>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="secondary-keyword">Additional Keyword 1</Label>
-                <Input
-                  id="secondary-keyword"
-                  placeholder="e.g., digital transformation"
-                  value={secondaryKeyword}
-                  onChange={(e) => setSecondaryKeyword(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="third-keyword">Additional Keyword 2</Label>
-                <Input
-                  id="third-keyword"
-                  placeholder="e.g., business automation"
-                  value={thirdKeyword}
-                  onChange={(e) => setThirdKeyword(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Notes/Requirements - NEW */}
+          {/* Additional Notes/Requirements */}
           <div className="space-y-3 p-4 border border-dashed rounded-lg bg-muted/30">
             <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
               <Info className="h-4 w-4" />

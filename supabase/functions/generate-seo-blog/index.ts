@@ -187,8 +187,6 @@ serve(async (req) => {
     const generationInput: BlogGenerationInput = {
       primary_keyword: body.primary_keyword,
       primary_reference_summary: primarySummary.summary,
-      secondary_keyword: body.secondary_keyword,
-      third_keyword: body.third_keyword,
       additional_notes: body.additional_notes,
       brand_name: body.brand_name,
       tone: body.tone || "informative",
