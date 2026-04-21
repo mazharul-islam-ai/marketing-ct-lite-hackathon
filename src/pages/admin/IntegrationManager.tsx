@@ -29,7 +29,10 @@ import {
   Info,
   Download,
   Calendar,
+  ChevronDown,
 } from "lucide-react";
+import { ProviderCard } from "@/components/integrations/ProviderCard";
+import { INTEGRATION_CATEGORIES } from "@/lib/integration-utils";
 import {
   Dialog,
   DialogContent,
@@ -66,7 +69,7 @@ interface GlobalIntegration {
   type: string;
   description: string;
   icon: string;
-  category: "ai" | "communication" | "analytics";
+  category: string;
   is_available: boolean;
   is_enabled: boolean;
   setup_complexity: "easy" | "medium" | "complex";
@@ -180,6 +183,9 @@ const IntegrationManager = () => {
   const [serviceAccountFile, setServiceAccountFile] = useState<File | null>(null);
   const [isSavingServiceAccount, setIsSavingServiceAccount] = useState(false);
   const [oauthCredsFile, setOauthCredsFile] = useState<File | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set(["ai", "meetings", "storage", "crm", "email", "analytics", "project-management"]),
+  );
 
   // Load integrations on mount
   useEffect(() => {
@@ -221,11 +227,159 @@ const IntegrationManager = () => {
         type: "google_drive",
         description: "Connect Google Drive for document ingestion and knowledge management.",
         icon: "📁",
-        category: "ai",
+        category: "storage",
         is_available: true,
         is_enabled: false,
         setup_complexity: "medium",
         required_fields: ["clientId", "clientSecret", "refreshToken", "folderId (optional)"],
+      },
+      {
+        id: "gohighlevel",
+        name: "GoHighLevel",
+        type: "gohighlevel",
+        description: "CRM and marketing automation platform for agencies",
+        icon: "🎯",
+        category: "crm",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "medium",
+        required_fields: ["api_key", "location_id"],
+      },
+      {
+        id: "hubspot",
+        name: "HubSpot",
+        type: "hubspot",
+        description: "CRM, marketing, sales and service platform",
+        icon: "🧡",
+        category: "crm",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "medium",
+        required_fields: ["api_key"],
+      },
+      {
+        id: "activecollab",
+        name: "ActiveCollab",
+        type: "activecollab",
+        description: "Project management and collaboration tool for teams",
+        icon: "📋",
+        category: "project-management",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "easy",
+        required_fields: ["api_key", "base_url"],
+      },
+      // Meeting & Collaboration
+      {
+        id: "microsoft-teams",
+        name: "Microsoft Teams",
+        type: "microsoft_teams",
+        description: "Meeting transcripts auto-indexed to knowledge base; agents pull meeting context for content generation.",
+        icon: "💬",
+        category: "meetings",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "complex",
+        required_fields: ["client_id", "client_secret", "tenant_id"],
+      },
+      {
+        id: "google-meet",
+        name: "Google Meet",
+        type: "google_meet",
+        description: "Google Workspace Meet transcripts for scheduling context and meeting intelligence.",
+        icon: "🎥",
+        category: "meetings",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "complex",
+        required_fields: ["client_id", "client_secret"],
+      },
+      // CRM additions
+      {
+        id: "salesforce",
+        name: "Salesforce",
+        type: "salesforce",
+        description: "Enterprise CRM — pull client data for personalized content and campaign targeting.",
+        icon: "☁️",
+        category: "crm",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "complex",
+        required_fields: ["client_id", "client_secret", "instance_url"],
+      },
+      {
+        id: "pipedrive",
+        name: "Pipedrive",
+        type: "pipedrive",
+        description: "Sales pipeline context for marketing content alignment and deal tracking.",
+        icon: "🔵",
+        category: "crm",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "easy",
+        required_fields: ["api_key"],
+      },
+      // Project Management additions
+      {
+        id: "jira",
+        name: "Jira",
+        type: "jira",
+        description: "Task and project context for agents — sync issues, epics, and sprints into the knowledge base.",
+        icon: "🎫",
+        category: "project-management",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "medium",
+        required_fields: ["api_token", "domain", "email"],
+      },
+      {
+        id: "clickup",
+        name: "ClickUp",
+        type: "clickup",
+        description: "Project and task management for teams that use ClickUp as their primary PM tool.",
+        icon: "✅",
+        category: "project-management",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "easy",
+        required_fields: ["api_key"],
+      },
+      {
+        id: "asana",
+        name: "Asana",
+        type: "asana",
+        description: "Task and project tracking — agents pull project context for content scheduling.",
+        icon: "🌀",
+        category: "project-management",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "easy",
+        required_fields: ["personal_access_token"],
+      },
+      // Email Delivery
+      {
+        id: "sendgrid",
+        name: "SendGrid",
+        type: "sendgrid",
+        description: "Transactional email for AI-generated reports, weekly summaries, and client emails at scale.",
+        icon: "📨",
+        category: "email",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "easy",
+        required_fields: ["api_key"],
+      },
+      {
+        id: "resend",
+        name: "Resend",
+        type: "resend",
+        description: "Developer-first transactional email API for reliable delivery of agent-generated content.",
+        icon: "📬",
+        category: "email",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "easy",
+        required_fields: ["api_key"],
       },
     ];
 
@@ -321,6 +475,18 @@ const IntegrationManager = () => {
           config: { location_id: ghlConfig.locationId || "" },
           status: "connected",
         };
+        const ghlGlobalIdx = globalIntegrationsData.findIndex((i) => i.id === "gohighlevel");
+        if (ghlGlobalIdx >= 0) {
+          globalIntegrationsData[ghlGlobalIdx].is_enabled = ghlConfig.enabled ?? false;
+          globalIntegrationsData[ghlGlobalIdx].status = {
+            id: "gohighlevel",
+            configured: true,
+            connected: ghlConfig.enabled ?? false,
+            enabled: ghlConfig.enabled ?? false,
+            lastChecked: new Date().toISOString(),
+            config: null,
+          };
+        }
       }
     } catch (error) {
       console.error("Failed to load GoHighLevel config", error);
@@ -443,6 +609,15 @@ const IntegrationManager = () => {
         integration.id === id ? { ...integration, is_enabled: !integration.is_enabled } : integration,
       ),
     );
+  };
+
+  const toggleCategory = (slug: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
   };
 
   const toggleBrandIntegration = async (integrationId: string, brandId: string, nextState: boolean) => {
@@ -955,6 +1130,83 @@ const IntegrationManager = () => {
       }
       return;
     }
+
+    if (integration.id === "hubspot") {
+      if (!configData.apiKey) {
+        toast({
+          title: "Missing API Key",
+          description: "Please enter an API key before testing the connection.",
+          variant: "destructive",
+        });
+        return;
+      }
+      try {
+        const { data, error } = await supabase.functions.invoke("hubspot-sync", {
+          body: { action: "test", apiKey: configData.apiKey },
+        });
+        if (error || !data?.ok) throw error || new Error(data?.error || "Test failed");
+        toast({ title: "Connection Successful", description: "Successfully connected to HubSpot." });
+      } catch (err: any) {
+        toast({
+          title: "Connection Failed",
+          description: err.message || "Failed to connect to HubSpot. Please check your API key.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    if (integration.id === "activecollab") {
+      if (!configData.apiKey || !configData.baseUrl) {
+        toast({
+          title: "Missing Configuration",
+          description: "Please enter API key and Base URL before testing.",
+          variant: "destructive",
+        });
+        return;
+      }
+      try {
+        const { data, error } = await supabase.functions.invoke("activecollab-projects", {
+          body: { action: "test", apiKey: configData.apiKey, baseUrl: configData.baseUrl },
+        });
+        if (error || !data?.ok) throw error || new Error(data?.error || "Test failed");
+        toast({ title: "Connection Successful", description: "Successfully connected to ActiveCollab." });
+      } catch (err: any) {
+        toast({
+          title: "Connection Failed",
+          description: err.message || "Failed to connect to ActiveCollab. Check your credentials.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    const noEdgeFunctionIds = [
+      "microsoft-teams",
+      "google-meet",
+      "salesforce",
+      "pipedrive",
+      "jira",
+      "clickup",
+      "asana",
+      "sendgrid",
+      "resend",
+    ];
+    if (noEdgeFunctionIds.includes(integration.id)) {
+      if (!integration.status?.configured) {
+        toast({
+          title: "Not configured yet",
+          description: `Save ${integration.name} credentials first via Configure, then test the connection.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Credentials stored",
+        description: `${integration.name} credentials are saved. Full API test will be available once the sync function is deployed.`,
+      });
+      return;
+    }
   };
 
   const saveConfiguration = async (integration: any) => {
@@ -1093,13 +1345,139 @@ const IntegrationManager = () => {
           refreshToken: "",
           folderId: "",
         });
-        loadIntegrations(); // Reload to show updated status
+        loadIntegrations();
       } catch (e: any) {
         toast({
           title: "Save failed",
           description: e?.message ?? "Unable to save integration.",
           variant: "destructive",
         });
+      }
+      return;
+    }
+
+    if (integration.id === "hubspot") {
+      if (!configData.apiKey?.trim()) {
+        toast({ title: "Missing API Key", description: "API key is required.", variant: "destructive" });
+        return;
+      }
+      try {
+        const { data, error } = await supabase.functions.invoke("hubspot-sync", {
+          body: { action: "save", apiKey: configData.apiKey.trim() },
+        });
+        if (error || !data?.ok) throw error || new Error(data?.error || "Save failed");
+        toast({ title: "Settings Saved", description: "HubSpot API key stored successfully." });
+        setIsConfigDialogOpen(false);
+        setConfigData({
+          apiKey: "",
+          baseUrl: "",
+          locationId: "",
+          projectId: "",
+          collectionName: "",
+          clientId: "",
+          clientSecret: "",
+          refreshToken: "",
+          folderId: "",
+        });
+        loadIntegrations();
+      } catch (e: any) {
+        toast({ title: "Save failed", description: e?.message ?? "Unable to save integration.", variant: "destructive" });
+      }
+      return;
+    }
+
+    if (integration.id === "activecollab") {
+      if (!configData.apiKey?.trim() || !configData.baseUrl?.trim()) {
+        toast({ title: "Missing fields", description: "API key and Base URL are required.", variant: "destructive" });
+        return;
+      }
+      try {
+        const { data, error } = await supabase.functions.invoke("activecollab-projects", {
+          body: { action: "save", apiKey: configData.apiKey.trim(), baseUrl: configData.baseUrl.trim() },
+        });
+        if (error || !data?.ok) throw error || new Error(data?.error || "Save failed");
+        toast({ title: "Settings Saved", description: "ActiveCollab credentials stored successfully." });
+        setIsConfigDialogOpen(false);
+        setConfigData({
+          apiKey: "",
+          baseUrl: "",
+          locationId: "",
+          projectId: "",
+          collectionName: "",
+          clientId: "",
+          clientSecret: "",
+          refreshToken: "",
+          folderId: "",
+        });
+        loadIntegrations();
+      } catch (e: any) {
+        toast({ title: "Save failed", description: e?.message ?? "Unable to save integration.", variant: "destructive" });
+      }
+      return;
+    }
+
+    const genericSaveIds = [
+      "microsoft-teams",
+      "google-meet",
+      "salesforce",
+      "pipedrive",
+      "jira",
+      "clickup",
+      "asana",
+      "sendgrid",
+      "resend",
+    ];
+    if (genericSaveIds.includes(integration.id)) {
+      if (!configData.apiKey?.trim()) {
+        toast({
+          title: "Missing credentials",
+          description: "Please enter the required API key or client secret.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const configPayload: Record<string, any> = { api_key: configData.apiKey.trim() };
+      if (configData.baseUrl?.trim()) configPayload.base_url = configData.baseUrl.trim();
+      if (configData.locationId?.trim()) configPayload.location_id = configData.locationId.trim();
+
+      try {
+        const { data: existingData } = await supabase
+          .from("organization_integrations")
+          .select("*")
+          .eq("integration", integration.type)
+          .single();
+
+        if (existingData) {
+          const { error } = await supabase
+            .from("organization_integrations")
+            .update({ config: configPayload, status: "active", updated_at: new Date().toISOString() })
+            .eq("integration", integration.type);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("organization_integrations").insert({
+            integration: integration.type,
+            config: configPayload,
+            status: "active",
+          });
+          if (error) throw error;
+        }
+
+        toast({ title: "Settings Saved", description: `${integration.name} credentials stored successfully.` });
+        setIsConfigDialogOpen(false);
+        setConfigData({
+          apiKey: "",
+          baseUrl: "",
+          locationId: "",
+          projectId: "",
+          collectionName: "",
+          clientId: "",
+          clientSecret: "",
+          refreshToken: "",
+          folderId: "",
+        });
+        loadIntegrations();
+      } catch (e: any) {
+        toast({ title: "Save failed", description: e?.message ?? "Unable to save integration.", variant: "destructive" });
       }
       return;
     }
@@ -1349,15 +1727,19 @@ const IntegrationManager = () => {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
-                placeholder="Search global integrations..."
+                placeholder="Search integrations..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
+            <Button variant="outline" size="sm" onClick={() => void loadIntegrations()} disabled={isLoadingBrands}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingBrands ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </div>
 
-          {/* Global Integration Stats */}
+          {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1381,96 +1763,69 @@ const IntegrationManager = () => {
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Category</CardTitle>
+                <CardTitle className="text-sm font-medium">Categories</CardTitle>
                 <Settings className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-sm text-muted-foreground">AI, Communication, Analytics</div>
+                <div className="text-2xl font-bold">{INTEGRATION_CATEGORIES.length}</div>
+                <p className="text-xs text-muted-foreground">Integration categories</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Global Integrations Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredGlobalIntegrations.map((integration) => (
-              <Card key={integration.id} className="relative">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{integration.icon}</span>
-                      <div>
-                        <CardTitle className="text-lg">{integration.name}</CardTitle>
-                        <Badge className={getComplexityColor(integration.setup_complexity)}>
-                          {integration.setup_complexity}
-                        </Badge>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={integration.is_enabled}
-                      onCheckedChange={() => toggleGlobalIntegration(integration.id)}
-                      disabled={!integration.status?.configured}
+          {/* Categorized provider grid */}
+          <div className="space-y-6">
+            {INTEGRATION_CATEGORIES.map((category) => {
+              const CategoryIcon = category.icon;
+              const categoryProviders = filteredGlobalIntegrations.filter(
+                (i) => i.category === category.slug,
+              );
+              if (categoryProviders.length === 0) return null;
+              const isExpanded = expandedCategories.has(category.slug);
+
+              return (
+                <div key={category.slug} className="space-y-3">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-muted/40 transition-colors"
+                    onClick={() => toggleCategory(category.slug)}
+                  >
+                    <CategoryIcon className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <span className="text-base font-semibold text-foreground">{category.name}</span>
+                    <Badge variant="outline" className="ml-1 text-xs">
+                      {categoryProviders.length}
+                    </Badge>
+                    <ChevronDown
+                      className={`h-4 w-4 ml-auto text-muted-foreground transition-transform duration-200 ${
+                        isExpanded ? "rotate-180" : ""
+                      }`}
                     />
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <CardDescription>{integration.description}</CardDescription>
+                  </button>
 
-                  <div className="flex items-center justify-between">
-                    {integration.status ? (
-                      <IntegrationStatusBadge
-                        configured={integration.status.configured}
-                        connected={integration.status.connected}
-                        enabled={integration.status.enabled}
-                        error={integration.status.error}
-                        lastChecked={integration.status.lastChecked}
-                      />
-                    ) : (
-                      <>
-                        <Badge variant={integration.is_available ? "default" : "secondary"}>
-                          {integration.is_available ? "Available" : "Unavailable"}
-                        </Badge>
-                        <Badge variant={integration.is_enabled ? "default" : "outline"}>
-                          {integration.is_enabled ? "Enabled" : "Disabled"}
-                        </Badge>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-foreground">Required Configuration:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {integration.required_fields.map((field) => (
-                        <Badge key={field} variant="outline" className="text-xs">
-                          {field.replace("_", " ")}
-                        </Badge>
+                  {isExpanded && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-1">
+                      {categoryProviders.map((integration) => (
+                        <ProviderCard
+                          key={integration.id}
+                          integration={integration}
+                          testLabel={integration.id === "openai" ? "Test API" : undefined}
+                          onConfigure={() => void openConfigDialog(integration)}
+                          onTest={() => void testConnection(integration)}
+                          onToggle={() => toggleGlobalIntegration(integration.id)}
+                        />
                       ))}
                     </div>
-                  </div>
+                  )}
+                </div>
+              );
+            })}
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void openConfigDialog(integration)}
-                      className="flex-1"
-                    >
-                      <Settings className="h-4 w-4 mr-2" />
-                      Configure
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => testConnection(integration)}
-                      className="flex-1"
-                      disabled={!integration.is_available}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      {integration.id === "openai" ? "Test API" : "Test"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {filteredGlobalIntegrations.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Search className="h-8 w-8 mb-3 opacity-30" />
+                <p className="text-sm">No integrations match your search.</p>
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -1957,26 +2312,68 @@ const IntegrationManager = () => {
                   selectedIntegration?.id !== "google-drive" && (
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="api-key" className="text-right">
-                        API Key *
+                        {selectedIntegration?.id === "jira"
+                          ? "API Token *"
+                          : ["microsoft-teams", "google-meet", "salesforce"].includes(
+                                selectedIntegration?.id ?? "",
+                              )
+                            ? "Client Secret *"
+                            : selectedIntegration?.id === "asana"
+                              ? "Access Token *"
+                              : "API Key *"}
                       </Label>
                       <Input
                         id="api-key"
                         type="password"
-                        placeholder="Enter API key..."
+                        placeholder={
+                          selectedIntegration?.id === "jira"
+                            ? "Your Atlassian API token..."
+                            : selectedIntegration?.id === "sendgrid"
+                              ? "SG.xxxxxxxx..."
+                              : selectedIntegration?.id === "resend"
+                                ? "re_xxxxxxxx..."
+                                : selectedIntegration?.id === "microsoft-teams" ||
+                                    selectedIntegration?.id === "google-meet" ||
+                                    selectedIntegration?.id === "salesforce"
+                                  ? "Enter client secret..."
+                                  : "Enter API key..."
+                        }
                         className="col-span-3"
                         value={configData.apiKey}
                         onChange={(e) => setConfigData((prev) => ({ ...prev, apiKey: e.target.value }))}
                       />
                     </div>
                   )}
-                {selectedIntegration?.id === "collabai" && (
+                {[
+                  "collabai",
+                  "activecollab",
+                  "jira",
+                  "salesforce",
+                  "microsoft-teams",
+                ].includes(selectedIntegration?.id ?? "") && (
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="base-url" className="text-right">
-                      Base URL *
+                      {selectedIntegration?.id === "jira"
+                        ? "Domain *"
+                        : selectedIntegration?.id === "salesforce"
+                          ? "Instance URL *"
+                          : selectedIntegration?.id === "microsoft-teams"
+                            ? "Tenant ID *"
+                            : "Base URL *"}
                     </Label>
                     <Input
                       id="base-url"
-                      placeholder="https://your-collabai-instance.com"
+                      placeholder={
+                        selectedIntegration?.id === "jira"
+                          ? "yourcompany.atlassian.net"
+                          : selectedIntegration?.id === "salesforce"
+                            ? "yourcompany.salesforce.com"
+                            : selectedIntegration?.id === "microsoft-teams"
+                              ? "your-azure-tenant-id"
+                              : selectedIntegration?.id === "activecollab"
+                                ? "https://your-app.activecollab.com"
+                                : "https://your-collabai-instance.com"
+                      }
                       className="col-span-3"
                       value={configData.baseUrl}
                       onChange={(e) => setConfigData((prev) => ({ ...prev, baseUrl: e.target.value }))}
@@ -2110,14 +2507,29 @@ const IntegrationManager = () => {
                     </div>
                   </>
                 )}
-                {selectedIntegration?.id === "gohighlevel" && (
+                {["gohighlevel", "jira", "microsoft-teams", "salesforce"].includes(
+                  selectedIntegration?.id ?? "",
+                ) && (
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="location-id" className="text-right">
-                      Location ID
+                      {selectedIntegration?.id === "jira"
+                        ? "Account Email *"
+                        : selectedIntegration?.id === "microsoft-teams"
+                          ? "Client ID *"
+                          : selectedIntegration?.id === "salesforce"
+                            ? "Client ID *"
+                            : "Location ID"}
                     </Label>
                     <Input
                       id="location-id"
-                      placeholder="Optional location ID..."
+                      placeholder={
+                        selectedIntegration?.id === "jira"
+                          ? "you@company.com"
+                          : selectedIntegration?.id === "microsoft-teams" ||
+                              selectedIntegration?.id === "salesforce"
+                            ? "Enter client ID..."
+                            : "Optional location ID..."
+                      }
                       className="col-span-3"
                       value={configData.locationId}
                       onChange={(e) => setConfigData((prev) => ({ ...prev, locationId: e.target.value }))}
