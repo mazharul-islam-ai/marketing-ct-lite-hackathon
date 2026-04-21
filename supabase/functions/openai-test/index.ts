@@ -14,15 +14,14 @@ serve(async (req) => {
 
   try {
     const { action, apiKey } = await req.json();
-    const OPENAI_API_KEY =
-      typeof apiKey === "string" && apiKey.trim().length > 0 ? apiKey.trim() : Deno.env.get("OPENAI_KEY");
+    const OPENAI_API_KEY = typeof apiKey === "string" && apiKey.trim().length > 0 ? apiKey.trim() : "";
 
     if (!OPENAI_API_KEY) {
-      console.error("No OpenAI key provided (request apiKey or OPENAI_KEY secret)");
+      console.error("No OpenAI key provided in request payload");
       return new Response(
         JSON.stringify({
           ok: false,
-          error: "OpenAI API key is missing. Add it in Configure dialog or set OPENAI_KEY secret.",
+          error: "OpenAI API key is missing. Add it in Configure dialog.",
           configured: false,
         }),
         {
@@ -103,8 +102,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           ok: true,
-          configured: true,
-          enabled: true,
+          configured: OPENAI_API_KEY.length > 0,
+          enabled: OPENAI_API_KEY.length > 0,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
