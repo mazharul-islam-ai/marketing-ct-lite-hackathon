@@ -13,24 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
-    if (!PERPLEXITY_API_KEY) {
-      return new Response(
-        JSON.stringify({ 
-          ok: false, 
-          error: 'PERPLEXITY_API_KEY not configured in secrets',
-          configured: false
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
@@ -43,7 +27,38 @@ serve(async (req) => {
       );
     }
 
-    const { action, prompt, model, temperature, max_tokens, topic, leader_id, url, save_to_trends, save_to_uploads } = await req.json();
+    const { action, apiKey, prompt, model, temperature, max_tokens, topic, leader_id, url, save_to_trends, save_to_uploads } = await req.json();
+    const PERPLEXITY_API_KEY = typeof apiKey === 'string' && apiKey.trim().length > 0
+      ? apiKey.trim()
+      : '';
+
+    if (action === 'status') {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          configured: PERPLEXITY_API_KEY.length > 0,
+          enabled: PERPLEXITY_API_KEY.length > 0
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (!PERPLEXITY_API_KEY) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: 'Perplexity API key is missing. Add it in Configure dialog.',
+          configured: false
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     console.log('Perplexity action:', action, 'user:', user.email);
 
     // ============= RESEARCH ACTION =============
@@ -442,20 +457,6 @@ Return your response in this exact JSON format:
           model_used: testModel,
           execution_time_ms: executionTime,
           usage: data.usage
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // ============= STATUS ACTION (existing) =============
-    if (action === 'status') {
-      return new Response(
-        JSON.stringify({ 
-          ok: true,
-          configured: true,
-          enabled: true
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

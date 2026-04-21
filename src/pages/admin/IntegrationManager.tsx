@@ -473,23 +473,98 @@ const IntegrationManager = () => {
       }
     };
 
+    let savedOpenAIApiKey = "";
+    let savedPerplexityApiKey = "";
+    let savedAnthropicApiKey = "";
+    let savedGeminiApiKey = "";
+    try {
+      const { data: openaiConfigData } = await supabase
+        .from("organization_integrations")
+        .select("config")
+        .eq("integration_type", "openai")
+        .single();
+      if (openaiConfigData?.config) {
+        const config = openaiConfigData.config as Record<string, any>;
+        savedOpenAIApiKey = (config.api_key ?? config.apiKey ?? "").toString().trim();
+      }
+    } catch (error) {
+      console.warn("Unable to load saved OpenAI key for status check", error);
+    }
+    try {
+      const { data: perplexityConfigData } = await supabase
+        .from("organization_integrations")
+        .select("config")
+        .eq("integration_type", "perplexity")
+        .single();
+      if (perplexityConfigData?.config) {
+        const config = perplexityConfigData.config as Record<string, any>;
+        savedPerplexityApiKey = (config.api_key ?? config.apiKey ?? "").toString().trim();
+      }
+    } catch (error) {
+      console.warn("Unable to load saved Perplexity key for status check", error);
+    }
+    try {
+      const { data: anthropicConfigData } = await supabase
+        .from("organization_integrations")
+        .select("config")
+        .eq("integration_type", "anthropic")
+        .single();
+      if (anthropicConfigData?.config) {
+        const config = anthropicConfigData.config as Record<string, any>;
+        savedAnthropicApiKey = (config.api_key ?? config.apiKey ?? "").toString().trim();
+      }
+    } catch (error) {
+      console.warn("Unable to load saved Anthropic key for status check", error);
+    }
+    try {
+      const { data: geminiConfigData } = await supabase
+        .from("organization_integrations")
+        .select("config")
+        .eq("integration_type", "google_gemini")
+        .single();
+      if (geminiConfigData?.config) {
+        const config = geminiConfigData.config as Record<string, any>;
+        savedGeminiApiKey = (config.api_key ?? config.apiKey ?? "").toString().trim();
+      }
+    } catch (error) {
+      console.warn("Unable to load saved Gemini key for status check", error);
+    }
+
     // Check all integrations in parallel
-    const [openaiStatus, perplexityStatus, googleDriveStatus] =
-      await Promise.all([
-        checkIntegrationStatus("openai", "openai-test", "POST", { action: "status" }),
-        checkIntegrationStatus("perplexity", "perplexity-test", "POST", { action: "status" }),
-        checkIntegrationStatus("google-drive", "test-google-drive", "POST", { action: "status" }),
-      ]);
+    const [openaiStatus, perplexityStatus, anthropicStatus, geminiStatus, googleDriveStatus] = await Promise.all([
+      checkIntegrationStatus("openai", "openai-test", "POST", {
+        action: "status",
+        apiKey: savedOpenAIApiKey || undefined,
+      }),
+      checkIntegrationStatus("perplexity", "perplexity-test", "POST", {
+        action: "status",
+        apiKey: savedPerplexityApiKey || undefined,
+      }),
+      checkIntegrationStatus("anthropic", "anthropic-test", "POST", {
+        action: "status",
+        apiKey: savedAnthropicApiKey || undefined,
+      }),
+      checkIntegrationStatus("google-gemini", "gemini-test", "POST", {
+        action: "status",
+        apiKey: savedGeminiApiKey || undefined,
+      }),
+      checkIntegrationStatus("google-drive", "test-google-drive", "POST", { action: "status" }),
+    ]);
 
     // Update integrations with status
-    globalIntegrationsData[0].is_enabled = openaiStatus.enabled;
-    globalIntegrationsData[0].status = openaiStatus;
+    const updateGlobalStatus = (id: string, status: IntegrationStatus, enabledFromConfigured = false) => {
+      const idx = globalIntegrationsData.findIndex((item) => item.id === id);
+      if (idx >= 0) {
+        globalIntegrationsData[idx].is_enabled = enabledFromConfigured ? status.configured : status.enabled;
+        globalIntegrationsData[idx].status = status;
+      }
+    };
 
-    globalIntegrationsData[1].is_enabled = perplexityStatus.enabled;
-    globalIntegrationsData[1].status = perplexityStatus;
-
-    globalIntegrationsData[2].is_enabled = googleDriveStatus.configured;
-    globalIntegrationsData[2].status = googleDriveStatus;
+    updateGlobalStatus("openai", openaiStatus);
+    updateGlobalStatus("perplexity", perplexityStatus);
+    updateGlobalStatus("anthropic", anthropicStatus);
+    updateGlobalStatus("google-gemini", geminiStatus);
+    updateGlobalStatus("google-drive", googleDriveStatus, true);
 
     try {
       const { data: ghlConfig } = await supabase.functions.invoke("gohighlevel-manage", { method: "GET" });
@@ -1032,8 +1107,22 @@ const IntegrationManager = () => {
           description: "Testing OpenAI API connectivity...",
         });
 
+        let resolvedApiKey = configData.apiKey?.trim() || "";
+        if (!resolvedApiKey) {
+          const { data: savedOpenAIConfig } = await supabase
+            .from("organization_integrations")
+            .select("config")
+            .eq("integration_type", "openai")
+            .single();
+
+          if (savedOpenAIConfig?.config) {
+            const savedConfig = savedOpenAIConfig.config as Record<string, any>;
+            resolvedApiKey = (savedConfig.api_key ?? savedConfig.apiKey ?? "").toString().trim();
+          }
+        }
+
         const { data, error } = await supabase.functions.invoke("openai-test", {
-          body: { action: "test" },
+          body: { action: "test", apiKey: resolvedApiKey || undefined },
         });
 
         if (error) {
@@ -1055,7 +1144,7 @@ const IntegrationManager = () => {
 
         // Also test text generation
         const { data: genData } = await supabase.functions.invoke("openai-test", {
-          body: { action: "generate_test" },
+          body: { action: "generate_test", apiKey: resolvedApiKey || undefined },
         });
 
         if (genData?.ok && genData?.generation_test) {
@@ -1076,7 +1165,131 @@ const IntegrationManager = () => {
     }
 
     if (integration.id === "perplexity") {
-      setIsPerplexityTestDialogOpen(true);
+      try {
+        toast({
+          title: "Testing Connection",
+          description: "Testing Perplexity API connectivity...",
+        });
+
+        let resolvedApiKey = configData.apiKey?.trim() || "";
+        if (!resolvedApiKey) {
+          const { data: savedPerplexityConfig } = await supabase
+            .from("organization_integrations")
+            .select("config")
+            .eq("integration_type", "perplexity")
+            .single();
+
+          if (savedPerplexityConfig?.config) {
+            const savedConfig = savedPerplexityConfig.config as Record<string, any>;
+            resolvedApiKey = (savedConfig.api_key ?? savedConfig.apiKey ?? "").toString().trim();
+          }
+        }
+
+        const { data, error } = await supabase.functions.invoke("perplexity-test", {
+          body: { action: "test", apiKey: resolvedApiKey || undefined },
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || "Perplexity connection test failed");
+
+        toast({
+          title: "Perplexity Connection Successful",
+          description: "Successfully connected to Perplexity API.",
+        });
+      } catch (err: any) {
+        console.error("Perplexity test error:", err);
+        toast({
+          title: "Perplexity Connection Failed",
+          description: err.message || "Failed to connect to Perplexity API.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    if (integration.id === "anthropic") {
+      try {
+        toast({
+          title: "Testing Connection",
+          description: "Testing Anthropic API connectivity...",
+        });
+
+        let resolvedApiKey = configData.apiKey?.trim() || "";
+        if (!resolvedApiKey) {
+          const { data: savedAnthropicConfig } = await supabase
+            .from("organization_integrations")
+            .select("config")
+            .eq("integration_type", "anthropic")
+            .single();
+
+          if (savedAnthropicConfig?.config) {
+            const savedConfig = savedAnthropicConfig.config as Record<string, any>;
+            resolvedApiKey = (savedConfig.api_key ?? savedConfig.apiKey ?? "").toString().trim();
+          }
+        }
+
+        const { data, error } = await supabase.functions.invoke("anthropic-test", {
+          body: { action: "test", apiKey: resolvedApiKey || undefined },
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || "Anthropic connection test failed");
+
+        toast({
+          title: "Anthropic Connection Successful",
+          description: "Successfully connected to Anthropic API.",
+        });
+      } catch (err: any) {
+        console.error("Anthropic test error:", err);
+        toast({
+          title: "Anthropic Connection Failed",
+          description: err.message || "Failed to connect to Anthropic API.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    if (integration.id === "google-gemini") {
+      try {
+        toast({
+          title: "Testing Connection",
+          description: "Testing Gemini API connectivity...",
+        });
+
+        let resolvedApiKey = configData.apiKey?.trim() || "";
+        if (!resolvedApiKey) {
+          const { data: savedGeminiConfig } = await supabase
+            .from("organization_integrations")
+            .select("config")
+            .eq("integration_type", "google_gemini")
+            .single();
+
+          if (savedGeminiConfig?.config) {
+            const savedConfig = savedGeminiConfig.config as Record<string, any>;
+            resolvedApiKey = (savedConfig.api_key ?? savedConfig.apiKey ?? "").toString().trim();
+          }
+        }
+
+        const { data, error } = await supabase.functions.invoke("gemini-test", {
+          body: { action: "test", apiKey: resolvedApiKey || undefined },
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || "Gemini connection test failed");
+
+        toast({
+          title: "Gemini Connection Successful",
+          description: "Successfully connected to Google Gemini API.",
+        });
+      } catch (err: any) {
+        console.error("Gemini test error:", err);
+        toast({
+          title: "Gemini Connection Failed",
+          description: err.message || "Failed to connect to Google Gemini API.",
+          variant: "destructive",
+        });
+      }
       return;
     }
 
@@ -1206,8 +1419,6 @@ const IntegrationManager = () => {
     }
 
     const noEdgeFunctionIds = [
-      "anthropic",
-      "google-gemini",
       "microsoft-teams",
       "google-meet",
       "salesforce",
@@ -1293,7 +1504,7 @@ const IntegrationManager = () => {
         const { data: existingData } = await supabase
           .from("organization_integrations")
           .select("*")
-          .eq("integration", "google_drive")
+          .eq("integration_type", "google_drive")
           .single();
 
         const configPayload = {
@@ -1308,17 +1519,16 @@ const IntegrationManager = () => {
             .from("organization_integrations")
             .update({
               config: configPayload,
-              status: "active",
-              updated_at: new Date().toISOString(),
+              is_active: true,
             })
-            .eq("integration", "google_drive");
+            .eq("integration_type", "google_drive");
 
           if (error) throw error;
         } else {
           const { error } = await supabase.from("organization_integrations").insert({
-            integration: "google_drive",
+            integration_type: "google_drive",
             config: configPayload,
-            status: "active",
+            is_active: true,
           });
 
           if (error) throw error;
@@ -1443,6 +1653,10 @@ const IntegrationManager = () => {
     }
 
     const genericSaveIds = [
+      "openai",
+      "perplexity",
+      "anthropic",
+      "google-gemini",
       "microsoft-teams",
       "google-meet",
       "salesforce",
@@ -1470,20 +1684,20 @@ const IntegrationManager = () => {
         const { data: existingData } = await supabase
           .from("organization_integrations")
           .select("*")
-          .eq("integration", integration.type)
+          .eq("integration_type", integration.type)
           .single();
 
         if (existingData) {
           const { error } = await supabase
             .from("organization_integrations")
-            .update({ config: configPayload, status: "active", updated_at: new Date().toISOString() })
-            .eq("integration", integration.type);
+            .update({ config: configPayload, is_active: true })
+            .eq("integration_type", integration.type);
           if (error) throw error;
         } else {
           const { error } = await supabase.from("organization_integrations").insert({
-            integration: integration.type,
+            integration_type: integration.type,
             config: configPayload,
-            status: "active",
+            is_active: true,
           });
           if (error) throw error;
         }
@@ -1507,6 +1721,76 @@ const IntegrationManager = () => {
       }
       return;
     }
+
+    toast({
+      title: "Save not configured",
+      description: `${integration?.name ?? "This integration"} does not have a save handler yet.`,
+      variant: "destructive",
+    });
+  };
+
+  const removeConfiguration = async (integration: any) => {
+    if (!integration?.id) return;
+
+    const removableIntegrationIds = [
+      "google-drive",
+      "openai",
+      "anthropic",
+      "google-gemini",
+      "microsoft-teams",
+      "google-meet",
+      "salesforce",
+      "pipedrive",
+      "jira",
+      "clickup",
+      "asana",
+      "sendgrid",
+      "resend",
+    ];
+
+    if (!removableIntegrationIds.includes(integration.id)) {
+      toast({
+        title: "Remove not supported",
+        description: `${integration.name} does not support credential removal from this dialog yet.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const integrationType = integration.id === "google-drive" ? "google_drive" : integration.type;
+
+    try {
+      const { error } = await supabase
+        .from("organization_integrations")
+        .delete()
+        .eq("integration_type", integrationType);
+
+      if (error) throw error;
+
+      toast({
+        title: "Credentials removed",
+        description: `${integration.name} credentials were removed successfully.`,
+      });
+      setIsConfigDialogOpen(false);
+      setConfigData({
+        apiKey: "",
+        baseUrl: "",
+        locationId: "",
+        projectId: "",
+        collectionName: "",
+        clientId: "",
+        clientSecret: "",
+        refreshToken: "",
+        folderId: "",
+      });
+      await loadIntegrations();
+    } catch (e: any) {
+      toast({
+        title: "Remove failed",
+        description: e?.message ?? "Unable to remove credentials.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getComplexityColor = (complexity: string) => {
@@ -1526,11 +1810,6 @@ const IntegrationManager = () => {
     setSelectedIntegration(integration);
     setServiceAccountFile(null); // Reset file on dialog open
     setOauthCredsFile(null); // Reset OAuth file on dialog open
-
-    if (integration.id === "perplexity") {
-      setIsPerplexitySettingsDialogOpen(true);
-      return;
-    }
 
     if (integration.id === "n8n-analytics") {
       const availableBrands =
@@ -1563,27 +1842,29 @@ const IntegrationManager = () => {
         folderId: "",
       });
 
-      if (integration.id === "google-drive") {
-        try {
-          const { data, error } = await supabase
-            .from("organization_integrations")
-            .select("config")
-            .eq("integration", "google_drive")
-            .single();
+      try {
+        const integrationType = integration.id === "google-drive" ? "google_drive" : integration.type;
+        const { data, error } = await supabase
+          .from("organization_integrations")
+          .select("config")
+          .eq("integration_type", integrationType)
+          .single();
 
-          if (!error && data?.config) {
-            const config = data.config as Record<string, any>;
-            setConfigData((prev) => ({
-              ...prev,
-              clientId: config.clientId ?? "",
-              clientSecret: config.clientSecret ?? "",
-              refreshToken: config.refreshToken ?? "",
-              folderId: config.folderId ?? "",
-            }));
-          }
-        } catch (error) {
-          console.error("Failed to load Google Drive configuration", error);
+        if (!error && data?.config) {
+          const config = data.config as Record<string, any>;
+          setConfigData((prev) => ({
+            ...prev,
+            apiKey: config.api_key ?? config.apiKey ?? "",
+            baseUrl: config.base_url ?? config.baseUrl ?? "",
+            locationId: config.location_id ?? config.locationId ?? "",
+            clientId: config.clientId ?? "",
+            clientSecret: config.clientSecret ?? "",
+            refreshToken: config.refreshToken ?? "",
+            folderId: config.folderId ?? "",
+          }));
         }
+      } catch (error) {
+        console.error(`Failed to load ${integration.name} configuration`, error);
       }
     }
 
@@ -2566,6 +2847,9 @@ const IntegrationManager = () => {
               <DialogFooter className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsConfigDialogOpen(false)}>
                   Cancel
+                </Button>
+                <Button variant="destructive" onClick={() => removeConfiguration(selectedIntegration)}>
+                  Remove Credentials
                 </Button>
                 <Button variant="outline" onClick={() => testConnection(selectedIntegration)}>
                   Test Connection
