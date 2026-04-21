@@ -222,6 +222,30 @@ const IntegrationManager = () => {
         required_fields: ["PERPLEXITY_API_KEY (secret)"],
       },
       {
+        id: "anthropic",
+        name: "Anthropic",
+        type: "anthropic",
+        description: "Claude AI models for advanced reasoning, analysis, and long-context tasks",
+        icon: "🧠",
+        category: "ai",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "easy",
+        required_fields: ["ANTHROPIC_API_KEY (secret)"],
+      },
+      {
+        id: "google-gemini",
+        name: "Google Gemini",
+        type: "google_gemini",
+        description: "Google's multimodal AI for text, image, and video generation via Gemini API",
+        icon: "✨",
+        category: "ai",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "easy",
+        required_fields: ["GEMINI_API_KEY (secret)"],
+      },
+      {
         id: "google-drive",
         name: "Google Drive",
         type: "google_drive",
@@ -1182,6 +1206,8 @@ const IntegrationManager = () => {
     }
 
     const noEdgeFunctionIds = [
+      "anthropic",
+      "google-gemini",
       "microsoft-teams",
       "google-meet",
       "salesforce",
