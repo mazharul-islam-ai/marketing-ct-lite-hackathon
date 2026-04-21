@@ -35,6 +35,7 @@ serve(async (req) => {
 
     console.log('OpenAI test action:', action);
 
+    if (action === "test") {
       // Test the OpenAI API with a simple request
       const response = await fetch("https://api.openai.com/v1/models", {
         method: "GET",
