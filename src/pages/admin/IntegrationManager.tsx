@@ -1427,7 +1427,20 @@ const IntegrationManager = () => {
       "resend",
     ];
     if (noEdgeFunctionIds.includes(integration.id)) {
-      if (!integration.status?.configured) {
+      const integrationType = integration.id === "google-drive" ? "google_drive" : integration.type;
+      let hasStoredConfig = false;
+
+      try {
+        const savedConfig = await getLatestOrganizationIntegrationConfig(integrationType);
+        hasStoredConfig = !!savedConfig
+          && Object.values(savedConfig).some((value) =>
+            typeof value === "string" ? value.trim().length > 0 : value !== null && value !== undefined,
+          );
+      } catch (error) {
+        console.warn(`Failed to load saved ${integration.name} configuration for test`, error);
+      }
+
+      if (!integration.status?.configured && !hasStoredConfig) {
         toast({
           title: "Not configured yet",
           description: `Save ${integration.name} credentials first via Configure, then test the connection.`,
@@ -1641,6 +1654,17 @@ const IntegrationManager = () => {
       "resend",
     ];
     if (genericSaveIds.includes(integration.id)) {
+      const requiresClientId = ["google-meet", "salesforce"].includes(integration.id);
+
+      if (requiresClientId && !configData.locationId?.trim()) {
+        toast({
+          title: "Missing credentials",
+          description: "Client ID is required.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (!configData.apiKey?.trim()) {
         toast({
           title: "Missing credentials",
@@ -2763,14 +2787,14 @@ const IntegrationManager = () => {
                     </div>
                   </>
                 )}
-                {["gohighlevel", "jira", "microsoft-teams", "salesforce"].includes(
+                {["gohighlevel", "jira", "microsoft-teams", "google-meet", "salesforce"].includes(
                   selectedIntegration?.id ?? "",
                 ) && (
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="location-id" className="text-right">
                       {selectedIntegration?.id === "jira"
                         ? "Account Email *"
-                        : selectedIntegration?.id === "microsoft-teams"
+                        : selectedIntegration?.id === "microsoft-teams" || selectedIntegration?.id === "google-meet"
                           ? "Client ID *"
                           : selectedIntegration?.id === "salesforce"
                             ? "Client ID *"
@@ -2782,6 +2806,7 @@ const IntegrationManager = () => {
                         selectedIntegration?.id === "jira"
                           ? "you@company.com"
                           : selectedIntegration?.id === "microsoft-teams" ||
+                              selectedIntegration?.id === "google-meet" ||
                               selectedIntegration?.id === "salesforce"
                             ? "Enter client ID..."
                             : "Optional location ID..."
