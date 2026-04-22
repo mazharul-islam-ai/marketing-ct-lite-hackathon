@@ -2396,7 +2396,13 @@ const IntegrationManager = () => {
         }}
       >
         <DialogContent
-          className={selectedIntegration?.id === "n8n-analytics" ? "sm:max-w-[720px]" : "sm:max-w-[425px]"}
+          className={
+            selectedIntegration?.id === "n8n-analytics"
+              ? "sm:max-w-[720px]"
+              : selectedIntegration?.id === "google-drive"
+                ? "sm:max-w-2xl"
+                : "sm:max-w-[425px]"
+          }
         >
           <DialogHeader>
             <DialogTitle>Configure {selectedIntegration?.name}</DialogTitle>
@@ -2696,56 +2702,47 @@ const IntegrationManager = () => {
                     
                     <Separator className="col-span-4" />
                     
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="google-client-id" className="text-right">
-                        Client ID *
-                      </Label>
-                      <Input
-                        id="google-client-id"
-                        placeholder="Your Google OAuth Client ID"
-                        className="col-span-3"
-                        value={configData.clientId}
-                        onChange={(e) => setConfigData((prev) => ({ ...prev, clientId: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="google-client-secret" className="text-right">
-                        Client Secret *
-                      </Label>
-                      <Input
-                        id="google-client-secret"
-                        type="password"
-                        placeholder="Your Google OAuth Client Secret"
-                        className="col-span-3"
-                        value={configData.clientSecret}
-                        onChange={(e) => setConfigData((prev) => ({ ...prev, clientSecret: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="google-refresh-token" className="text-right">
-                        Refresh Token *
-                      </Label>
-                      <Input
-                        id="google-refresh-token"
-                        type="password"
-                        placeholder="Your Google OAuth Refresh Token"
-                        className="col-span-3"
-                        value={configData.refreshToken}
-                        onChange={(e) => setConfigData((prev) => ({ ...prev, refreshToken: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="google-folder-id" className="text-right">
-                        Folder ID
-                      </Label>
-                      <div className="col-span-3 space-y-1">
+                    <div className="space-y-4">
+                      <div className="min-w-0 space-y-2">
+                        <Label htmlFor="google-client-id">Client ID *</Label>
+                        <Input
+                          id="google-client-id"
+                          placeholder="Your Google OAuth Client ID"
+                          value={configData.clientId}
+                          onChange={(e) => setConfigData((prev) => ({ ...prev, clientId: e.target.value }))}
+                        />
+                      </div>
+                      <div className="min-w-0 space-y-2">
+                        <Label htmlFor="google-client-secret">Client Secret *</Label>
+                        <Input
+                          id="google-client-secret"
+                          type="password"
+                          placeholder="Your Google OAuth Client Secret"
+                          value={configData.clientSecret}
+                          onChange={(e) => setConfigData((prev) => ({ ...prev, clientSecret: e.target.value }))}
+                        />
+                      </div>
+                      <div className="min-w-0 space-y-2">
+                        <Label htmlFor="google-refresh-token">Refresh Token *</Label>
+                        <Input
+                          id="google-refresh-token"
+                          type="password"
+                          placeholder="Your Google OAuth Refresh Token"
+                          value={configData.refreshToken}
+                          onChange={(e) => setConfigData((prev) => ({ ...prev, refreshToken: e.target.value }))}
+                        />
+                      </div>
+                      <div className="min-w-0 space-y-2">
+                        <Label htmlFor="google-folder-id">Folder ID (optional)</Label>
                         <Input
                           id="google-folder-id"
-                          placeholder="Optional: Specific Google Drive folder ID"
+                          placeholder="Optional: specific folder to limit listing"
                           value={configData.folderId}
                           onChange={(e) => setConfigData((prev) => ({ ...prev, folderId: e.target.value }))}
                         />
-                        <p className="text-xs text-muted-foreground">Leave empty to access all accessible files</p>
+                        <p className="text-xs text-muted-foreground">
+                          Leave empty to use your whole Drive; set it to scope tests and syncs to one folder
+                        </p>
                       </div>
                     </div>
                     
