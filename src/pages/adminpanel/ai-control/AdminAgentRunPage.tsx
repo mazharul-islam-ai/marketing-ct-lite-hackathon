@@ -137,11 +137,15 @@ const AdminAgentRunPage = () => {
 
         {/* Fallback for unknown agents */}
         {!["data-strategist", "content-strategist", "chief-of-staff", "seo-blog-generator", "hero-section-optimizer", "weekly-client-email", "brand-performance-optimization", "linkedin-content-gen", "content-lifecycle", "brand-docs-generator", "documentation-generator", "marketing-intelligence"].includes(effectiveAgentSlug || "") && (
-          <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">
-              Agent "{effectiveAgentSlug}" is not available yet.
-            </CardContent>
-          </Card>
+          effectiveAgentSlug ? (
+            <GenericAgentRunnerPanel slug={effectiveAgentSlug} />
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                No agent selected.
+              </CardContent>
+            </Card>
+          )
         )}
       </div>
     </div>
