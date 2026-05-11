@@ -1011,21 +1011,18 @@ async function requireAuth(client: any): Promise<string | null> {
 }
 
 async function fetchConfigurations(client: any) {
-  const { data: configs, error } = await client
+  const { data: config, error } = await client
     .from('ai_configurations')
-    .select('configuration_type, configuration_data');
-  
+    .select('business_context, model_settings, prompts')
+    .limit(1)
+    .maybeSingle();
+
   if (error) throw error;
-  
-  const configMap: Record<string, any> = {};
-  configs?.forEach((config: any) => {
-    configMap[config.configuration_type] = config.configuration_data;
-  });
-  
+
   return {
-    businessContext: configMap.business_context || {},
-    modelSettings: configMap.model_settings || { default_model: 'gpt-4o-mini' },
-    prompts: configMap.prompts || {}
+    businessContext: config?.business_context || {},
+    modelSettings: config?.model_settings || { default_model: 'gpt-4o-mini' },
+    prompts: config?.prompts || {}
   };
 }
 
