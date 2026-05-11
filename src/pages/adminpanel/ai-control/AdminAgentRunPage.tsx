@@ -20,6 +20,7 @@ import BrandPerformanceOptimizationPage from "@/pages/brands/[slug]/brand-perfor
 import LinkedInContentGeneratorPage from "./LinkedInContentGeneratorPage";
 import ContentLifecyclePanel from "@/components/agents/ContentLifecyclePanel";
 import { MarketingIntelligencePanel } from "@/components/agents/MarketingIntelligencePanel";
+import { GenericAgentRunnerPanel } from "@/components/agents/GenericAgentRunnerPanel";
 import { Card, CardContent } from "@/components/ui/card";
 
 const agentNameMap: Record<string, string> = {
