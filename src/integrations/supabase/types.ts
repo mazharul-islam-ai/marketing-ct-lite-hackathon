@@ -3352,6 +3352,7 @@ export type Database = {
           activecollab_task_id: number | null
           actual_hours: number | null
           assigned_to: string | null
+          completed_at: string | null
           created_at: string | null
           description: string | null
           due_date: string | null
@@ -3366,6 +3367,7 @@ export type Database = {
           activecollab_task_id?: number | null
           actual_hours?: number | null
           assigned_to?: string | null
+          completed_at?: string | null
           created_at?: string | null
           description?: string | null
           due_date?: string | null
@@ -3380,6 +3382,7 @@ export type Database = {
           activecollab_task_id?: number | null
           actual_hours?: number | null
           assigned_to?: string | null
+          completed_at?: string | null
           created_at?: string | null
           description?: string | null
           due_date?: string | null
