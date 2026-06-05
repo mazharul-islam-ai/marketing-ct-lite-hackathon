@@ -619,12 +619,20 @@ const BrandPublicPage = () => {
               <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
                 Access comprehensive SEO analysis and optimization tools for enhanced search performance
               </p>
-              <Button
-                onClick={() => navigate(`/brands/${slug}/seo`)}
-                className="bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:scale-105 transition-all duration-200"
-              >
-                Open SEO Workspace
-              </Button>
+              <div className="flex flex-wrap gap-3 justify-center">
+                <Button
+                  onClick={() => navigate(`/brands/${slug}/seo`)}
+                  className="bg-gradient-to-r from-primary to-primary/80 hover:shadow-lg hover:scale-105 transition-all duration-200"
+                >
+                  Open SEO Workspace
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/seo-hub?brand=${slug}`)}
+                >
+                  View in SEO Hub
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

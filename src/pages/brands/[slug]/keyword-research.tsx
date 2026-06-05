@@ -135,7 +135,7 @@ export default function BrandKeywordResearch() {
       </Breadcrumb>
 
       {/* Reuse the main Keyword Research component */}
-      <KeywordResearch brandId={brand.id} brandName={brand.name} />
+      <KeywordResearch brandId={brand.id} brandName={brand.name} brandSlug={brand.slug} />
     </div>
   )
 }

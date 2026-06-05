@@ -30,6 +30,7 @@ import { EmptyBrands } from "@/components/empty-states/EmptyBrands";
 import { EmptyDashboard } from "@/components/empty-states/EmptyDashboard";
 import { BrandCardSkeleton } from "@/components/skeleton/BrandCardSkeleton";
 import { TestimonialDashboardSection } from "@/components/marketing/TestimonialDashboardSection";
+import { SEODashboardSection } from "@/features/seo-hub/components/SEODashboardSection";
 
 export default function Index() {
   const { user } = useAuth();
@@ -249,7 +250,10 @@ export default function Index() {
         </div>
 
         {user?.role && ["pm", "manager", "super_admin"].includes(user.role) && (
-          <TestimonialDashboardSection />
+          <>
+            <SEODashboardSection />
+            <TestimonialDashboardSection />
+          </>
         )}
 
         {/* Tabs for different views */}

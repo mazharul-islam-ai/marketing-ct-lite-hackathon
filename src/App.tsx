@@ -83,6 +83,7 @@ import ReelHookGenerator from "./pages/content/ReelHookGenerator";
 import ReelHookResult from "./pages/content/ReelHookResult";
 import BrandReelHookGenerator from "./pages/brands/[slug]/reel-hook-generator";
 import KnowledgeBrowsePage from "./pages/KnowledgeBrowsePage";
+import SEOHubPage from "./features/seo-hub/pages/SEOHubPage";
 
 // Hackathon Module
 import HackathonOnboarding from "./pages/hackathon/HackathonOnboarding";
@@ -164,6 +165,11 @@ const App = () => (
               <Route path="workspace" element={<AIWorkspace />} />
               <Route path="image-ai" element={<ImageAI />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="seo-hub" element={
+                <ProtectedRoute requiredMinimumRole="pm">
+                  <SEOHubPage />
+                </ProtectedRoute>
+              } />
               <Route path="knowledge" element={<KnowledgeBrowsePage />} />
               <Route path="brands" element={<UserBrands />} />
               <Route path="brands/:slug" element={<BrandPublicPage />} />

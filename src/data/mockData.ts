@@ -1,3 +1,5 @@
+import type { SEOSummary, SEOSavedReport } from '@/features/seo-hub/types';
+
 // Mock data for Admin Panel
 export interface Brand {
   id: string;
@@ -810,6 +812,88 @@ export const getUserById = (id: string) => mockUsers.find(user => user.id === id
 export const getIntegrationById = (id: string) => mockIntegrations.find(integration => integration.id === id);
 export const getGlobalIntegrationById = (id: string) => mockGlobalIntegrations.find(integration => integration.id === id);
 export const getBrandIntegrationById = (id: string) => mockBrandIntegrations.find(integration => integration.id === id);
+
+// SEO Hub demo fallbacks (used when DB/API has no data)
+export const MOCK_SEO_SUMMARY: SEOSummary = {
+  latestScanScore: 78,
+  keywordCount: 42,
+  backlinkCount: 156,
+  reportsThisMonth: 5,
+  lastScanDate: new Date().toISOString(),
+  isDemo: true,
+};
+
+export const MOCK_SEO_REPORTS: SEOSavedReport[] = [
+  {
+    id: 'mock-report-1',
+    brand_id: 'brand-1',
+    brand_name: 'Acme Corp',
+    brand_slug: 'acme-corp',
+    tool_type: 'site_audit',
+    title: 'Site Audit — acme.com',
+    score: 78,
+    status: 'completed',
+    input_value: 'https://acme.com',
+    result_summary: 'Strong technical foundation; improve meta descriptions on 4 pages.',
+    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    result_url: '/brands/acme-corp/seo/workspace',
+  },
+  {
+    id: 'mock-report-2',
+    brand_id: 'brand-2',
+    brand_name: 'TechStart',
+    brand_slug: 'techstart',
+    tool_type: 'keyword_research',
+    title: 'Keyword Research — SaaS marketing',
+    score: null,
+    status: 'completed',
+    input_value: 'saas marketing',
+    result_summary: '24 keyword suggestions saved to tracking list.',
+    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    result_url: '/brands/techstart/keyword-research',
+  },
+  {
+    id: 'mock-report-3',
+    brand_id: 'brand-1',
+    brand_name: 'Acme Corp',
+    brand_slug: 'acme-corp',
+    tool_type: 'backlink',
+    title: 'Backlink Check — acme.com',
+    score: 65,
+    status: 'completed',
+    input_value: 'acme.com',
+    result_summary: '156 referring domains found; 12 high-authority opportunities.',
+    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    result_url: '/brands/acme-corp/seo?tab=backlinks',
+  },
+  {
+    id: 'mock-report-4',
+    brand_id: 'brand-3',
+    brand_name: 'GreenLeaf',
+    brand_slug: 'greenleaf',
+    tool_type: 'competitor',
+    title: 'Competitor Analysis — greenleaf.io',
+    score: 72,
+    status: 'completed',
+    input_value: 'competitor1.com, competitor2.com',
+    result_summary: 'Identified 18 keyword gaps vs top 2 competitors.',
+    created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    result_url: '/brands/greenleaf/seo?tab=competitors',
+  },
+];
+
+export const MOCK_BACKLINK_RESULTS = [
+  { source_domain: 'techcrunch.com', target_url: 'https://acme.com/product', link_type: 'dofollow' as const, anchor_text: 'Acme Product', domain_rating: 92 },
+  { source_domain: 'medium.com', target_url: 'https://acme.com/blog', link_type: 'nofollow' as const, anchor_text: 'read more', domain_rating: 78 },
+  { source_domain: 'industryweekly.com', target_url: 'https://acme.com', link_type: 'dofollow' as const, anchor_text: 'Acme Corp', domain_rating: 65 },
+  { source_domain: 'startupdigest.io', target_url: 'https://acme.com/about', link_type: 'dofollow' as const, anchor_text: 'about Acme', domain_rating: 58 },
+  { source_domain: 'news.example.com', target_url: 'https://acme.com/press', link_type: 'unknown' as const, anchor_text: 'press release', domain_rating: 45 },
+];
+
+export const MOCK_COMPETITOR_RESULTS = [
+  { domain: 'competitor1.com', overlap_keywords: 34, gap_score: 68, top_keywords: ['saas tools', 'marketing automation', 'crm software'], summary: 'Strong content presence in SaaS keywords.' },
+  { domain: 'competitor2.com', overlap_keywords: 22, gap_score: 55, top_keywords: ['b2b marketing', 'lead generation', 'email campaigns'], summary: 'Dominates email marketing related terms.' },
+];
 
 // Statistics for dashboard
 export const getSystemStats = () => ({

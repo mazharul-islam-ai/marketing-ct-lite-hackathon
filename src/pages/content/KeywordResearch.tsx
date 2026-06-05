@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,13 +25,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { KeywordResultsTable } from '@/features/seo-hub/components/results/KeywordResultsTable';
+import type { KeywordResultRow } from '@/features/seo-hub/types';
 
 interface KeywordResearchProps {
   brandId?: string;
   brandName?: string;
+  brandSlug?: string;
 }
 
-export default function KeywordResearch({ brandId, brandName }: KeywordResearchProps = {}) {
+export default function KeywordResearch({ brandId, brandName, brandSlug }: KeywordResearchProps = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -40,6 +44,7 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
   const [filterPriority, setFilterPriority] = useState('all');
   const [suggestions, setSuggestions] = useState<KeywordSuggestion[]>([]);
   const [showSuggestionsDialog, setShowSuggestionsDialog] = useState(false);
+  const [savingKeyword, setSavingKeyword] = useState<string | null>(null);
 
   const { brands } = useAdminBrands();
   const { data: keywords, isLoading: loadingKeywords } = useKeywords(
@@ -59,7 +64,7 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
         seedKeyword,
       });
       setSuggestions(results);
-      setShowSuggestionsDialog(true);
+      setShowSuggestionsDialog(false);
       toast({
         title: 'Suggestions ready!',
         description: `Found ${results.length} keyword suggestions`,
@@ -73,7 +78,8 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
     }
   };
 
-  const handleSaveKeyword = async (suggestion: KeywordSuggestion) => {
+  const handleSaveKeyword = async (suggestion: KeywordSuggestion | KeywordResultRow) => {
+    setSavingKeyword(suggestion.keyword);
     try {
       await saveMutation.mutateAsync({
         brand_id: selectedBrandId,
@@ -92,6 +98,8 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
         description: error.message || 'Failed to save keyword',
         variant: 'destructive',
       });
+    } finally {
+      setSavingKeyword(null);
     }
   };
 
@@ -132,8 +140,13 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
         </CardHeader>
       </Card>
 
-
-
+      {brandSlug && (
+        <p className="text-sm text-muted-foreground">
+          <Link to={`/seo-hub?brand=${brandSlug}`} className="text-primary hover:underline">
+            View in SEO Hub
+          </Link>
+        </p>
+      )}
 
       {/* Brand Selection & Keyword Suggestions */}
       <Card>
@@ -190,6 +203,22 @@ export default function KeywordResearch({ brandId, brandName }: KeywordResearchP
           </div>
         </CardContent>
       </Card>
+
+      {suggestions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Suggestions for &quot;{seedKeyword}&quot;</CardTitle>
+            <CardDescription>Select keywords to add to your tracking list</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <KeywordResultsTable
+              data={suggestions}
+              onSave={handleSaveKeyword}
+              savingKeyword={savingKeyword}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Keyword List */}
       {selectedBrandId && (

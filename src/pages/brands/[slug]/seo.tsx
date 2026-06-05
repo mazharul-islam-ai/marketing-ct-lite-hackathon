@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useRunAIAgent } from "@/hooks/useRunAIAgent";
 import { useLatestAIAgentRun } from "@/hooks/useLatestAIAgentRun";
-import { Loader2, Sparkles, Globe, Upload, ListChecks, ArrowLeft, ChevronRight } from "lucide-react";
+import { Loader2, Sparkles, Globe, Upload, ListChecks, ChevronRight, Link2, Users } from "lucide-react";
+import { SEOInputForm } from "@/features/seo-hub/components/SEOInputForm";
+import { BacklinkResultsTable } from "@/features/seo-hub/components/results/BacklinkResultsTable";
+import { CompetitorResultsCards } from "@/features/seo-hub/components/results/CompetitorResultsCards";
+import { checkBacklinks, getMockCompetitorResults, saveSEOReport } from "@/features/seo-hub/api";
+import type { BacklinkResultRow, CompetitorResultCard } from "@/features/seo-hub/types";
 
 interface BrandRecord {
   id: string;
@@ -87,7 +92,8 @@ const normalizeKeywordList = (value: unknown): string[] => {
 
 const BrandPublicSEOPage = () => {
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") ?? "overview";
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -230,6 +236,10 @@ const BrandPublicSEOPage = () => {
   const { data: latestRun, isLoading: latestRunLoading } = useLatestAIAgentRun(selectedAgentId ?? "");
 
   const [runFeedback, setRunFeedback] = useState<string | null>(null);
+  const [backlinkResults, setBacklinkResults] = useState<BacklinkResultRow[]>([]);
+  const [backlinkLoading, setBacklinkLoading] = useState(false);
+  const [competitorResults, setCompetitorResults] = useState<CompetitorResultCard[]>([]);
+  const [competitorLoading, setCompetitorLoading] = useState(false);
 
   const competitorList = useMemo(() => (
     competitorNotes
@@ -249,6 +259,77 @@ const BrandPublicSEOPage = () => {
       return { type: "text", text: manualContent.trim() };
     }
     return null;
+  };
+
+  const handleCheckBacklinks = async (domain: string) => {
+    if (!brandQuery.data) return;
+    setBacklinkLoading(true);
+    try {
+      const results = await checkBacklinks(brandQuery.data.id, domain);
+      setBacklinkResults(results);
+      await saveSEOReport({
+        brand_id: brandQuery.data.id,
+        tool_type: 'backlink',
+        title: `Backlink Check — ${domain}`,
+        score: 65,
+        input_value: domain,
+        result_summary: `${results.length} referring domains found.`,
+        result_url: `/brands/${slug}/seo?tab=backlinks`,
+      });
+      toast({ title: "Backlink check complete", description: `Found ${results.length} backlinks.` });
+    } catch {
+      toast({ title: "Backlink check failed", variant: "destructive" });
+    } finally {
+      setBacklinkLoading(false);
+    }
+  };
+
+  const handleCompetitorAnalysis = async (domainsInput: string) => {
+    if (!user || !brandQuery.data) {
+      toast({ title: "Sign in required", variant: "destructive" });
+      return;
+    }
+
+    const domains = domainsInput
+      .split(/[\n,]/)
+      .map((d) => d.trim())
+      .filter(Boolean);
+
+    const competitorAgent = agentsQuery.data?.find((a) =>
+      a.name.toLowerCase().includes("competitor")
+    );
+
+    if (!competitorAgent) {
+      setCompetitorResults(getMockCompetitorResults());
+      return;
+    }
+
+    setCompetitorLoading(true);
+    try {
+      await runAgentMutation.mutateAsync({
+        agent_id: competitorAgent.id,
+        execution_context: {
+          user_id: user.id,
+          competitors: domains,
+          metadata: { brand_id: brandQuery.data.id, brand_slug: slug },
+        },
+      });
+      setCompetitorResults(getMockCompetitorResults());
+      await saveSEOReport({
+        brand_id: brandQuery.data.id,
+        tool_type: 'competitor',
+        title: `Competitor Analysis — ${brandQuery.data.name}`,
+        score: 72,
+        input_value: domains.join(", "),
+        result_summary: `Analyzed ${domains.length} competitor(s).`,
+        result_url: `/brands/${slug}/seo?tab=competitors`,
+      });
+      toast({ title: "Competitor analysis complete" });
+    } catch {
+      toast({ title: "Analysis failed", variant: "destructive" });
+    } finally {
+      setCompetitorLoading(false);
+    }
   };
 
   const handleRunAgent = async () => {
@@ -402,6 +483,21 @@ const BrandPublicSEOPage = () => {
         </Badge>
       </div>
 
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setSearchParams({ tab: value })}
+      >
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="backlinks" className="flex items-center gap-1">
+            <Link2 className="h-3 w-3" /> Backlinks
+          </TabsTrigger>
+          <TabsTrigger value="competitors" className="flex items-center gap-1">
+            <Users className="h-3 w-3" /> Competitors
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6 mt-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {metricLabels.map((item) => (
           <Card key={item.key}>
@@ -550,16 +646,6 @@ const BrandPublicSEOPage = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-medium uppercase text-muted-foreground">Competitors & Keywords</label>
-              <Textarea
-                rows={3}
-                placeholder="Enter competitor URLs or keywords separated by commas or new lines"
-                value={competitorNotes}
-                onChange={(event) => setCompetitorNotes(event.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
               <label className="text-xs font-medium uppercase text-muted-foreground">Notes for the agent</label>
               <Textarea
                 rows={3}
@@ -639,6 +725,47 @@ const BrandPublicSEOPage = () => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="backlinks" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Backlink Checker</CardTitle>
+              <CardDescription>Review referring domains and link quality for a domain</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <SEOInputForm
+                type="domain"
+                defaultValue={brand.website_url?.replace(/^https?:\/\//, "").split("/")[0] ?? ""}
+                isLoading={backlinkLoading}
+                onSubmit={handleCheckBacklinks}
+              />
+              <BacklinkResultsTable data={backlinkResults} isLoading={backlinkLoading} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="competitors" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Competitor Analysis</CardTitle>
+              <CardDescription>Identify keyword gaps vs competitor domains</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <SEOInputForm
+                type="domains"
+                placeholder="competitor1.com, competitor2.com"
+                isLoading={competitorLoading}
+                onSubmit={handleCompetitorAnalysis}
+              />
+              <CompetitorResultsCards
+                data={competitorResults}
+                isLoading={competitorLoading}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

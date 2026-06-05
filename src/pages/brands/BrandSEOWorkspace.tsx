@@ -21,6 +21,8 @@ import { supabase as _supabase } from "@/integrations/supabase/client";
 const supabase = _supabase as any;
 import type { Database } from "@/integrations/supabase/types";
 import Unauthorized from "@/pages/Unauthorized";
+import { resolveTechnicalSeoAuditorId, saveSEOReport } from "@/features/seo-hub/api";
+import { SiteAuditResults } from "@/features/seo-hub/components/results/SiteAuditResults";
 import {
   Activity,
   ArrowUpRight,
@@ -469,33 +471,6 @@ function RunAIAuditSection({
   const { toast } = useToast();
   const runAgent = useRunAIAgent();
 
-  const copySuggestion = (text: string) => {
-    if (!navigator?.clipboard) {
-      toast({
-        title: "Clipboard unavailable",
-        description: "Your browser does not support copying to the clipboard.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        toast({
-          title: "Copied to clipboard",
-          description: "Suggestion copied for quick sharing.",
-        });
-      })
-      .catch(() => {
-        toast({
-          title: "Copy failed",
-          description: "We couldn't copy this suggestion. Please try again.",
-          variant: "destructive",
-        });
-      });
-  };
-
   const handleRunAudit = async () => {
     if (!user) {
       toast({
@@ -526,9 +501,19 @@ function RunAIAuditSection({
       }
     });
 
+    const auditorId = await resolveTechnicalSeoAuditorId();
+    if (!auditorId) {
+      toast({
+        title: "Audit agent unavailable",
+        description: "The technical SEO auditor agent is not configured.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const response = await runAgent.mutateAsync({
-        agent_id: "seo-audit-agent",
+        agent_id: auditorId,
         execution_context: {
           user_id: user.id,
           brand_id: brand.id,
@@ -580,6 +565,16 @@ function RunAIAuditSection({
       };
 
       setAuditResult(result);
+      const auditScore = Math.min(100, Math.max(40, 100 - suggestionsResult.length * 5));
+      await saveSEOReport({
+        brand_id: brand.id,
+        tool_type: 'site_audit',
+        title: `Site Audit — ${brand.name}`,
+        score: auditScore,
+        input_value: (brand as { website_url?: string }).website_url ?? brand.slug,
+        result_summary: summaryText ?? null,
+        result_url: `/brands/${brand.slug}/seo/workspace`,
+      });
       toast({
         title: "SEO audit complete",
         description: "Review the AI suggestions below to take action.",
@@ -595,9 +590,10 @@ function RunAIAuditSection({
     }
   };
 
-  const suggestions = auditResult?.suggestions ?? [];
-  const summary = auditResult?.summary;
   const lastRunDate = lastAudit?.created_at ? new Date(lastAudit.created_at).toLocaleString() : null;
+  const auditScore = auditResult
+    ? Math.min(100, Math.max(40, 100 - (auditResult.suggestions?.length ?? 0) * 5))
+    : null;
 
   return (
     <Card>
@@ -619,41 +615,18 @@ function RunAIAuditSection({
             Last run on {lastRunDate}
           </p>
         )}
-        {summary && (
-          <div className="rounded-lg bg-muted p-4 text-sm">
-            <p className="font-medium text-muted-foreground">Summary</p>
-            <p className="mt-2 text-foreground">{summary}</p>
-          </div>
-        )}
-        <div className="space-y-3">
-          {suggestions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Run the audit to generate prioritized SEO recommendations.
-            </p>
-          ) : (
-            suggestions.map((suggestion, index) => (
-              <div key={`${suggestion.text}-${index}`} className="flex flex-col gap-2 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex-1">
-                  <p className="text-sm text-foreground">{suggestion.text}</p>
-                  {typeof suggestion.confidence === "number" && (
-                    <Badge variant="secondary" className="mt-2">
-                      Confidence: {(suggestion.confidence * 100).toFixed(0)}%
-                    </Badge>
-                  )}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="inline-flex items-center gap-2"
-                  onClick={() => copySuggestion(suggestion.text)}
-                >
-                  <ClipboardCopy className="h-4 w-4" />
-                  Copy
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
+        <SiteAuditResults
+          data={
+            auditResult
+              ? {
+                  score: auditScore,
+                  summary: auditResult.summary ?? null,
+                  suggestions: auditResult.suggestions ?? [],
+                }
+              : null
+          }
+          isLoading={runAgent.isPending}
+        />
       </CardContent>
     </Card>
   );
@@ -838,10 +811,13 @@ export default function BrandSEOWorkspace() {
     queryKey: ["brand-seo-last-audit", brand?.id],
     enabled: Boolean(brand?.id && hasAccess),
     queryFn: async () => {
+      const auditorId = await resolveTechnicalSeoAuditorId();
+      if (!auditorId) return null;
+
       const { data, error } = await supabase
         .from("ai_agent_runs")
         .select("*")
-        .eq("agent_id", "seo-audit-agent")
+        .eq("agent_id", auditorId)
         .contains("execution_context", { brand_id: brand!.id })
         .order("created_at", { ascending: false })
         .limit(1)

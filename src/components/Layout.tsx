@@ -24,6 +24,7 @@ import {
   BookOpen,
   Calculator,
   UsersRound,
+  Search,
 } from "lucide-react";
 import { useState } from "react";
 import ProfileDropdown from "./ProfileDropdown";
@@ -135,7 +136,8 @@ const Layout = () => {
       navigation.push(
         { name: "SEPARATOR", href: "", icon: null, current: false, isHeader: true },
         { name: "MARKETING", href: "", icon: null, current: false, isHeader: true },
-        { name: "Testimonials", href: "/testimonials", icon: MessageSquareQuote, current: false, minRole: 'pm' }
+        { name: "Testimonials", href: "/testimonials", icon: MessageSquareQuote, current: false, minRole: 'pm' },
+        { name: "SEO Hub", href: "/seo-hub", icon: Search, current: false, minRole: 'pm' }
       );
     }
 
