@@ -104,6 +104,11 @@ import ActiveCollabSyncDashboard from "./pages/adminpanel/data-sync/ActiveCollab
 
 // Quote Builder Module
 import ServiceCatalogPage from "./pages/adminpanel/quotes/ServiceCatalogPage";
+
+// Agent Builder Module
+import AgentBuilderList from "./pages/adminpanel/agent-builder/AgentBuilderList";
+import AgentBuilderStudio from "./pages/adminpanel/agent-builder/AgentBuilderStudio";
+import AgentBuilderSettings from "./pages/adminpanel/agent-builder/AgentBuilderSettings";
 import ImageAnalyticsDashboard from "./pages/adminpanel/image-analytics/ImageAnalyticsDashboard";
 import EstimateListPage from "./pages/quotes/EstimateListPage";
 import EstimateBuilderPage from "./pages/quotes/EstimateBuilderPage";
@@ -528,6 +533,40 @@ const App = () => (
                 element={
                   <ProtectedRoute requiredRole="super_admin">
                     <ServiceCatalogPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Agent Builder Routes */}
+              <Route
+                path="agent-builder"
+                element={
+                  <ProtectedRoute requiredRole="super_admin">
+                    <AgentBuilderList />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="agent-builder/new"
+                element={
+                  <ProtectedRoute requiredRole="super_admin">
+                    <AgentBuilderStudio />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="agent-builder/settings"
+                element={
+                  <ProtectedRoute requiredRole="super_admin">
+                    <AgentBuilderSettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="agent-builder/:agentId"
+                element={
+                  <ProtectedRoute requiredRole="super_admin">
+                    <AgentBuilderStudio />
                   </ProtectedRoute>
                 }
               />
