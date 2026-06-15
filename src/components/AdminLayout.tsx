@@ -75,6 +75,7 @@ const baseNavigation: Array<{ section: string; items: NavigationItem[] }> = [
     items: [
       { name: "Integrations Hub", href: "/adminpanel/integrations", icon: Plug, minRole: "super_admin" },
       { name: "AI Control", href: "/adminpanel/ai-control", icon: Bot, minRole: "super_admin" },
+      { name: "Agent Builder", href: "/adminpanel/agent-builder", icon: Bot, minRole: "super_admin" },
       { name: "Image Analytics", href: "/adminpanel/image-analytics", icon: ImageIcon, minRole: "manager" },
       { name: "Knowledge Base", href: "/adminpanel/knowledgebase", icon: Database, minRole: "super_admin" },
     ],
