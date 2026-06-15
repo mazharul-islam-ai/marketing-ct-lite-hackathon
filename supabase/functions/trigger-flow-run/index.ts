@@ -5,6 +5,8 @@ import { corsHeaders } from '../_shared/cors.ts'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
+const TRIGGER_SECRET_KEY = Deno.env.get('TRIGGER_SECRET_KEY') ?? ''
+const TRIGGER_API_URL = 'https://api.trigger.dev/api/v1/tasks/execute-agent-run/trigger'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -122,8 +124,7 @@ serve(async (req) => {
       throw new Error(`Failed to create run record: ${runError?.message}`)
     }
 
-    // Enqueue to pgmq
-    const pgmqPayload = {
+    const taskPayload = {
       run_id: run.id,
       agent_id,
       version_id: resolvedVersionId,
@@ -132,16 +133,42 @@ serve(async (req) => {
       budget_limit,
       triggered_by: triggeredBy,
       trigger_type: triggerType,
-      enqueued_at: new Date().toISOString(),
     }
 
+    // ── Path A: direct Trigger.dev API call (immediate, no polling delay) ──
+    let triggerDevRunId: string | null = null
+    if (TRIGGER_SECRET_KEY) {
+      try {
+        const tdRes = await fetch(TRIGGER_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${TRIGGER_SECRET_KEY}`,
+          },
+          body: JSON.stringify({ payload: taskPayload }),
+        })
+
+        if (tdRes.ok) {
+          const tdData = await tdRes.json()
+          triggerDevRunId = tdData?.id ?? null
+          console.log('Trigger.dev run started:', triggerDevRunId)
+        } else {
+          const errText = await tdRes.text()
+          console.error('Trigger.dev API error:', tdRes.status, errText)
+        }
+      } catch (tdErr) {
+        console.error('Trigger.dev fetch failed:', tdErr)
+      }
+    }
+
+    // ── Path B: pgmq fallback (picked up by poll-agent-run-queue cron) ──
+    // Always enqueue so the cron can retry if Trigger.dev call failed or key is missing
     const { data: msgId, error: mqError } = await supabase
       .rpc('pgmq_send', {
         queue_name: 'agent_runs',
-        msg: pgmqPayload,
+        msg: { ...taskPayload, enqueued_at: new Date().toISOString() },
       })
 
-    // pgmq.send returns bigint msg_id; update the run with it
     if (!mqError && msgId) {
       await supabase
         .from('agent_runs')
@@ -153,11 +180,15 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         run_id: run.id,
+        trigger_dev_run_id: triggerDevRunId,
         agent_id,
         version_id: resolvedVersionId,
         version: versionData.version,
         status: 'queued',
-        message: 'Run queued successfully. Subscribe to Trigger.dev realtime for progress updates.',
+        dispatched_via: triggerDevRunId ? 'trigger.dev' : 'pgmq',
+        message: triggerDevRunId
+          ? 'Run dispatched to Trigger.dev. Realtime updates will appear in the Runtime tab.'
+          : 'Run queued via pgmq. Will be picked up within 1 minute by the scheduled poller.',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
