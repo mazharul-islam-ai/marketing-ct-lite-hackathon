@@ -68,7 +68,29 @@ export function BuilderAgentRunnerDialog({
 
     fetchSteps(currentRun.id);
 
-    return () => { supabase.removeChannel(channel); };
+    // Polling fallback: re-fetch agent_runs every 5s while active.
+    // Covers cases where the Realtime publication hasn't been applied yet.
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    pollInterval = setInterval(async () => {
+      const { data } = await supabase
+        .from("agent_runs" as never)
+        .select("*")
+        .eq("id", currentRun.id)
+        .single() as { data: AgentRun | null };
+
+      if (data) {
+        setCurrentRun(data);
+        if (data.status !== "queued" && data.status !== "running") {
+          if (pollInterval) clearInterval(pollInterval);
+          fetchSteps(currentRun.id);
+        }
+      }
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [currentRun?.id, fetchSteps]);
 
   const handleRun = async () => {
