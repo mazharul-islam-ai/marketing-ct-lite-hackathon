@@ -1,4 +1,4 @@
-import { task, AbortTaskRunError, logger } from "@trigger.dev/sdk/v3";
+import { task, AbortTaskRunError, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;

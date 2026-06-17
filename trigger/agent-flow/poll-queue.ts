@@ -1,4 +1,4 @@
-import { schedules, logger } from "@trigger.dev/sdk/v3";
+import { schedules, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { executeAgentRun, type AgentRunPayload } from "./execute-agent-run";
 

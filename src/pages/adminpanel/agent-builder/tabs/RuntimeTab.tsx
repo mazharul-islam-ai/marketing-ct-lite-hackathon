@@ -71,7 +71,8 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
 
     loadSteps(currentRun.id);
 
-    // Stale-run guard: if still queued/running with no steps after 2 minutes, show error
+    // Stale-run guard: if still queued/running with no steps after 5 minutes, show error.
+    // 5 minutes accounts for pgmq fallback latency (~1 min poll + execution time).
     const staleTimer = setTimeout(() => {
       setLiveRun((live) => {
         if (live && (live.status === "queued" || live.status === "running")) {
@@ -86,7 +87,7 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
         }
         return live;
       });
-    }, 120_000);
+    }, 300_000);
 
     return () => {
       supabase.removeChannel(channel);

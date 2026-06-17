@@ -6,7 +6,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const TRIGGER_SECRET_KEY = Deno.env.get('TRIGGER_SECRET_KEY') ?? ''
-const TRIGGER_API_URL = 'https://api.trigger.dev/api/v1/tasks/execute-agent-run/trigger'
+const TRIGGER_API_URL = 'https://api.trigger.dev/api/v3/tasks/execute-agent-run/trigger'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -169,18 +169,22 @@ serve(async (req) => {
     }
 
     // ── Path B: pgmq fallback (picked up by poll-agent-run-queue cron) ──
-    // Always enqueue so the cron can retry if Trigger.dev call failed or key is missing
-    const { data: msgId, error: mqError } = await supabase
-      .rpc('pgmq_send', {
-        queue_name: 'agent_runs',
-        msg: { ...taskPayload, enqueued_at: new Date().toISOString() },
-      })
+    // Only enqueue when Path A failed so we avoid double-execution race conditions.
+    if (!triggerDevRunId) {
+      const { data: msgId, error: mqError } = await supabase
+        .rpc('pgmq_send', {
+          queue_name: 'agent_runs',
+          msg: { ...taskPayload, enqueued_at: new Date().toISOString() },
+        })
 
-    if (!mqError && msgId) {
-      await supabase
-        .from('agent_runs')
-        .update({ pgmq_msg_id: msgId })
-        .eq('id', run.id)
+      if (mqError) {
+        console.error('pgmq_send error:', mqError.message)
+      } else if (msgId) {
+        await supabase
+          .from('agent_runs')
+          .update({ pgmq_msg_id: msgId })
+          .eq('id', run.id)
+      }
     }
 
     return new Response(

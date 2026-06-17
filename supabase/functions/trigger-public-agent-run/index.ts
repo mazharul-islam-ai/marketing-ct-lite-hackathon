@@ -12,7 +12,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const TRIGGER_SECRET_KEY = Deno.env.get('TRIGGER_SECRET_KEY') ?? ''
-const TRIGGER_API_URL = 'https://api.trigger.dev/api/v1/tasks/execute-agent-run/trigger'
+const TRIGGER_API_URL = 'https://api.trigger.dev/api/v3/tasks/execute-agent-run/trigger'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -140,18 +140,22 @@ serve(async (req) => {
       }
     }
 
-    // pgmq fallback
-    const { data: msgId, error: mqError } = await supabase
-      .rpc('pgmq_send', {
-        queue_name: 'agent_runs',
-        msg: { ...taskPayload, enqueued_at: new Date().toISOString() },
-      })
+    // ── Path B: pgmq fallback — only used when Path A (direct Trigger.dev) failed ──
+    if (!triggerDevRunId) {
+      const { data: msgId, error: mqError } = await supabase
+        .rpc('pgmq_send', {
+          queue_name: 'agent_runs',
+          msg: { ...taskPayload, enqueued_at: new Date().toISOString() },
+        })
 
-    if (!mqError && msgId) {
-      await supabase
-        .from('agent_runs')
-        .update({ pgmq_msg_id: msgId })
-        .eq('id', run.id)
+      if (mqError) {
+        console.error('pgmq_send error:', mqError.message)
+      } else if (msgId) {
+        await supabase
+          .from('agent_runs')
+          .update({ pgmq_msg_id: msgId })
+          .eq('id', run.id)
+      }
     }
 
     return new Response(
