@@ -73,6 +73,12 @@ export const executeFlowNode = task({
     const { run_id, node, input_data, budget_remaining } = payload;
     const startedAt = Date.now();
 
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error(
+        "Missing required environment variables: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY. Set them in the Trigger.dev dashboard under Environment Variables.",
+      );
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Mark step as running in DB

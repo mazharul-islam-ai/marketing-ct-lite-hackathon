@@ -39,11 +39,13 @@ interface LiveMetadata {
 export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
   const [runSteps, setRunSteps] = useState<RunStep[]>([]);
   const [liveRun, setLiveRun] = useState<AgentRun | null>(currentRun);
+  const [staleError, setStaleError] = useState<string | null>(null);
 
   // Poll run status and steps when run is active
   useEffect(() => {
     if (!currentRun?.id) return;
     setLiveRun(currentRun);
+    setStaleError(null);
 
     const channel = supabase
       .channel(`run-${currentRun.id}`)
@@ -51,7 +53,11 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
         "postgres_changes",
         { event: "*", schema: "public", table: "agent_runs", filter: `id=eq.${currentRun.id}` },
         (payload) => {
-          setLiveRun(payload.new as AgentRun);
+          const updated = payload.new as AgentRun;
+          setLiveRun(updated);
+          if (updated.status !== "queued" && updated.status !== "running") {
+            setStaleError(null);
+          }
         },
       )
       .on(
@@ -65,7 +71,27 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
 
     loadSteps(currentRun.id);
 
-    return () => { supabase.removeChannel(channel); };
+    // Stale-run guard: if still queued/running with no steps after 2 minutes, show error
+    const staleTimer = setTimeout(() => {
+      setLiveRun((live) => {
+        if (live && (live.status === "queued" || live.status === "running")) {
+          setRunSteps((steps) => {
+            if (steps.length === 0) {
+              setStaleError(
+                "Run appears stuck. The worker may have crashed before starting. Check the Trigger.dev dashboard for errors.",
+              );
+            }
+            return steps;
+          });
+        }
+        return live;
+      });
+    }, 120_000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearTimeout(staleTimer);
+    };
   }, [currentRun?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadSteps(runId: string) {
@@ -145,14 +171,20 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
             Steps ({runSteps.length})
           </p>
 
-          {runSteps.length === 0 && run.status !== "queued" && (
+          {runSteps.length === 0 && run.status !== "queued" && !staleError && (
             <p className="text-xs text-slate-400">No steps recorded yet.</p>
           )}
 
-          {run.status === "queued" && (
+          {run.status === "queued" && !staleError && (
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Waiting for worker to pick up…
+            </div>
+          )}
+
+          {staleError && (
+            <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+              {staleError}
             </div>
           )}
 
