@@ -25,6 +25,7 @@ import {
   Calculator,
   UsersRound,
   Search,
+  Bot,
 } from "lucide-react";
 import { useState } from "react";
 import ProfileDropdown from "./ProfileDropdown";
@@ -124,6 +125,11 @@ const Layout = () => {
         { name: "Quotes", href: "/quotes", icon: Calculator, current: false, minRole: 'pm' }
       );
     }
+
+    // AI Agents for all authenticated users
+    navigation.push(
+      { name: "AI Agents", href: "/ai-agents", icon: Bot, current: false }
+    );
 
     // Add Brands for all users
     navigation.push(

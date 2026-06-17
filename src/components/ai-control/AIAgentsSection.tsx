@@ -15,12 +15,112 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Pencil, Play, PowerOff, Search, ShieldCheck, Eye } from "lucide-react";
+import { Loader2, Pencil, Play, PowerOff, Search, ShieldCheck, Eye, Bot, Lock, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRunAIAgent } from "@/hooks/useRunAIAgent";
 import { useLatestAIAgentRun } from "@/hooks/useLatestAIAgentRun";
 import { AgentConfigRouter } from "./AgentConfigRouter";
 import { AgentResultsPanel } from "./AgentResultsPanel";
+import { BuilderAgentRunnerDialog } from "@/components/agents/BuilderAgentRunnerDialog";
+
+interface BuilderAgent {
+  id: string;
+  name: string;
+  description: string | null;
+  visibility: string;
+  current_version_id: string | null;
+  updated_at: string;
+}
+
+function BuilderAgentsSection() {
+  const [runnerAgent, setRunnerAgent] = useState<BuilderAgent | null>(null);
+
+  const { data: builderAgents = [], isLoading } = useQuery({
+    queryKey: ["builder-agents", "admin-only"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("agents" as never)
+        .select("id, name, description, visibility, current_version_id, updated_at")
+        .eq("status", "published")
+        .eq("visibility", "admin_only")
+        .order("updated_at", { ascending: false }) as { data: BuilderAgent[] | null; error: unknown };
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  if (isLoading) return (
+    <div className="flex h-24 items-center justify-center">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+    </div>
+  );
+
+  if (builderAgents.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Lock className="h-4 w-4 text-amber-600" />
+        <h3 className="text-base font-semibold">Builder Agents — Admin Only</h3>
+        <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
+          {builderAgents.length} published
+        </Badge>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {builderAgents.map((agent) => (
+          <Card key={agent.id} className="flex flex-col border-amber-100">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <Bot className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <CardTitle className="text-base">{agent.name}</CardTitle>
+                    {agent.description && (
+                      <CardDescription className="mt-0.5">{agent.description}</CardDescription>
+                    )}
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50 shrink-0">
+                  Admin Only
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="text-xs text-muted-foreground">
+                Updated {new Date(agent.updated_at).toLocaleDateString()}
+              </div>
+              <Separator />
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setRunnerAgent(agent)}
+                  disabled={!agent.current_version_id}
+                  title={!agent.current_version_id ? "No compiled version available" : undefined}
+                >
+                  <Play className="mr-1.5 h-3.5 w-3.5" /> Run
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`/adminpanel/agent-builder/${agent.id}`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open Builder
+                  </a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {runnerAgent && (
+        <BuilderAgentRunnerDialog
+          agentId={runnerAgent.id}
+          agentName={runnerAgent.name}
+          versionId={runnerAgent.current_version_id}
+          onClose={() => setRunnerAgent(null)}
+        />
+      )}
+    </div>
+  );
+}
 
 interface AIAgentsSectionProps {
   userId: string;
@@ -278,6 +378,13 @@ export const AIAgentsSection = ({ userId, canManage }: AIAgentsSectionProps) => 
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* Builder Agents (Admin Only) — shown below the ai_agents grid */}
+      {canManage && (
+        <div className="pt-4 border-t border-slate-100">
+          <BuilderAgentsSection />
         </div>
       )}
 

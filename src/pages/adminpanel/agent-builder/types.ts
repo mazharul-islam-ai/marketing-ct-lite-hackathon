@@ -61,12 +61,16 @@ export interface FlowJSON {
   edges: FlowEdge[];
 }
 
+export type AgentVisibility = "workspace" | "admin_only" | "public";
+
 export interface Agent {
   id: string;
   workspace_id: string | null;
   name: string;
   description: string | null;
   status: "draft" | "published" | "archived";
+  visibility: AgentVisibility;
+  public_token: string;
   current_version_id: string | null;
   created_by: string | null;
   created_at: string;
@@ -122,6 +126,16 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
+}
+
+export interface AgentBuilderPrompt {
+  id: string;
+  version_name: string;
+  version_number: number;
+  prompt_text: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
 }
 
 // ── Node type registry ───────────────────────────────────────────────────────

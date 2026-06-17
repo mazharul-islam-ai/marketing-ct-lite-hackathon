@@ -19,6 +19,43 @@ const VALID_NODE_TYPES = [
   'dashboard_write', 'email_output', 'db_write', 'report_generate',
 ] as const
 
+// Fuzzy aliases: map common LLM-invented names → valid node types
+const TYPE_ALIASES: Record<string, string> = {
+  // db_query
+  database_query: 'db_query', query_database: 'db_query', sql_query: 'db_query',
+  fetch_data: 'db_query', fetch_deals: 'db_query', get_data: 'db_query',
+  read_data: 'db_query', retrieve_data: 'db_query', db_read: 'db_query',
+  query_db: 'db_query', database_read: 'db_query',
+  // openai_llm
+  llm_call: 'openai_llm', ai_call: 'openai_llm', llm: 'openai_llm',
+  llm_query: 'openai_llm', gpt: 'openai_llm', generate_text: 'openai_llm',
+  ai_process: 'openai_llm', language_model: 'openai_llm', ai_model: 'openai_llm',
+  // report_generate
+  generate_report: 'report_generate', create_report: 'report_generate',
+  build_report: 'report_generate', make_report: 'report_generate',
+  // manual_trigger
+  start: 'manual_trigger', trigger: 'manual_trigger', begin: 'manual_trigger',
+  initiate: 'manual_trigger', on_demand: 'manual_trigger',
+  // cron_trigger
+  schedule: 'cron_trigger', scheduled: 'cron_trigger', cron: 'cron_trigger',
+  timer: 'cron_trigger', recurring: 'cron_trigger',
+  // email_output
+  send_report: 'email_output', notify: 'email_output', notification: 'email_output',
+  send_notification: 'email_output',
+  // db_write
+  save_data: 'db_write', store_data: 'db_write', insert_data: 'db_write',
+  write_data: 'db_write', persist_data: 'db_write', update_data: 'db_write',
+  // api_call
+  http_request: 'api_call', rest_call: 'api_call', external_api: 'api_call',
+  api_request: 'api_call', web_request: 'api_call',
+  // slack_notify
+  slack_message: 'slack_notify', slack_alert: 'slack_notify', send_slack: 'slack_notify',
+  // email_send
+  send_email: 'email_send', email: 'email_send',
+  // condition
+  if_else: 'condition', branch: 'condition', decision: 'condition', check: 'condition',
+}
+
 type NodeType = typeof VALID_NODE_TYPES[number]
 
 interface FlowNode {
@@ -166,13 +203,34 @@ const FLOW_JSON_SCHEMA = {
   required: ['trigger', 'steps', 'edges'],
 }
 
-// ── System prompt injected into every compile request ───────────────────────
-function buildSystemPrompt(): string {
-  return `You are an AI workflow compiler for an enterprise Agent Builder platform.
+// ── Load the active system prompt from agent_builder_prompts ─────────────────
+async function loadCustomSystemPrompt(
+  supabase: ReturnType<typeof createClient>,
+): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from('agent_builder_prompts')
+      .select('prompt_text')
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle()
+    const text = ((data as { prompt_text?: string } | null)?.prompt_text ?? '').trim()
+    return text || null
+  } catch {
+    return null
+  }
+}
+
+// ── Build the final system prompt ─────────────────────────────────────────────
+// If an admin-defined custom prompt is active it is placed first as context /
+// persona instructions; the structural rules are always appended so the LLM
+// always knows the valid node types and output format.
+function buildSystemPrompt(customPrefix?: string | null): string {
+  const structural = `You are an AI workflow compiler for an enterprise Agent Builder platform.
 
 Your job is to convert a user's natural language description into a structured JSON workflow.
 
-VALID NODE TYPES (you MUST only use these):
+VALID NODE TYPES (you MUST only use these exact strings):
 Triggers: cron_trigger, webhook_trigger, manual_trigger, db_trigger, crm_event_trigger
 Logic:    condition, switch, loop, delay
 AI:       openai_llm, gemini_llm, anthropic_llm, custom_llm
@@ -181,13 +239,37 @@ Outputs:  dashboard_write, email_output, db_write, report_generate
 
 RULES:
 1. NEVER invent node types outside the valid list above.
-2. If the user requests a tool you cannot model (e.g. "send a fax"), pick the closest valid alternative and note it in the label.
-3. Assign sequential node IDs: "n1", "n2", "n3", ...
-4. Position nodes left-to-right with x increasing by 200 per step, y=200 for main path, y=400 for branches.
-5. Edges must reference valid node IDs only.
-6. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
-7. The trigger field should be a single trigger node (or null for manual).
-8. Return ONLY the JSON object, no markdown, no explanation.`
+2. Use the EXACT strings — do not use snake_case variants like "database_query", "llm_call", "generate_report", etc.
+3. If the user requests a tool you cannot model (e.g. "send a fax"), pick the closest valid alternative and note it in the label.
+4. Assign sequential node IDs: "n1", "n2", "n3", ...
+5. Position nodes left-to-right with x increasing by 200 per step, y=200 for main path, y=400 for branches.
+6. Edges must reference valid node IDs only.
+7. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
+8. The trigger field should be a single trigger node (or null for manual/on-demand workflows).
+9. Return ONLY the JSON object, no markdown, no explanation.
+
+COMMON PATTERNS — use these exact node types:
+- "retrieve / fetch / query / read data from database"  → db_query
+- "call AI / use LLM / analyze with GPT"               → openai_llm
+- "analyze with Gemini"                                → gemini_llm
+- "generate / create a report"                         → report_generate
+- "send report / summary by email"                     → email_output
+- "run on a schedule / every day / every hour"         → cron_trigger
+- "run manually / on demand / triggered by user"       → manual_trigger
+- "save / store / write to database"                   → db_write
+- "notify via Slack"                                   → slack_notify
+- "send email"                                         → email_send
+
+CLARIFICATION:
+If — and ONLY if — the request is genuinely ambiguous and you CANNOT make any reasonable assumption,
+return ONLY this JSON object (no flow, no explanation):
+{ "clarification_needed": true, "question": "your single concise question" }
+Do NOT ask for clarification if you can make a reasonable assumption. Prefer generating a flow.`
+
+  if (customPrefix) {
+    return `${customPrefix}\n\n---\n\n${structural}`
+  }
+  return structural
 }
 
 // ── Normalize flow JSON from LLM output ─────────────────────────────────────
@@ -244,6 +326,7 @@ function normalizeFlowJSON(raw: unknown): unknown {
       if (!node.label && node.title) node.label = node.title
       if (!node.config) node.config = {}
       if (!node.position) node.position = { x: 200, y: 200 }
+      resolveNodeType(node)
       return node
     })
   }
@@ -255,7 +338,19 @@ function normalizeFlowJSON(raw: unknown): unknown {
     if (!t.label && t.title) t.label = t.title
     if (!t.config) t.config = {}
     if (!t.position) t.position = { x: 0, y: 200 }
+    resolveNodeType(t)
     obj.trigger = t
+  }
+
+  // Handle { nodes: [...] } flat array — split into trigger + steps
+  if (Array.isArray(obj.nodes) && !obj.steps) {
+    const nodes = obj.nodes as Record<string, unknown>[]
+    // Normalize type names on the raw nodes before splitting
+    nodes.forEach((n) => resolveNodeType(n))
+    const triggerNode = nodes.find((n) => String(n.type ?? '').endsWith('_trigger'))
+    obj.trigger = triggerNode ?? null
+    obj.steps = nodes.filter((n) => n !== triggerNode)
+    delete obj.nodes
   }
 
   // Ensure trigger is null (not missing/undefined) if absent
@@ -264,6 +359,21 @@ function normalizeFlowJSON(raw: unknown): unknown {
   }
 
   return obj
+}
+
+// Resolve and normalise the .type field on a raw node object in-place
+function resolveNodeType(node: Record<string, unknown>): void {
+  // Promote alternate field names
+  if (!node.type && node.nodeType) node.type = node.nodeType
+  if (!node.type && node.node_type) node.type = node.node_type
+  if (!node.type && node.kind) node.type = node.kind
+  if (!node.type && node.category) node.type = node.category
+  // Apply fuzzy alias mapping (case-insensitive)
+  if (node.type && typeof node.type === 'string') {
+    const lower = node.type.toLowerCase().replace(/[-\s]/g, '_')
+    if (TYPE_ALIASES[lower]) node.type = TYPE_ALIASES[lower]
+    else if (TYPE_ALIASES[node.type]) node.type = TYPE_ALIASES[node.type]
+  }
 }
 
 // ── Validate flow JSON structure ─────────────────────────────────────────────
@@ -617,7 +727,10 @@ serve(async (req) => {
       currentFlow = version?.flow_json ?? null
     }
 
-    const systemPrompt = buildSystemPrompt() + (
+    // Load admin-defined system prompt from settings (Agent Builder → System Prompt tab)
+    const customSystemPrompt = await loadCustomSystemPrompt(supabase)
+
+    const systemPrompt = buildSystemPrompt(customSystemPrompt) + (
       currentFlow
         ? `\n\nCURRENT FLOW STATE (for context):\n${JSON.stringify(currentFlow, null, 2)}`
         : ''
@@ -645,6 +758,38 @@ serve(async (req) => {
           prompt + retryNote,
           chatHistory,
         )
+
+        // Detect clarification request (only on first attempt — retries should fix validation)
+        if (attempt === 0 && raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          const maybeClarity = raw as Record<string, unknown>
+          if (maybeClarity.clarification_needed === true && typeof maybeClarity.question === 'string') {
+            const question = maybeClarity.question.trim()
+            const clarityHistory = [
+              ...chatHistory,
+              { role: 'user', content: prompt },
+              { role: 'assistant', content: question },
+            ]
+            await supabase
+              .from('builder_sessions')
+              .upsert({
+                agent_id,
+                user_id: user.id,
+                chat_history: clarityHistory.slice(-50),
+                last_active: new Date().toISOString(),
+              }, { onConflict: 'agent_id,user_id' })
+
+            return new Response(
+              JSON.stringify({
+                success: false,
+                needs_clarification: true,
+                question,
+                ai_message: question,
+                chat_history: clarityHistory.slice(-50),
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+            )
+          }
+        }
 
         // Normalize before validation to handle structural variations from different models
         const normalized = normalizeFlowJSON(raw)
@@ -688,7 +833,7 @@ serve(async (req) => {
           message: `Could not generate a valid flow. ${lastError ?? 'Please try rephrasing.'}`,
           chat_history: newHistory.slice(-50),
         }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
 

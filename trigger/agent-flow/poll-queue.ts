@@ -15,6 +15,12 @@ export const pollAgentRunQueue = schedules.task({
   cron: "*/1 * * * *", // every minute (Trigger.dev scheduled tasks min is 1 min)
   maxDuration: 55,
   run: async () => {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error(
+        "Missing required environment variables: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY.",
+      );
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     logger.info("Polling pgmq agent_runs queue");

@@ -1,1 +1,4 @@
 project_id = "ckaaawiiczphdssrtymc"
+
+[functions.trigger-public-agent-run]
+verify_jwt = false

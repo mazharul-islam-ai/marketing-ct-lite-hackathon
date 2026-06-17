@@ -49,6 +49,22 @@ export const executeAgentRun = task({
   retry: {
     maxAttempts: 1,
   },
+  onFailure: async ({ payload, error }: { payload: AgentRunPayload; error: unknown }) => {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return;
+    const { createClient: createFreshClient } = await import("@supabase/supabase-js");
+    const supabase = createFreshClient(url, key);
+    await supabase
+      .from("agent_runs")
+      .update({
+        status: "failed",
+        error_message: error instanceof Error ? error.message : String(error),
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", payload.run_id)
+      .in("status", ["queued", "running"]);
+  },
   run: async (payload: AgentRunPayload) => {
     const {
       run_id,
@@ -57,6 +73,12 @@ export const executeAgentRun = task({
       input_context = {},
       budget_limit = DEFAULT_BUDGET,
     } = payload;
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error(
+        "Missing required environment variables: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY. Set them in the Trigger.dev dashboard under Environment Variables.",
+      );
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 

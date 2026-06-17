@@ -153,29 +153,46 @@ export function useBuilderSession(
           flow_json?: FlowJSON;
           version_id?: string;
           version?: number;
-          ai_message: string;
+          ai_message?: string;
           message?: string;
           chat_history?: ChatMessage[];
+          needs_clarification?: boolean;
+          question?: string;
         };
-
-        const aiMsg: ChatMessage = {
-          role: "assistant",
-          content: result.ai_message ?? result.message ?? "Done.",
-          timestamp: new Date().toISOString(),
-        };
-
-        setChatHistory((prev) => [...prev, aiMsg]);
 
         if (result.success && result.flow_json) {
+          const aiMsg: ChatMessage = {
+            role: "assistant",
+            content: result.ai_message ?? "Flow updated.",
+            timestamp: new Date().toISOString(),
+          };
+          setChatHistory((prev) => [...prev, aiMsg]);
           onFlowUpdate(result.flow_json);
           if (result.version_id) setLastVersionId(result.version_id);
           if (result.version) setLastVersion(result.version);
           return result.flow_json;
         }
 
-        if (!result.success && result.message) {
-          setError(result.message);
+        // LLM is asking for clarification — show as a normal chat bubble, not an error
+        if (!result.success && result.needs_clarification && result.question) {
+          const questionMsg: ChatMessage = {
+            role: "assistant",
+            content: result.question,
+            timestamp: new Date().toISOString(),
+          };
+          setChatHistory((prev) => [...prev, questionMsg]);
+          return null;
         }
+
+        // Soft failure — show message in chat and as an error banner
+        const failMsg = result.message ?? result.ai_message ?? "Could not generate a valid flow. Please try rephrasing.";
+        const failChatMsg: ChatMessage = {
+          role: "assistant",
+          content: failMsg,
+          timestamp: new Date().toISOString(),
+        };
+        setChatHistory((prev) => [...prev, failChatMsg]);
+        setError(failMsg);
 
         return null;
       } catch (err) {
