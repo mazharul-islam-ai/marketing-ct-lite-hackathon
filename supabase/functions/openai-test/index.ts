@@ -111,6 +111,36 @@ serve(async (req) => {
       );
     }
 
+    if (action === "list_models") {
+      const response = await fetch("https://api.openai.com/v1/models", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "Failed to fetch models", models: [] }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const data = await response.json();
+      // Exclude non-chat models: embeddings, tts, whisper, dall-e, moderation, image, realtime, preview fine-tunes
+      const EXCLUDE = /^(text-embedding|text-moderation|tts-|whisper-|dall-e|babbage|davinci|curie|ada|ft:)/;
+      const chatModels = (data.data as Array<{ id: string }>)
+        .map((m) => m.id)
+        .filter((id) => !EXCLUDE.test(id))
+        .sort();
+
+      return new Response(
+        JSON.stringify({ ok: true, configured: true, models: chatModels }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Generate a simple test completion to verify full functionality
     if (action === "generate_test") {
       console.log("Testing OpenAI text generation...");

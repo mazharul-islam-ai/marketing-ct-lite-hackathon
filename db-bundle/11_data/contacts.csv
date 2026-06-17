@@ -1,0 +1,6 @@
+id,first_name,last_name,email,phone,company,role,client_id,hubspot_id,created_at
+88fe78bc-23c5-426e-864c-73a851084e61,Alex,Johnson,alex@techstartup.com,,Tech Startup Inc,CEO,f1000000-0000-0000-0000-000000000001,,2026-02-24 11:30:21.423341+00
+47130bb9-e6c4-4704-a4d2-adc5bb362833,Maria,Garcia,maria@greenleaf.com,,GreenLeaf Health,CMO,f1000000-0000-0000-0000-000000000002,,2026-02-24 11:30:21.423341+00
+b96f1da0-8503-4d27-bfbd-6a8a625a774d,David,Kim,david@urbaneats.com,,Urban Eats LLC,Marketing Director,f1000000-0000-0000-0000-000000000003,,2026-02-24 11:30:21.423341+00
+516b0d3a-f821-4acb-95e0-d54908657e67,Emily,Chen,emily@finova.com,,Finova Capital,VP Marketing,f1000000-0000-0000-0000-000000000004,,2026-02-24 11:30:21.423341+00
+cef8a1e9-3b3f-4700-8b8b-0be63f125961,James,Wilson,james@eduspark.io,,EduSpark Inc,Head of Growth,f1000000-0000-0000-0000-000000000005,,2026-02-24 11:30:21.423341+00

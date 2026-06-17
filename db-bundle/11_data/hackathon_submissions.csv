@@ -1,0 +1,2 @@
+id,team_id,submission_title,description,demo_url,github_url,video_url,presentation_url,submitted_at,is_finalized,tech_stack,status
+50b00001-0000-0000-0000-000000000001,dea00001-0000-0000-0000-000000000001,AI Content Studio,One-click AI content generation with brand compliance checking,https://demo.aistudio.sjinn.dev,https://github.com/sjinnovation/ai-content-studio,,,2026-02-21 08:27:34.694116+00,t,,submitted

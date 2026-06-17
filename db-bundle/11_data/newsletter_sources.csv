@@ -1,0 +1,5 @@
+id,source_name,rss_url,category,is_active,created_at
+03644e68-6666-4f23-9e57-76859a65841d,TechCrunch,https://techcrunch.com/feed/,Technology,t,2026-02-24 11:28:48.952716+00
+f87a64e9-c952-4d9f-aace-bc1b1e18f2c3,Marketing Week,https://marketingweek.com/feed/,Marketing,t,2026-02-24 11:28:48.952716+00
+357bcf76-150d-4a5a-8c4c-b3f8c0e0dbc0,The Verge,https://theverge.com/feed/,Technology,t,2026-02-24 11:28:48.952716+00
+f19366d5-b8b8-4f6f-b137-84c55e3221cf,HubSpot Blog,https://blog.hubspot.com/rss.xml,Marketing,t,2026-02-24 11:28:48.952716+00

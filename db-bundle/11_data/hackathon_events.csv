@@ -1,0 +1,3 @@
+id,name,description,start_date,end_date,registration_deadline,max_team_size,min_team_size,rules,prizes,is_active,created_by,created_at,status,theme,location
+f6000000-0000-0000-0000-000000000001,SJ Innovation Hackathon 2026,Annual company hackathon focused on AI-powered solutions,2026-03-15 09:00:00+00,2026-03-17 18:00:00+00,2026-03-10 23:59:59+00,5,1,Teams of 2-5 people. Must use at least one AI API. 48 hours to build.,,t,500b4a7f-4c4a-429e-a307-0601568c8525,2026-02-24 11:31:31.825974+00,upcoming,AI for Good,
+ac100001-0000-0000-0000-000000000001,SJ Innovation Hackathon 2026,Internal hackathon for innovation and learning,2026-03-15 09:00:00+00,2026-03-17 18:00:00+00,,5,2,,,t,500b4a7f-4c4a-429e-a307-0601568c8525,2026-01-27 08:27:34.694116+00,active,,
