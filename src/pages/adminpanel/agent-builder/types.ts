@@ -124,6 +124,16 @@ export interface ChatMessage {
   timestamp?: string;
 }
 
+export interface AgentBuilderPrompt {
+  id: string;
+  version_name: string;
+  version_number: number;
+  prompt_text: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
 // ── Node type registry ───────────────────────────────────────────────────────
 export const NODE_CATEGORIES: NodeCategoryDef[] = [
   { id: "trigger",  label: "Triggers",   icon: "⏰", color: "text-amber-600",  bgColor: "bg-amber-50 border-amber-200" },

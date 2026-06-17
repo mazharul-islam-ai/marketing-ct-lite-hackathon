@@ -5,6 +5,7 @@ import {
   CheckCircle2, AlertCircle, ExternalLink, Loader2,
   Lock, Unlock, ChevronDown, ChevronRight,
   Zap, Globe2, MessageSquare, BarChart3, FolderOpen, Users, Briefcase,
+  FileText, Save, History, CircleDot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,9 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import type { AgentBuilderPrompt } from "./types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -224,7 +228,7 @@ const DATA_TABLE_GROUPS: { category: string; tables: DataTableDef[] }[] = [
 
 export default function AgentBuilderSettings() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"models" | "tools" | "data">("models");
+  const [activeTab, setActiveTab] = useState<"models" | "tools" | "data" | "system_prompt">("models");
 
   // AI provider health
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({
@@ -246,6 +250,15 @@ export default function AgentBuilderSettings() {
     new Set(DATA_TABLE_GROUPS.map((g) => g.category)),
   );
 
+  // System Prompt versioning
+  const [promptText, setPromptText] = useState("");
+  const [activePrompt, setActivePrompt] = useState<AgentBuilderPrompt | null>(null);
+  const [promptVersions, setPromptVersions] = useState<AgentBuilderPrompt[]>([]);
+  const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+  const [isActivatingPrompt, setIsActivatingPrompt] = useState<string | null>(null);
+  const isDirty = promptText !== (activePrompt?.prompt_text ?? "");
+
   // ── Load data on mount ────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -253,6 +266,7 @@ export default function AgentBuilderSettings() {
     loadSavedModelDefaults();
     loadConnectedTools();
     loadDataSourceSettings();
+    loadPromptVersions();
   }, []);
 
   async function loadProviderHealthAndModels() {
@@ -412,6 +426,113 @@ export default function AgentBuilderSettings() {
     }
   }, []);
 
+  async function loadPromptVersions() {
+    setIsLoadingPrompts(true);
+    try {
+      const { data, error } = await supabase
+        .from("agent_builder_prompts" as never)
+        .select("*")
+        .order("version_number", { ascending: false }) as {
+          data: AgentBuilderPrompt[] | null;
+          error: unknown;
+        };
+
+      if (error) throw error;
+
+      const versions = data ?? [];
+      setPromptVersions(versions);
+      const active = versions.find((v) => v.is_active) ?? versions[0] ?? null;
+      setActivePrompt(active);
+      setPromptText(active?.prompt_text ?? "");
+    } catch {
+      // table may not exist yet in the current environment — fail silently
+    } finally {
+      setIsLoadingPrompts(false);
+    }
+  }
+
+  const savePromptVersion = useCallback(async () => {
+    const text = promptText.trim();
+    if (!text || !isDirty) return;
+
+    setIsSavingPrompt(true);
+    try {
+      // Determine next version number
+      const nextVersion =
+        promptVersions.length > 0
+          ? Math.max(...promptVersions.map((v) => v.version_number)) + 1
+          : 1;
+
+      // Build version name using today's date
+      const today = new Date();
+      const datePart = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, "0"),
+        String(today.getDate()).padStart(2, "0"),
+      ].join("");
+      const versionName = `${datePart}_agent_builder_prompt_v${nextVersion}`;
+
+      // Deactivate all existing versions
+      if (promptVersions.length > 0) {
+        await supabase
+          .from("agent_builder_prompts" as never)
+          .update({ is_active: false } as never)
+          .neq("id", "00000000-0000-0000-0000-000000000000"); // update all rows
+      }
+
+      // Insert new active version
+      const { data: inserted, error } = await supabase
+        .from("agent_builder_prompts" as never)
+        .insert({
+          version_name: versionName,
+          version_number: nextVersion,
+          prompt_text: text,
+          is_active: true,
+        } as never)
+        .select()
+        .single() as { data: AgentBuilderPrompt | null; error: unknown };
+
+      if (error) throw error;
+
+      toast.success(`Saved as ${versionName}`);
+      await loadPromptVersions();
+      if (inserted) setActivePrompt(inserted);
+    } catch {
+      toast.error("Failed to save prompt version");
+    } finally {
+      setIsSavingPrompt(false);
+    }
+  }, [promptText, isDirty, promptVersions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function activatePromptVersion(version: AgentBuilderPrompt) {
+    if (version.is_active) return;
+    setIsActivatingPrompt(version.id);
+    try {
+      // Deactivate all
+      await supabase
+        .from("agent_builder_prompts" as never)
+        .update({ is_active: false } as never)
+        .neq("id", "00000000-0000-0000-0000-000000000000");
+
+      // Activate chosen
+      const { error } = await supabase
+        .from("agent_builder_prompts" as never)
+        .update({ is_active: true } as never)
+        .eq("id", version.id);
+
+      if (error) throw error;
+
+      setActivePrompt(version);
+      setPromptText(version.prompt_text);
+      toast.success(`Activated ${version.version_name}`);
+      await loadPromptVersions();
+    } catch {
+      toast.error("Failed to activate version");
+    } finally {
+      setIsActivatingPrompt(null);
+    }
+  }
+
   function toggleTable(name: string) {
     setEnabledTables((prev) => {
       const next = new Set(prev);
@@ -432,9 +553,10 @@ export default function AgentBuilderSettings() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const tabs = [
-    { id: "models" as const, label: "AI Models", icon: Brain },
-    { id: "tools"  as const, label: "Tools",     icon: Wrench },
-    { id: "data"   as const, label: "Data Sources", icon: Database },
+    { id: "models"         as const, label: "AI Models",     icon: Brain },
+    { id: "tools"          as const, label: "Tools",          icon: Wrench },
+    { id: "data"           as const, label: "Data Sources",   icon: Database },
+    { id: "system_prompt"  as const, label: "System Prompt",  icon: FileText },
   ];
 
   return (
@@ -758,6 +880,157 @@ export default function AgentBuilderSettings() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+        {/* ── SYSTEM PROMPT TAB ── */}
+        {activeTab === "system_prompt" && (
+          <div className="max-w-3xl space-y-6">
+            <p className="text-xs text-slate-500">
+              Define the global system prompt used by the Agent Builder. Saving creates a new
+              immutable version; activate any past version to make it live.
+            </p>
+
+            {/* Editor */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs font-semibold text-slate-600">Prompt Editor</span>
+                {activePrompt && (
+                  <span className="ml-auto text-[10px] text-slate-400 font-mono">
+                    Active: {activePrompt.version_name}
+                  </span>
+                )}
+              </div>
+
+              {isLoadingPrompts ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                </div>
+              ) : (
+                <div className="p-4 space-y-3">
+                  <Textarea
+                    value={promptText}
+                    onChange={(e) => setPromptText(e.target.value)}
+                    placeholder="Enter the system prompt for the Agent Builder…"
+                    className="min-h-[280px] text-xs font-mono resize-y leading-relaxed"
+                    spellCheck={false}
+                  />
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] text-slate-400">
+                      {promptText.length} characters
+                      {isDirty && (
+                        <span className="ml-2 text-amber-500 font-medium">● Unsaved changes</span>
+                      )}
+                    </span>
+                    <Button
+                      className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 border-0"
+                      onClick={savePromptVersion}
+                      disabled={!isDirty || isSavingPrompt || !promptText.trim()}
+                      size="sm"
+                    >
+                      {isSavingPrompt
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Save className="w-3.5 h-3.5" />
+                      }
+                      {promptVersions.length === 0
+                        ? "Save v1"
+                        : `Save v${Math.max(...promptVersions.map((v) => v.version_number)) + 1}`
+                      }
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Version history */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                <History className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs font-semibold text-slate-600">Version History</span>
+                <span className="ml-auto text-[10px] text-slate-400">{promptVersions.length} versions</span>
+              </div>
+
+              {isLoadingPrompts ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-300" />
+                </div>
+              ) : promptVersions.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <History className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs font-medium">No versions yet</p>
+                  <p className="text-[11px] mt-1">Write a prompt above and click Save to create v1</p>
+                </div>
+              ) : (
+                <ScrollArea className="max-h-72">
+                  <div className="divide-y divide-slate-100">
+                    {promptVersions.map((v) => {
+                      const isActive = v.is_active;
+                      const isActivating = isActivatingPrompt === v.id;
+                      return (
+                        <div
+                          key={v.id}
+                          className={cn(
+                            "flex items-center gap-3 px-4 py-3 transition-colors",
+                            isActive ? "bg-violet-50/60" : "hover:bg-slate-50",
+                          )}
+                        >
+                          {/* Version badge */}
+                          <div className={cn(
+                            "flex items-center justify-center w-8 h-8 rounded-full text-[11px] font-bold shrink-0",
+                            isActive
+                              ? "bg-violet-600 text-white"
+                              : "bg-slate-100 text-slate-600",
+                          )}>
+                            v{v.version_number}
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono font-semibold text-slate-700 truncate">
+                                {v.version_name}
+                              </span>
+                              {isActive && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 shrink-0">
+                                  <CircleDot className="w-2.5 h-2.5" /> active
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {new Date(v.created_at).toLocaleString()}
+                              {" · "}
+                              {v.prompt_text.length} chars
+                            </p>
+                          </div>
+
+                          {/* Action */}
+                          <div className="shrink-0">
+                            {isActive ? (
+                              <span className="text-[11px] text-slate-400">Current</span>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-[11px] gap-1 px-2.5"
+                                onClick={() => activatePromptVersion(v)}
+                                disabled={!!isActivatingPrompt}
+                              >
+                                {isActivating
+                                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : <CheckCircle2 className="w-3 h-3" />
+                                }
+                                Activate
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
             </div>
           </div>
         )}
