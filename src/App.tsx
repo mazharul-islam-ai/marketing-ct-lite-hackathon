@@ -109,6 +109,10 @@ import ServiceCatalogPage from "./pages/adminpanel/quotes/ServiceCatalogPage";
 import AgentBuilderList from "./pages/adminpanel/agent-builder/AgentBuilderList";
 import AgentBuilderStudio from "./pages/adminpanel/agent-builder/AgentBuilderStudio";
 import AgentBuilderSettings from "./pages/adminpanel/agent-builder/AgentBuilderSettings";
+
+// AI Agents (Workspace + Public)
+import AIAgentsPage from "./pages/ai-agents";
+import AgentPublicPage from "./pages/public/AgentPublicPage";
 import ImageAnalyticsDashboard from "./pages/adminpanel/image-analytics/ImageAnalyticsDashboard";
 import EstimateListPage from "./pages/quotes/EstimateListPage";
 import EstimateBuilderPage from "./pages/quotes/EstimateBuilderPage";
@@ -155,6 +159,8 @@ const App = () => (
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/google-drive-callback" element={<GoogleDriveCallback />} />
             <Route path="/testimonial/submit/:token" element={<TestimonialSubmitPage />} />
+            {/* Public agent runner — no auth required */}
+            <Route path="/public/agents/:publicToken" element={<AgentPublicPage />} />
             
             {/* Redirect /dashboard to appropriate location */}
             <Route path="/dashboard" element={<DashboardRedirect />} />
@@ -253,6 +259,7 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="my-agents" element={<MyAgentsPage />} />
+              <Route path="ai-agents" element={<AIAgentsPage />} />
               <Route path="weekly-client-email-summary" element={
                 <ProtectedRoute requiredMinimumRole="pm">
                   <WeeklyClientEmailSummary />
