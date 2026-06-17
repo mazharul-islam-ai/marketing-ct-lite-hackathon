@@ -1,4 +1,4 @@
-import { task, metadata, AbortTaskRunError, logger } from "@trigger.dev/sdk/v3";
+import { task, metadata, AbortTaskRunError, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { executeFlowNode, type NodeExecutionPayload } from "./execute-node";
 
@@ -84,12 +84,26 @@ export const executeAgentRun = task({
 
     logger.info("execute-agent-run starting", { run_id, agent_id });
 
-    // Mark run as running
-    const { error: runningErr } = await supabase
+    // Idempotency guard: only proceed if the run is still in 'queued' state.
+    // This prevents double-execution when a pgmq fallback triggers a second instance
+    // while the first (direct Trigger.dev dispatch) is already running.
+    const { data: claimedRun, error: claimErr } = await supabase
       .from("agent_runs")
       .update({ status: "running", started_at: new Date().toISOString() })
-      .eq("id", run_id);
-    if (runningErr) logger.error("Failed to mark run as running", { error: runningErr.message, code: runningErr.code });
+      .eq("id", run_id)
+      .in("status", ["queued"])
+      .select("id")
+      .maybeSingle();
+
+    if (claimErr) {
+      logger.error("Failed to claim run", { error: claimErr.message, code: claimErr.code });
+      throw new Error(`Failed to claim run: ${claimErr.message}`);
+    }
+
+    if (!claimedRun) {
+      logger.warn("Run already claimed by another instance — aborting", { run_id });
+      return { run_id, status: "skipped", message: "Run already being processed by another worker" };
+    }
 
     // Build ordered execution list: trigger node (if any) + steps
     const allNodes: FlowNode[] = [

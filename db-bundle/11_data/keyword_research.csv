@@ -1,0 +1,8 @@
+id,keyword,search_volume,difficulty,cpc,trends,created_at,brand_id,user_id,keyword_normalized,competition,difficulty_score,current_rank,target_rank,priority,status,tags,notes,used_in_blog_count,last_used_in_blog,updated_at,last_checked_at
+cb40e435-276f-4c23-bc5d-8ab0470a2000,AI marketing tools,12000,45.5,3.20,,2026-02-24 11:28:48.952716+00,,00000000-0000-0000-0000-000000000000,,,,,,medium,tracking,,,0,,2026-03-20 05:15:56.964461+00,
+b73cc1d6-3f19-45a6-97d3-2d5914a668cf,content marketing strategy,8500,62.3,5.10,,2026-02-24 11:28:48.952716+00,,00000000-0000-0000-0000-000000000000,,,,,,medium,tracking,,,0,,2026-03-20 05:15:56.964461+00,
+ec1407cf-865a-4cd4-8849-75efcb10ba27,LinkedIn content creation,5200,38.7,2.80,,2026-02-24 11:28:48.952716+00,,00000000-0000-0000-0000-000000000000,,,,,,medium,tracking,,,0,,2026-03-20 05:15:56.964461+00,
+a35cdf9a-c2eb-4c42-bd21-7af83e682e28,SEO for startups,6800,51.2,4.50,,2026-02-24 11:28:48.952716+00,,00000000-0000-0000-0000-000000000000,,,,,,medium,tracking,,,0,,2026-03-20 05:15:56.964461+00,
+ccb85827-3607-496c-925d-8e15c3b94ed2,social media analytics,15000,55.8,3.90,,2026-02-24 11:28:48.952716+00,,00000000-0000-0000-0000-000000000000,,,,,,medium,tracking,,,0,,2026-03-20 05:15:56.964461+00,
+0000d8c8-12df-48a6-8dac-ce5387ed36be,ai collaboration tools,2400,,,,2026-03-20 05:22:22.719502+00,b1000000-0000-0000-0000-000000000001,500b4a7f-4c4a-429e-a307-0601568c8525,ai collaboration tools,high,,,,medium,tracking,{},,0,,2026-03-20 05:22:22.719502+00,
+fc5208ab-fa28-4778-adc9-31097f324909,content marketing tools,4400,,,,2026-04-03 09:05:31.656046+00,b1000000-0000-0000-0000-000000000003,b31fefe1-d78f-4160-85d3-298bccf9e02e,content marketing tools,medium,,,,medium,tracking,{},,0,,2026-04-03 09:05:31.656046+00,

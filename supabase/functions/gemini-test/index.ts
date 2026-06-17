@@ -37,6 +37,31 @@ serve(async (req) => {
       );
     }
 
+    if (action === "list_models") {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+        { method: "GET", headers: { "Content-Type": "application/json" } },
+      );
+
+      if (!response.ok) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "Failed to fetch Gemini models", models: [] }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const data = await response.json();
+      const models = ((data.models ?? []) as Array<{ name: string; supportedGenerationMethods?: string[] }>)
+        .filter((m) => (m.supportedGenerationMethods ?? []).includes("generateContent"))
+        .map((m) => m.name.replace(/^models\//, ""))
+        .sort();
+
+      return new Response(
+        JSON.stringify({ ok: true, configured: true, models }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (action === "test") {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(

@@ -1,4 +1,4 @@
-import { task, AbortTaskRunError, logger } from "@trigger.dev/sdk/v3";
+import { task, AbortTaskRunError, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -313,11 +313,18 @@ export const executeFlowNode = task({
         }
 
         // OUTPUT: report_generate / dashboard_write
+        // Capture the actual content so the frontend can render it as a preview.
+        // Priority: explicit config.content → upstream LLM result → upstream content field → full input JSON.
         case "report_generate":
         case "dashboard_write": {
           const title = String(node.config.title ?? "Agent Report");
-          const content = JSON.stringify(input_data, null, 2);
-          output = { generated: true, title, content_length: content.length };
+          const rawContent =
+            node.config.content ??
+            input_data.result ??
+            input_data.content ??
+            JSON.stringify(input_data, null, 2);
+          const content = String(rawContent);
+          output = { generated: true, title, content, content_length: content.length };
           break;
         }
 

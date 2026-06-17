@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, XCircle, Clock, DollarSign, Zap, BarChart3 } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, DollarSign, Zap, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import type { AgentRun, RunStep } from "../types";
 
 interface RuntimeTabProps {
@@ -71,7 +73,29 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
 
     loadSteps(currentRun.id);
 
-    // Stale-run guard: if still queued/running with no steps after 2 minutes, show error
+    // Polling fallback: re-fetch agent_runs every 5s while active.
+    // This covers cases where the Supabase Realtime subscription misses events
+    // (e.g. before the supabase_realtime publication is applied).
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    pollInterval = setInterval(async () => {
+      const { data } = await supabase
+        .from("agent_runs" as never)
+        .select("*")
+        .eq("id", currentRun.id)
+        .single() as { data: AgentRun | null };
+
+      if (data) {
+        setLiveRun(data);
+        if (data.status !== "queued" && data.status !== "running") {
+          if (pollInterval) clearInterval(pollInterval);
+          // Refresh steps once more on completion
+          loadSteps(currentRun.id);
+        }
+      }
+    }, 5000);
+
+    // Stale-run guard: if still queued/running with no steps after 5 minutes, show error.
+    // 5 minutes accounts for pgmq fallback latency (~1 min poll + execution time).
     const staleTimer = setTimeout(() => {
       setLiveRun((live) => {
         if (live && (live.status === "queued" || live.status === "running")) {
@@ -86,11 +110,12 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
         }
         return live;
       });
-    }, 120_000);
+    }, 300_000);
 
     return () => {
       supabase.removeChannel(channel);
       clearTimeout(staleTimer);
+      if (pollInterval) clearInterval(pollInterval);
     };
   }, [currentRun?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -199,6 +224,82 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
           )}
         </div>
       </ScrollArea>
+
+      {/* Output preview — shown after run completes if any output-producing step has content */}
+      <OutputPanel run={run} runSteps={runSteps} />
+    </div>
+  );
+}
+
+// ── Output panel ─────────────────────────────────────────────────────────────
+
+const OUTPUT_NODE_TYPES = ["dashboard_write", "report_generate"];
+const LLM_NODE_TYPES = ["openai_llm", "gemini_llm", "anthropic_llm", "custom_llm"];
+
+function OutputPanel({ run, runSteps }: { run: AgentRun; runSteps: RunStep[] }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  if (run.status !== "completed") return null;
+
+  // Prefer last dashboard_write/report_generate step with saved content
+  const outputStep = [...runSteps]
+    .reverse()
+    .find((s) => OUTPUT_NODE_TYPES.includes(s.node_type) && (s.output as Record<string, unknown>)?.content);
+
+  // Fall back to last LLM step's result text
+  const llmStep = !outputStep
+    ? [...runSteps].reverse().find(
+        (s) => LLM_NODE_TYPES.includes(s.node_type) && (s.output as Record<string, unknown>)?.result,
+      )
+    : null;
+
+  const content = outputStep
+    ? String((outputStep.output as Record<string, unknown>).content)
+    : llmStep
+      ? String((llmStep.output as Record<string, unknown>).result)
+      : null;
+
+  const title = outputStep
+    ? String((outputStep.output as Record<string, unknown>).title ?? outputStep.node_label ?? "Output")
+    : llmStep
+      ? String(llmStep.node_label ?? "Output")
+      : null;
+
+  if (!content) {
+    return (
+      <div className="border-t border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-1.5 text-xs text-green-600">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span className="font-medium">Run completed successfully</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-slate-200 flex flex-col">
+      <button
+        className="flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        onClick={() => setCollapsed((c) => !c)}
+      >
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+          <span className="text-xs font-semibold text-slate-700 truncate max-w-[220px]">{title}</span>
+        </div>
+        {collapsed ? (
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        ) : (
+          <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        )}
+      </button>
+
+      {!collapsed && (
+        <ScrollArea className="max-h-60">
+          <div className="px-4 py-3 prose prose-sm max-w-none text-slate-700 text-xs [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_table]:text-[11px] [&_pre]:text-[10px]">
+            <ReactMarkdown rehypePlugins={[rehypeRaw]}>{content}</ReactMarkdown>
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }
@@ -234,11 +335,35 @@ function StepRow({ step, index }: { step: RunStep; index: number }) {
       {expanded && (step.output || step.error) && (
         <div className="px-3 pb-2 border-t border-slate-100">
           {step.error && <p className="text-red-600 mt-1 text-[11px]">{step.error}</p>}
-          {step.output && (
-            <pre className="text-[10px] bg-white rounded border border-slate-100 p-2 mt-1 overflow-x-auto max-h-28 text-slate-600 font-mono">
-              {JSON.stringify(step.output, null, 2)}
-            </pre>
-          )}
+          {step.output && (() => {
+            const out = step.output as Record<string, unknown>;
+            // content field: render as markdown (report_generate / dashboard_write)
+            if (out.content) {
+              const preview = String(out.content).slice(0, 400);
+              return (
+                <div className="mt-1 text-[11px] text-slate-600 max-h-28 overflow-y-auto prose prose-[11px] max-w-none [&_*]:text-[11px]">
+                  <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                    {preview + (String(out.content).length > 400 ? "…" : "")}
+                  </ReactMarkdown>
+                </div>
+              );
+            }
+            // result field: plain text (LLM nodes)
+            if (out.result) {
+              const preview = String(out.result).slice(0, 300);
+              return (
+                <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap max-h-28 overflow-y-auto">
+                  {preview}{String(out.result).length > 300 ? "…" : ""}
+                </p>
+              );
+            }
+            // fallback: raw JSON for everything else
+            return (
+              <pre className="text-[10px] bg-white rounded border border-slate-100 p-2 mt-1 overflow-x-auto max-h-28 text-slate-600 font-mono">
+                {JSON.stringify(step.output, null, 2)}
+              </pre>
+            );
+          })()}
         </div>
       )}
     </div>

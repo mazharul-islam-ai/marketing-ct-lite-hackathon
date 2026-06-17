@@ -1,0 +1,14 @@
+id,employee_id,first_name,last_name,email,job_title,department,is_active,hire_date,metadata,created_at,updated_at
+f4000000-0000-0000-0000-000000000001,EMP001,John,Smith,john@sjinnovation.com,Senior Developer,Engineering,t,2024-01-15,,2026-02-24 11:31:31.825974+00,2026-02-24 11:31:31.825974+00
+f4000000-0000-0000-0000-000000000002,EMP002,Lisa,Wong,lisa@sjinnovation.com,UX Designer,Design,t,2024-03-01,,2026-02-24 11:31:31.825974+00,2026-02-24 11:31:31.825974+00
+f4000000-0000-0000-0000-000000000003,EMP003,Ahmed,Hassan,ahmed@sjinnovation.com,Content Writer,Marketing,t,2024-06-15,,2026-02-24 11:31:31.825974+00,2026-02-24 11:31:31.825974+00
+f4000000-0000-0000-0000-000000000004,EMP004,Rachel,Green,rachel@sjinnovation.com,Project Manager,Operations,t,2023-09-01,,2026-02-24 11:31:31.825974+00,2026-02-24 11:31:31.825974+00
+f4000000-0000-0000-0000-000000000005,EMP005,Carlos,Rivera,carlos@sjinnovation.com,Data Analyst,Analytics,t,2024-11-01,,2026-02-24 11:31:31.825974+00,2026-02-24 11:31:31.825974+00
+f4000000-0000-0000-0000-000000000006,EMP006,Nina,Patel,nina@sjinnovation.com,Marketing Manager,Marketing,t,2023-05-15,,2026-02-24 11:31:31.825974+00,2026-02-24 11:31:31.825974+00
+f4000000-0000-0000-0000-000000000007,EMP007,Tom,Baker,tom@sjinnovation.com,Backend Developer,Engineering,t,2024-07-01,,2026-02-24 11:31:31.825974+00,2026-02-24 11:31:31.825974+00
+f4000000-0000-0000-0000-000000000008,EMP008,Sophie,Martin,sophie@sjinnovation.com,QA Engineer,Engineering,t,2025-01-15,,2026-02-24 11:31:31.825974+00,2026-02-24 11:31:31.825974+00
+e0000001-0000-0000-0000-000000000001,EMP-001,Demo,Admin,demo.admin@sjinnovation.com,Super Admin,Leadership,t,,,2025-10-29 08:27:34.694116+00,2025-10-29 08:27:34.694116+00
+e0000002-0000-0000-0000-000000000002,EMP-002,Demo,PM,demo.pm@sjinnovation.com,Project Manager,Strategy,t,,,2025-11-18 08:27:34.694116+00,2025-11-18 08:27:34.694116+00
+e0000003-0000-0000-0000-000000000003,EMP-003,Demo,Brand Manager,demo.brand.manager@sjinnovation.com,Brand Manager,Content,t,,,2025-11-23 08:27:34.694116+00,2025-11-23 08:27:34.694116+00
+e0000004-0000-0000-0000-000000000004,EMP-004,Demo,Manager,demo.manager@sjinnovation.com,Manager,Operations,t,,,2025-11-28 08:27:34.694116+00,2025-11-28 08:27:34.694116+00
+e0000005-0000-0000-0000-000000000005,EMP-005,Demo,User,demo.user@sjinnovation.com,Coordinator,Content,t,,,2025-12-03 08:27:34.694116+00,2025-12-03 08:27:34.694116+00

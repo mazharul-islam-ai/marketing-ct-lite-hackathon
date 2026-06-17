@@ -1,0 +1,6 @@
+id,email,first_name,last_name,status,created_at,updated_at,avatar_url
+500b4a7f-4c4a-429e-a307-0601568c8525,demo.admin@sjinnovation.com,Demo,Admin,active,2026-02-24 06:12:41.851715+00,2026-02-24 06:12:41.851715+00,
+afa2dd3c-4213-4137-a743-12c7c65b4e7d,demo.pm@sjinnovation.com,Demo,PM,active,2026-02-24 10:46:56.097116+00,2026-02-24 10:46:56.097116+00,
+c5806b04-2637-4c5d-bfba-a0c93188d879,demo.brand.manager@sjinnovation.com,Demo,BrandMgr,active,2026-02-24 10:46:56.492621+00,2026-02-24 10:46:56.492621+00,
+b31fefe1-d78f-4160-85d3-298bccf9e02e,demo.user@sjinnovation.com,Demo,User,active,2026-02-24 06:12:41.851715+00,2026-02-24 06:12:41.851715+00,
+82deff65-1b87-4d87-8b66-ac29bf54e3fb,demo.manager@sjinnovation.com,Demo,Manager,active,2026-02-24 10:46:57.187684+00,2026-02-24 10:46:57.187684+00,
