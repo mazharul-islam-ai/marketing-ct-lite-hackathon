@@ -152,6 +152,13 @@ serve(async (req) => {
           const tdData = await tdRes.json()
           triggerDevRunId = tdData?.id ?? null
           console.log('Trigger.dev run started:', triggerDevRunId)
+
+          if (triggerDevRunId) {
+            await supabase
+              .from('agent_runs')
+              .update({ trigger_dev_run_id: triggerDevRunId })
+              .eq('id', run.id)
+          }
         } else {
           const errText = await tdRes.text()
           console.error('Trigger.dev API error:', tdRes.status, errText)
