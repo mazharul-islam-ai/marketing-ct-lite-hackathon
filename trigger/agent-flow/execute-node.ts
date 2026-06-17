@@ -1,4 +1,4 @@
-import { task, AbortTaskRunError } from "@trigger.dev/sdk/v3";
+import { task, AbortTaskRunError, logger } from "@trigger.dev/sdk/v3";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -82,7 +82,7 @@ export const executeFlowNode = task({
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Mark step as running in DB
-    const { data: step } = await supabase
+    const { data: step, error: stepInsertErr } = await supabase
       .from("run_steps")
       .insert({
         run_id,
@@ -95,6 +95,7 @@ export const executeFlowNode = task({
       })
       .select("id")
       .single();
+    if (stepInsertErr) logger.error("Failed to insert run_step", { error: stepInsertErr.message, code: stepInsertErr.code, node_id: node.id });
 
     const stepId = step?.id;
 
@@ -339,7 +340,7 @@ export const executeFlowNode = task({
 
       // Update run_step to completed
       if (stepId) {
-        await supabase
+        const { error: stepCompleteErr } = await supabase
           .from("run_steps")
           .update({
             status: "completed",
@@ -351,6 +352,7 @@ export const executeFlowNode = task({
             completed_at: new Date().toISOString(),
           })
           .eq("id", stepId);
+        if (stepCompleteErr) logger.error("Failed to update run_step to completed", { error: stepCompleteErr.message, code: stepCompleteErr.code, node_id: node.id });
       }
 
       return {
@@ -367,7 +369,7 @@ export const executeFlowNode = task({
       const errorMsg = error instanceof Error ? error.message : String(error);
 
       if (stepId) {
-        await supabase
+        const { error: stepFailErr } = await supabase
           .from("run_steps")
           .update({
             status: "failed",
@@ -376,6 +378,7 @@ export const executeFlowNode = task({
             completed_at: new Date().toISOString(),
           })
           .eq("id", stepId);
+        if (stepFailErr) logger.error("Failed to update run_step to failed", { error: stepFailErr.message, code: stepFailErr.code, node_id: node.id });
       }
 
       return {

@@ -85,10 +85,11 @@ export const executeAgentRun = task({
     logger.info("execute-agent-run starting", { run_id, agent_id });
 
     // Mark run as running
-    await supabase
+    const { error: runningErr } = await supabase
       .from("agent_runs")
       .update({ status: "running", started_at: new Date().toISOString() })
       .eq("id", run_id);
+    if (runningErr) logger.error("Failed to mark run as running", { error: runningErr.message, code: runningErr.code });
 
     // Build ordered execution list: trigger node (if any) + steps
     const allNodes: FlowNode[] = [
@@ -225,10 +226,11 @@ export const executeAgentRun = task({
       metadata.set("stepCount", stepCount);
 
       // Update agent_runs totals live
-      await supabase
+      const { error: updateTotalsErr } = await supabase
         .from("agent_runs")
         .update({ total_cost: totalCost, tokens_used: totalTokens, step_count: stepCount })
         .eq("id", run_id);
+      if (updateTotalsErr) logger.error("Failed to update run totals", { error: updateTotalsErr.message, code: updateTotalsErr.code });
 
       // Determine next nodes from edges
       const outgoingEdges = edgeMap.get(nodeId) ?? [];
@@ -288,7 +290,7 @@ async function finalizeRun(
   stepCount: number,
   errorMessage?: string,
 ) {
-  await supabase
+  const { error: finalizeErr } = await supabase
     .from("agent_runs")
     .update({
       status,
@@ -299,4 +301,7 @@ async function finalizeRun(
       ...(errorMessage ? { error_message: errorMessage } : {}),
     })
     .eq("id", runId);
+  if (finalizeErr) {
+    logger.error("Failed to finalize run", { runId, status, error: finalizeErr.message, code: finalizeErr.code });
+  }
 }
