@@ -61,12 +61,16 @@ export interface FlowJSON {
   edges: FlowEdge[];
 }
 
+export type AgentVisibility = "workspace" | "admin_only" | "public";
+
 export interface Agent {
   id: string;
   workspace_id: string | null;
   name: string;
   description: string | null;
   status: "draft" | "published" | "archived";
+  visibility: AgentVisibility;
+  public_token: string;
   current_version_id: string | null;
   created_by: string | null;
   created_at: string;

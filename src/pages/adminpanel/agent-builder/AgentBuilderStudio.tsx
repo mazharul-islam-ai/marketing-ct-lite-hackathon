@@ -20,6 +20,7 @@ import { LogsTab } from "./tabs/LogsTab";
 import { VersionsTab } from "./tabs/VersionsTab";
 import { useFlowRun } from "./hooks/useFlowRun";
 import { PublishModal } from "./PublishModal";
+import type { AgentVisibility } from "./types";
 import type { Agent, AgentVersion, FlowJSON } from "./types";
 
 type StudioTab = "design" | "runtime" | "json" | "logs" | "versions";
@@ -132,15 +133,28 @@ export default function AgentBuilderStudio() {
     if (!runId) toast.error("Failed to start run");
   }, [liveAgentId, currentVersionId, triggerRun, clearRun]);
 
-  const handlePublish = useCallback(async () => {
+  const handlePublish = useCallback(async (visibility: AgentVisibility) => {
     if (!liveAgentId) return;
-    await supabase
+    const { data, error } = await supabase
       .from("agents" as never)
-      .update({ status: "published", updated_at: new Date().toISOString() })
-      .eq("id", liveAgentId);
+      .update({ status: "published", visibility, updated_at: new Date().toISOString() })
+      .eq("id", liveAgentId)
+      .select("public_token")
+      .single() as { data: { public_token: string } | null; error: unknown };
+
+    if (error) {
+      toast.error("Publish failed");
+      return;
+    }
+
     setAgent((prev) => prev ? { ...prev, status: "published" } : prev);
     toast.success("Agent published");
-    setShowPublishModal(false);
+
+    if (visibility !== "public") {
+      setShowPublishModal(false);
+    }
+
+    return visibility === "public" && data ? { publicToken: data.public_token } : undefined;
   }, [liveAgentId]);
 
   const handleArchive = useCallback(async () => {
@@ -364,6 +378,7 @@ export default function AgentBuilderStudio() {
           onClose={() => setShowPublishModal(false)}
         />
       )}
+
     </div>
   );
 }
