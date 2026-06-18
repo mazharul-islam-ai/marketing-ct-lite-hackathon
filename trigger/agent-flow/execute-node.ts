@@ -272,6 +272,31 @@ export const executeFlowNode = task({
           break;
         }
 
+        // TOOL: gmail_fetch_unread
+        case "gmail_fetch_unread": {
+          const maxResults = Number(node.config.max_results ?? 25);
+          const gmailResponse = await fetch(`${SUPABASE_URL}/functions/v1/gmail-inbox`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({ action: "fetch_unread", max_results: maxResults }),
+          });
+
+          const gmailData = await gmailResponse.json();
+          if (!gmailResponse.ok) {
+            throw new Error(gmailData.error ?? "Gmail fetch failed");
+          }
+
+          output = {
+            emails: gmailData.emails ?? [],
+            count: gmailData.count ?? 0,
+            total_unread: gmailData.total_unread ?? 0,
+          };
+          break;
+        }
+
         // TOOL: crm_update
         case "crm_update": {
           const table = String(node.config.table ?? "leads");

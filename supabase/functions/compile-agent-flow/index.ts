@@ -1,6 +1,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import {
+  buildPlatformOverview,
+  checkPromptIntegrations,
+  getAllowedNodeTypes,
+  COMPILE_PHASES,
+  type CompilePhase,
+} from '../_shared/agent-builder-integrations.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -14,7 +21,7 @@ const VALID_NODE_TYPES = [
   // AI nodes
   'openai_llm', 'gemini_llm', 'anthropic_llm', 'custom_llm',
   // Tool nodes
-  'db_query', 'api_call', 'email_send', 'slack_notify', 'crm_update', 'mcp_tool',
+  'db_query', 'api_call', 'email_send', 'slack_notify', 'crm_update', 'mcp_tool', 'gmail_fetch_unread',
   // Output nodes
   'dashboard_write', 'email_output', 'db_write', 'report_generate',
 ] as const
@@ -52,6 +59,9 @@ const TYPE_ALIASES: Record<string, string> = {
   slack_message: 'slack_notify', slack_alert: 'slack_notify', send_slack: 'slack_notify',
   // email_send
   send_email: 'email_send', email: 'email_send',
+  // gmail_fetch_unread
+  gmail_fetch: 'gmail_fetch_unread', fetch_unread_emails: 'gmail_fetch_unread',
+  gmail_unread: 'gmail_fetch_unread', read_gmail: 'gmail_fetch_unread',
   // condition
   if_else: 'condition', branch: 'condition', decision: 'condition', check: 'condition',
 }
@@ -148,32 +158,28 @@ async function resolveCompilerConfig(
   )
 }
 
-// ── JSON Schema for OpenAI structured output ────────────────────────────────
-const FLOW_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    trigger: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        type: { type: 'string', enum: [...VALID_NODE_TYPES] },
-        label: { type: 'string' },
-        config: { type: 'object' },
-        position: {
-          type: 'object',
-          properties: { x: { type: 'number' }, y: { type: 'number' } },
-          required: ['x', 'y'],
-        },
-      },
-      required: ['id', 'type', 'label', 'config', 'position'],
-    },
-    steps: {
-      type: 'array',
-      items: {
+// ── Load active integrations from organization_integrations ────────────────
+async function loadConfiguredIntegrations(
+  supabase: ReturnType<typeof createClient>,
+): Promise<Set<string>> {
+  const { data } = await supabase
+    .from('organization_integrations')
+    .select('integration_type')
+    .eq('is_active', true)
+
+  return new Set((data ?? []).map((r: { integration_type: string }) => r.integration_type))
+}
+
+function buildFlowJsonSchema(allowedNodeTypes: string[]) {
+  const nodeEnum = allowedNodeTypes.length > 0 ? allowedNodeTypes : [...VALID_NODE_TYPES]
+  return {
+    type: 'object',
+    properties: {
+      trigger: {
         type: 'object',
         properties: {
           id: { type: 'string' },
-          type: { type: 'string', enum: [...VALID_NODE_TYPES] },
+          type: { type: 'string', enum: nodeEnum },
           label: { type: 'string' },
           config: { type: 'object' },
           position: {
@@ -184,24 +190,45 @@ const FLOW_JSON_SCHEMA = {
         },
         required: ['id', 'type', 'label', 'config', 'position'],
       },
-    },
-    edges: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          source: { type: 'string' },
-          target: { type: 'string' },
-          label: { type: 'string' },
-          condition: { type: 'string' },
+      steps: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            type: { type: 'string', enum: nodeEnum },
+            label: { type: 'string' },
+            config: { type: 'object' },
+            position: {
+              type: 'object',
+              properties: { x: { type: 'number' }, y: { type: 'number' } },
+              required: ['x', 'y'],
+            },
+          },
+          required: ['id', 'type', 'label', 'config', 'position'],
         },
-        required: ['id', 'source', 'target'],
+      },
+      edges: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            source: { type: 'string' },
+            target: { type: 'string' },
+            label: { type: 'string' },
+            condition: { type: 'string' },
+          },
+          required: ['id', 'source', 'target'],
+        },
       },
     },
-  },
-  required: ['trigger', 'steps', 'edges'],
+    required: ['trigger', 'steps', 'edges'],
+  }
 }
+
+// Legacy static schema (fallback)
+const FLOW_JSON_SCHEMA = buildFlowJsonSchema([...VALID_NODE_TYPES])
 
 // ── Load the active system prompt from agent_builder_prompts ─────────────────
 async function loadCustomSystemPrompt(
@@ -225,51 +252,53 @@ async function loadCustomSystemPrompt(
 // If an admin-defined custom prompt is active it is placed first as context /
 // persona instructions; the structural rules are always appended so the LLM
 // always knows the valid node types and output format.
-function buildSystemPrompt(customPrefix?: string | null): string {
+function buildSystemPrompt(
+  customPrefix: string | null | undefined,
+  configuredTypes: Set<string>,
+  allowedNodeTypes: string[],
+): string {
+  const platformBlock = buildPlatformOverview(configuredTypes)
+  const allowedList = allowedNodeTypes.join(', ')
+
   const structural = `You are an AI workflow compiler for an enterprise Agent Builder platform.
 
 Your job is to convert a user's natural language description into a structured JSON workflow.
 
-VALID NODE TYPES (you MUST only use these exact strings):
-Triggers: cron_trigger, webhook_trigger, manual_trigger, db_trigger, crm_event_trigger
-Logic:    condition, switch, loop, delay
-AI:       openai_llm, gemini_llm, anthropic_llm, custom_llm
-Tools:    db_query, api_call, email_send, slack_notify, crm_update, mcp_tool
-Outputs:  dashboard_write, email_output, db_write, report_generate
+ALLOWED NODE TYPES FOR THIS WORKSPACE (you MUST only use these exact strings):
+${allowedList}
 
 RULES:
-1. NEVER invent node types outside the valid list above.
-2. Use the EXACT strings — do not use snake_case variants like "database_query", "llm_call", "generate_report", etc.
-3. If the user requests a tool you cannot model (e.g. "send a fax"), pick the closest valid alternative and note it in the label.
-4. Assign sequential node IDs: "n1", "n2", "n3", ...
-5. Position nodes left-to-right with x increasing by 200 per step, y=200 for main path, y=400 for branches.
-6. Edges must reference valid node IDs only.
-7. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
-8. The trigger field should be a single trigger node (or null for manual/on-demand workflows).
-9. Return ONLY the JSON object, no markdown, no explanation.
+1. NEVER invent node types outside the allowed list above.
+2. NEVER use mcp_tool unless explicitly requested and configured.
+3. NEVER use nodes that require integrations not in CONFIGURED INTEGRATIONS.
+4. If the user needs a missing integration, return ONLY: { "clarification_needed": true, "question": "..." } directing them to Integrations Hub.
+5. If delivery channel (email vs Slack vs dashboard) or schedule time is unspecified, ask ONE clarifying question.
+6. Assign sequential node IDs: "n1", "n2", "n3", ...
+7. Position nodes left-to-right with x increasing by 200 per step, y=200 for main path, y=400 for branches.
+8. Edges must reference valid node IDs only.
+9. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
+10. The trigger field should be a single trigger node (or null for manual/on-demand workflows).
+11. Return ONLY the JSON object, no markdown, no explanation.
 
 COMMON PATTERNS — use these exact node types:
-- "retrieve / fetch / query / read data from database"  → db_query
-- "call AI / use LLM / analyze with GPT"               → openai_llm
-- "analyze with Gemini"                                → gemini_llm
-- "generate / create a report"                         → report_generate
-- "send report / summary by email"                     → email_output
-- "run on a schedule / every day / every hour"         → cron_trigger
-- "run manually / on demand / triggered by user"       → manual_trigger
-- "save / store / write to database"                   → db_write
-- "notify via Slack"                                   → slack_notify
-- "send email"                                         → email_send
+- "retrieve unread emails / Gmail inbox"              → gmail_fetch_unread
+- "retrieve / fetch / query database"                 → db_query
+- "call AI / use LLM / analyze with GPT"              → openai_llm
+- "analyze with Gemini"                               → gemini_llm
+- "generate / create a report"                        → report_generate
+- "send report / summary by email"                    → email_output
+- "run on a schedule / every day / every hour"        → cron_trigger
+- "run manually / on demand"                          → manual_trigger
+- "notify via Slack"                                  → slack_notify
 
 CLARIFICATION:
-If — and ONLY if — the request is genuinely ambiguous and you CANNOT make any reasonable assumption,
+If the request is genuinely ambiguous OR requires an unconfigured integration,
 return ONLY this JSON object (no flow, no explanation):
-{ "clarification_needed": true, "question": "your single concise question" }
-Do NOT ask for clarification if you can make a reasonable assumption. Prefer generating a flow.`
+{ "clarification_needed": true, "question": "your single concise question" }`
 
-  if (customPrefix) {
-    return `${customPrefix}\n\n---\n\n${structural}`
-  }
-  return structural
+  const parts = [platformBlock, structural]
+  if (customPrefix) parts.unshift(customPrefix)
+  return parts.join('\n\n---\n\n')
 }
 
 // ── Normalize flow JSON from LLM output ─────────────────────────────────────
@@ -377,7 +406,10 @@ function resolveNodeType(node: Record<string, unknown>): void {
 }
 
 // ── Validate flow JSON structure ─────────────────────────────────────────────
-function validateFlowJSON(flow: unknown): { valid: boolean; error?: string } {
+function validateFlowJSON(
+  flow: unknown,
+  allowedNodeTypes?: Set<string>,
+): { valid: boolean; error?: string } {
   if (!flow || typeof flow !== 'object') {
     return { valid: false, error: 'Flow must be an object' }
   }
@@ -401,6 +433,10 @@ function validateFlowJSON(flow: unknown): { valid: boolean; error?: string } {
   const nodeIds = new Set(allNodes.map((n) => n.id))
 
   for (const node of allNodes) {
+    const allowed = allowedNodeTypes ?? new Set(VALID_NODE_TYPES)
+    if (!allowed.has(node.type)) {
+      return { valid: false, error: `Node type "${node.type}" is not allowed (integration may not be configured)` }
+    }
     if (!VALID_NODE_TYPES.includes(node.type as NodeType)) {
       return { valid: false, error: `Invalid node type: "${node.type}"` }
     }
@@ -474,6 +510,7 @@ async function callOpenAI(
   userPrompt: string,
   chatHistory: Array<{ role: string; content: string }>,
   useStrictSchema: boolean,
+  flowSchema = FLOW_JSON_SCHEMA,
 ): Promise<FlowJSON> {
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -484,7 +521,7 @@ async function callOpenAI(
   const responseFormat = useStrictSchema
     ? {
         type: 'json_schema',
-        json_schema: { name: 'agent_flow', strict: true, schema: FLOW_JSON_SCHEMA },
+        json_schema: { name: 'agent_flow', strict: true, schema: flowSchema },
       }
     : { type: 'json_object' }
 
@@ -622,6 +659,7 @@ async function callLLM(
   systemPrompt: string,
   userPrompt: string,
   chatHistory: Array<{ role: string; content: string }>,
+  flowSchema = FLOW_JSON_SCHEMA,
 ): Promise<FlowJSON> {
   switch (provider) {
     case 'openai':
@@ -629,7 +667,8 @@ async function callLLM(
         apiKey, model,
         'https://api.openai.com/v1/chat/completions',
         systemPrompt, userPrompt, chatHistory,
-        !isReasoningModel(model), // reasoning models require json_object (strict schema incompatible with open config field)
+        !isReasoningModel(model),
+        flowSchema,
       )
 
     case 'perplexity':
@@ -637,7 +676,8 @@ async function callLLM(
         apiKey, model,
         'https://api.perplexity.ai/chat/completions',
         systemPrompt, userPrompt, chatHistory,
-        false, // perplexity only supports json_object, not strict schema
+        false,
+        flowSchema,
       )
 
     case 'gemini':
@@ -651,19 +691,53 @@ async function callLLM(
   }
 }
 
+// ── Compile result types ─────────────────────────────────────────────────────
+type StatusEmitter = (phase: CompilePhase) => void
+
+async function upsertClarification(
+  supabase: ReturnType<typeof createClient>,
+  agent_id: string,
+  user_id: string,
+  prompt: string,
+  question: string,
+  chatHistory: Array<{ role: string; content: string }>,
+) {
+  const clarityHistory = [
+    ...chatHistory,
+    { role: 'user', content: prompt },
+    { role: 'assistant', content: question },
+  ]
+  await supabase
+    .from('builder_sessions')
+    .upsert({
+      agent_id,
+      user_id,
+      chat_history: clarityHistory.slice(-50),
+      last_active: new Date().toISOString(),
+    }, { onConflict: 'agent_id,user_id' })
+
+  return {
+    success: false,
+    needs_clarification: true,
+    question,
+    ai_message: question,
+    chat_history: clarityHistory.slice(-50),
+  }
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
-  try {
+  const runCompile = async (
+    emit: StatusEmitter,
+    body: { prompt: string; agent_id: string; action?: string },
+  ) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return { error: 'Missing Authorization header', status: 401 }
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -673,34 +747,40 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await userClient.auth.getUser()
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return { error: 'Unauthorized', status: 401 }
     }
 
-    const { prompt, agent_id, action } = await req.json()
+    const { prompt, agent_id, action } = body
 
     if (!prompt || !agent_id) {
-      return new Response(JSON.stringify({ error: 'prompt and agent_id are required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return { error: 'prompt and agent_id are required', status: 400 }
     }
 
-    // Resolve provider, model, and API key from org settings
+    emit('checking_provider')
     let compilerConfig: { provider: string; model: string; apiKey: string }
     try {
       compilerConfig = await resolveCompilerConfig(supabase)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      return new Response(
-        JSON.stringify({ success: false, message: msg }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      return { success: false, message: msg, status: 503 }
+    }
+
+    emit('loading_integrations')
+    const configuredTypes = await loadConfiguredIntegrations(supabase)
+    const allowedNodeTypes = getAllowedNodeTypes(configuredTypes)
+    const allowedSet = new Set(allowedNodeTypes)
+    const flowSchema = buildFlowJsonSchema(allowedNodeTypes)
+
+    emit('validating_tools')
+    const integrationCheck = checkPromptIntegrations(prompt, configuredTypes)
+    if (integrationCheck) {
+      return await upsertClarification(
+        supabase, agent_id, user.id, prompt, integrationCheck.question,
+        (await supabase.from('builder_sessions').select('chat_history').eq('agent_id', agent_id).eq('user_id', user.id).maybeSingle()).data?.chat_history ?? [],
       )
     }
 
-    // Load or create builder session for this user+agent
+    emit('loading_context')
     const { data: session } = await supabase
       .from('builder_sessions')
       .select('id, chat_history')
@@ -710,7 +790,6 @@ serve(async (req) => {
 
     const chatHistory: Array<{ role: string; content: string }> = session?.chat_history ?? []
 
-    // Load current flow (if any) for context
     const { data: agent } = await supabase
       .from('agents')
       .select('id, name, current_version_id')
@@ -727,16 +806,14 @@ serve(async (req) => {
       currentFlow = version?.flow_json ?? null
     }
 
-    // Load admin-defined system prompt from settings (Agent Builder → System Prompt tab)
     const customSystemPrompt = await loadCustomSystemPrompt(supabase)
 
-    const systemPrompt = buildSystemPrompt(customSystemPrompt) + (
+    const systemPrompt = buildSystemPrompt(customSystemPrompt, configuredTypes, allowedNodeTypes) + (
       currentFlow
-        ? `\n\nCURRENT FLOW STATE (for context):\n${JSON.stringify(currentFlow, null, 2)}`
+        ? `\n\n---\n\nCURRENT FLOW STATE (for context):\n${JSON.stringify(currentFlow, null, 2)}`
         : ''
     )
 
-    // Attempt to compile with up to 2 retries on validation failure
     let flowJSON: FlowJSON | null = null
     let lastError: string | null = null
     let lastRawJSON: string | null = null
@@ -745,11 +822,13 @@ serve(async (req) => {
       try {
         let retryNote = ''
         if (attempt > 0) {
+          emit('validating_flow')
           retryNote = `\n\nPREVIOUS ATTEMPT FAILED VALIDATION: ${lastError}.`
           if (lastRawJSON) retryNote += ` You returned: ${lastRawJSON.slice(0, 500)}. Please return ONLY a JSON object with exactly these top-level keys: trigger, steps (array), edges (array).`
           else retryNote += ' Please fix this.'
         }
 
+        emit('thinking')
         const raw = await callLLM(
           compilerConfig.provider,
           compilerConfig.model,
@@ -757,47 +836,27 @@ serve(async (req) => {
           systemPrompt,
           prompt + retryNote,
           chatHistory,
+          flowSchema,
         )
 
-        // Detect clarification request (only on first attempt — retries should fix validation)
+        emit('designing_flow')
+
         if (attempt === 0 && raw && typeof raw === 'object' && !Array.isArray(raw)) {
           const maybeClarity = raw as Record<string, unknown>
           if (maybeClarity.clarification_needed === true && typeof maybeClarity.question === 'string') {
-            const question = maybeClarity.question.trim()
-            const clarityHistory = [
-              ...chatHistory,
-              { role: 'user', content: prompt },
-              { role: 'assistant', content: question },
-            ]
-            await supabase
-              .from('builder_sessions')
-              .upsert({
-                agent_id,
-                user_id: user.id,
-                chat_history: clarityHistory.slice(-50),
-                last_active: new Date().toISOString(),
-              }, { onConflict: 'agent_id,user_id' })
-
-            return new Response(
-              JSON.stringify({
-                success: false,
-                needs_clarification: true,
-                question,
-                ai_message: question,
-                chat_history: clarityHistory.slice(-50),
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+            return await upsertClarification(
+              supabase, agent_id, user.id, prompt, maybeClarity.question.trim(), chatHistory,
             )
           }
         }
 
-        // Normalize before validation to handle structural variations from different models
         const normalized = normalizeFlowJSON(raw)
         lastRawJSON = JSON.stringify(normalized).slice(0, 500)
-        console.log(`[compile attempt ${attempt + 1}] raw keys: ${Object.keys(raw as object).join(',')} | provider: ${compilerConfig.provider} | model: ${compilerConfig.model}`)
+        console.log(`[compile attempt ${attempt + 1}] provider: ${compilerConfig.provider} | model: ${compilerConfig.model}`)
 
         flowJSON = normalized as FlowJSON
-        const validation = validateFlowJSON(flowJSON)
+        emit('validating_flow')
+        const validation = validateFlowJSON(flowJSON, allowedSet)
         if (validation.valid) break
 
         lastError = validation.error ?? 'Unknown validation error'
@@ -827,17 +886,14 @@ serve(async (req) => {
           last_active: new Date().toISOString(),
         }, { onConflict: 'agent_id,user_id' })
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message: `Could not generate a valid flow. ${lastError ?? 'Please try rephrasing.'}`,
-          chat_history: newHistory.slice(-50),
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
+      return {
+        success: false,
+        message: `Could not generate a valid flow. ${lastError ?? 'Please try rephrasing.'}`,
+        chat_history: newHistory.slice(-50),
+      }
     }
 
-    // Save new agent version
+    emit('saving_version')
     const nextVersion = await supabase
       .rpc('next_agent_version', { p_agent_id: agent_id })
       .then((r) => r.data ?? 1)
@@ -855,7 +911,6 @@ serve(async (req) => {
 
     if (versionError) throw versionError
 
-    // Update agent's current_version_id
     await supabase
       .from('agents')
       .update({
@@ -864,7 +919,6 @@ serve(async (req) => {
       })
       .eq('id', agent_id)
 
-    // Update builder session with new chat history
     const aiMessage =
       action === 'improve'
         ? `I've improved the flow based on your request. The canvas has been updated.`
@@ -885,18 +939,64 @@ serve(async (req) => {
         last_active: new Date().toISOString(),
       }, { onConflict: 'agent_id,user_id' })
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        flow_json: flowJSON,
-        version_id: newVersion.id,
-        version: nextVersion,
-        ai_message: aiMessage,
-        chat_history: newHistory.slice(-50),
-        compiler: { provider: compilerConfig.provider, model: compilerConfig.model },
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
+    return {
+      success: true,
+      flow_json: flowJSON,
+      version_id: newVersion.id,
+      version: nextVersion,
+      ai_message: aiMessage,
+      chat_history: newHistory.slice(-50),
+      compiler: { provider: compilerConfig.provider, model: compilerConfig.model },
+    }
+  }
+
+  try {
+    const body = await req.json() as { prompt: string; agent_id: string; action?: string; stream?: boolean }
+    const useStream = body?.stream === true
+
+    if (useStream) {
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream({
+        async start(controller) {
+          const emit: StatusEmitter = (phase) => {
+            controller.enqueue(encoder.encode(
+              `data: ${JSON.stringify({ type: 'status', phase, label: COMPILE_PHASES[phase] })}\n\n`,
+            ))
+          }
+          try {
+            const result = await runCompile(emit, body)
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'result', ...result })}\n\n`))
+          } catch (error) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+              type: 'result',
+              success: false,
+              error: error instanceof Error ? error.message : 'Internal error',
+            })}\n\n`))
+          }
+          controller.close()
+        },
+      })
+
+      return new Response(stream, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      })
+    }
+
+    const result = await runCompile(() => {}, body)
+    if ('status' in result && result.status) {
+      return new Response(JSON.stringify(result), {
+        status: result.status as number,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   } catch (error) {
     console.error('compile-agent-flow error:', error)
     return new Response(

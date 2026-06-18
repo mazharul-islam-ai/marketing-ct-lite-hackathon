@@ -109,6 +109,8 @@ import ServiceCatalogPage from "./pages/adminpanel/quotes/ServiceCatalogPage";
 import AgentBuilderList from "./pages/adminpanel/agent-builder/AgentBuilderList";
 import AgentBuilderStudio from "./pages/adminpanel/agent-builder/AgentBuilderStudio";
 import AgentBuilderSettings from "./pages/adminpanel/agent-builder/AgentBuilderSettings";
+import AutomationsList from "./pages/adminpanel/automations/AutomationsList";
+import AutomationsLogs from "./pages/adminpanel/automations/AutomationsLogs";
 
 // AI Agents (Workspace + Public)
 import AIAgentsPage from "./pages/ai-agents";
@@ -574,6 +576,24 @@ const App = () => (
                 element={
                   <ProtectedRoute requiredRole="super_admin">
                     <AgentBuilderStudio />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Automations */}
+              <Route
+                path="automations"
+                element={
+                  <ProtectedRoute requiredRole="super_admin">
+                    <AutomationsList />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="automations/logs"
+                element={
+                  <ProtectedRoute requiredRole="super_admin">
+                    <AutomationsLogs />
                   </ProtectedRoute>
                 }
               />

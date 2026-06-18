@@ -34,6 +34,7 @@ interface AgentWithStats extends Agent {
 }
 
 const PROMPT_TEMPLATES = [
+  "Daily unread email summary delivered by email at 8am",
   "Analyze CRM leads every morning, send hot leads to Slack",
   "Monitor brand mentions, generate weekly summary reports",
   "Sync ActiveCollab tasks and notify the team on Slack",

@@ -423,6 +423,18 @@ const IntegrationManager = () => {
       },
       // Email Delivery
       {
+        id: "gmail",
+        name: "Gmail",
+        type: "gmail",
+        description: "Connect Gmail to read unread emails for Agent Builder automations.",
+        icon: "📧",
+        category: "email",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "medium",
+        required_fields: ["clientId", "clientSecret", "refreshToken"],
+      },
+      {
         id: "sendgrid",
         name: "SendGrid",
         type: "sendgrid",
@@ -1330,6 +1342,28 @@ const IntegrationManager = () => {
       return;
     }
 
+    if (integration.id === "gmail") {
+      try {
+        const { data, error } = await supabase.functions.invoke("gmail-inbox", {
+          body: { action: "status" },
+        });
+        if (error || !data?.configured) {
+          throw error || new Error("Gmail is not configured. Save credentials first.");
+        }
+        toast({
+          title: "Gmail Connection Successful",
+          description: "Gmail inbox integration is active.",
+        });
+      } catch (err: any) {
+        toast({
+          title: "Gmail Connection Failed",
+          description: err?.message ?? "Unable to connect to Gmail.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     if (integration.id === "n8n-analytics") {
       await handleTestAnalytics();
       return;
@@ -1427,7 +1461,7 @@ const IntegrationManager = () => {
       "resend",
     ];
     if (noEdgeFunctionIds.includes(integration.id)) {
-      const integrationType = integration.id === "google-drive" ? "google_drive" : integration.type;
+      const integrationType = integration.id === "google-drive" ? "google_drive" : integration.id === "gmail" ? "gmail" : integration.type;
       let hasStoredConfig = false;
 
       try {
@@ -1538,6 +1572,52 @@ const IntegrationManager = () => {
         toast({
           title: "Save failed",
           description: e?.message ?? "Unable to save Google Drive integration.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    if (integration.id === "gmail") {
+      if (!configData.clientId?.trim() || !configData.clientSecret?.trim() || !configData.refreshToken?.trim()) {
+        toast({
+          title: "Missing configuration",
+          description: "Client ID, Client Secret, and Refresh Token are required for Gmail.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const configPayload = {
+          client_id: configData.clientId.trim(),
+          client_secret: configData.clientSecret.trim(),
+          refresh_token: configData.refreshToken.trim(),
+          clientId: configData.clientId.trim(),
+          clientSecret: configData.clientSecret.trim(),
+          refreshToken: configData.refreshToken.trim(),
+        };
+
+        await upsertOrganizationIntegrationConfig("gmail", configPayload);
+
+        toast({ title: "Gmail settings saved", description: "Gmail credentials stored successfully." });
+        setIsConfigDialogOpen(false);
+        setConfigData({
+          apiKey: "",
+          baseUrl: "",
+          locationId: "",
+          projectId: "",
+          collectionName: "",
+          clientId: "",
+          clientSecret: "",
+          refreshToken: "",
+          folderId: "",
+        });
+        await loadIntegrations();
+      } catch (e: any) {
+        toast({
+          title: "Save failed",
+          description: e?.message ?? "Unable to save Gmail integration.",
           variant: "destructive",
         });
       }
@@ -1712,6 +1792,7 @@ const IntegrationManager = () => {
 
     const removableIntegrationIds = [
       "google-drive",
+      "gmail",
       "openai",
       "anthropic",
       "google-gemini",
@@ -1735,7 +1816,7 @@ const IntegrationManager = () => {
       return;
     }
 
-    const integrationType = integration.id === "google-drive" ? "google_drive" : integration.type;
+    const integrationType = integration.id === "google-drive" ? "google_drive" : integration.id === "gmail" ? "gmail" : integration.type;
 
     try {
       const { error } = await supabase
@@ -1821,7 +1902,7 @@ const IntegrationManager = () => {
       });
 
       try {
-        const integrationType = integration.id === "google-drive" ? "google_drive" : integration.type;
+        const integrationType = integration.id === "google-drive" ? "google_drive" : integration.id === "gmail" ? "gmail" : integration.type;
         const config = await getLatestOrganizationIntegrationConfig(integrationType);
 
         if (config) {
@@ -2399,7 +2480,7 @@ const IntegrationManager = () => {
           className={
             selectedIntegration?.id === "n8n-analytics"
               ? "sm:max-w-[720px]"
-              : selectedIntegration?.id === "google-drive"
+              : selectedIntegration?.id === "google-drive" || selectedIntegration?.id === "gmail"
                 ? "sm:max-w-2xl"
                 : "sm:max-w-[425px]"
           }
@@ -2595,7 +2676,7 @@ const IntegrationManager = () => {
             <>
               <div className="grid gap-4 py-4">
                 {selectedIntegration?.id !== "collabai" &&
-                  selectedIntegration?.id !== "google-drive" && (
+                  selectedIntegration?.id !== "google-drive" && selectedIntegration?.id !== "gmail" && (
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="api-key" className="text-right">
                         {selectedIntegration?.id === "jira"
@@ -2666,7 +2747,7 @@ const IntegrationManager = () => {
                     />
                   </div>
                 )}
-                {selectedIntegration?.id === "google-drive" && (
+                {(selectedIntegration?.id === "google-drive" || selectedIntegration?.id === "gmail") && (
                   <>
                     <div className="space-y-3 col-span-4 mb-4">
                       <div className="flex items-center gap-2">

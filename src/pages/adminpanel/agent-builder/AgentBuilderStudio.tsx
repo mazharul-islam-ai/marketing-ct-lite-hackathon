@@ -22,6 +22,7 @@ import { useFlowRun } from "./hooks/useFlowRun";
 import { PublishModal } from "./PublishModal";
 import type { AgentVisibility } from "./types";
 import type { Agent, AgentVersion, FlowJSON } from "./types";
+import { extractCronFromFlow, computeNextRunAt } from "@/lib/automationSchedule";
 
 type StudioTab = "design" | "runtime" | "json" | "logs" | "versions";
 
@@ -147,15 +148,45 @@ export default function AgentBuilderStudio() {
       return;
     }
 
+    const cronExpression = extractCronFromFlow(currentFlow);
+    if (cronExpression) {
+      const nextRunAt = computeNextRunAt(cronExpression).toISOString();
+      const { data: existing } = await supabase
+        .from("automations" as never)
+        .select("id")
+        .eq("agent_id", liveAgentId)
+        .maybeSingle() as { data: { id: string } | null };
+
+      if (existing?.id) {
+        await supabase
+          .from("automations" as never)
+          .update({
+            cron_expression: cronExpression,
+            is_active: true,
+            next_run_at: nextRunAt,
+            trigger_type: "cron",
+          })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("automations" as never).insert({
+          agent_id: liveAgentId,
+          trigger_type: "cron",
+          cron_expression: cronExpression,
+          is_active: true,
+          next_run_at: nextRunAt,
+        });
+      }
+    }
+
     setAgent((prev) => prev ? { ...prev, status: "published" } : prev);
-    toast.success("Agent published");
+    toast.success(cronExpression ? "Agent published — automation scheduled" : "Agent published");
 
     if (visibility !== "public") {
       setShowPublishModal(false);
     }
 
     return visibility === "public" && data ? { publicToken: data.public_token } : undefined;
-  }, [liveAgentId]);
+  }, [liveAgentId, currentFlow]);
 
   const handleArchive = useCallback(async () => {
     if (!liveAgentId) return;
@@ -163,6 +194,10 @@ export default function AgentBuilderStudio() {
       .from("agents" as never)
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", liveAgentId);
+    await supabase
+      .from("automations" as never)
+      .update({ is_active: false })
+      .eq("agent_id", liveAgentId);
     toast.success("Archived");
     navigate("/adminpanel/agent-builder");
   }, [liveAgentId, navigate]);
