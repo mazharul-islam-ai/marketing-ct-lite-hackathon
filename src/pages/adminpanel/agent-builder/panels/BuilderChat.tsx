@@ -1,47 +1,95 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Sparkles, Zap, Wrench, Bot } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Send, Loader2, Sparkles, Zap, Wrench, Bot, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 import type { ChatMessage, NodeType } from "../types";
-
-interface NodePaletteItem {
-  type: NodeType;
-  label: string;
-}
-
-const PALETTE_ITEMS: Record<string, NodePaletteItem[]> = {
-  "⏰ Triggers":  [{ type: "cron_trigger", label: "Schedule" }, { type: "webhook_trigger", label: "Webhook" }, { type: "manual_trigger", label: "Manual" }],
-  "🤖 AI Models": [{ type: "openai_llm", label: "OpenAI" }, { type: "gemini_llm", label: "Gemini" }, { type: "anthropic_llm", label: "Anthropic" }],
-  "🔧 Tools":     [{ type: "db_query", label: "DB Query" }, { type: "api_call", label: "API Call" }, { type: "slack_notify", label: "Slack" }, { type: "email_send", label: "Email" }],
-  "◇ Logic":      [{ type: "condition", label: "Condition" }, { type: "loop", label: "Loop" }, { type: "delay", label: "Delay" }],
-  "📤 Outputs":   [{ type: "db_write", label: "DB Write" }, { type: "report_generate", label: "Report" }],
-};
+import {
+  COMPILE_PHASE_LABELS,
+  COMPILE_PHASE_ORDER,
+  filterPalette,
+} from "../integrationConfig";
+import type { CompileStatus } from "../hooks/useBuilderSession";
 
 interface BuilderChatProps {
   chatHistory: ChatMessage[];
   isCompiling: boolean;
+  compileStatus?: CompileStatus | null;
   onSendPrompt: (prompt: string, action?: "generate" | "improve" | "add_tool") => void;
   onDragNodeStart?: (type: NodeType) => void;
   agentName?: string;
 }
 
+function CompileStatusPanel({ status }: { status: CompileStatus }) {
+  const ordered = COMPILE_PHASE_ORDER.filter(
+    (p) => p === status.phase || status.completedPhases.includes(p),
+  );
+  const visiblePhases = ordered.length > 0 ? ordered : [status.phase];
+
+  return (
+    <div className="bg-slate-800 border border-slate-700/50 rounded-xl px-3 py-2.5 space-y-1.5 min-w-[200px]">
+      {COMPILE_PHASE_ORDER.map((phase) => {
+        const isDone = status.completedPhases.includes(phase);
+        const isCurrent = status.phase === phase;
+        if (!isDone && !isCurrent && !visiblePhases.includes(phase)) return null;
+
+        return (
+          <div
+            key={phase}
+            className={cn(
+              "flex items-center gap-2 text-[11px]",
+              isDone && "text-slate-500",
+              isCurrent && "text-violet-300",
+              !isDone && !isCurrent && "text-slate-600",
+            )}
+          >
+            {isDone ? (
+              <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+            ) : isCurrent ? (
+              <Loader2 className="w-3 h-3 animate-spin text-violet-400 shrink-0" />
+            ) : (
+              <span className="w-3 h-3 rounded-full border border-slate-600 shrink-0" />
+            )}
+            <span>{COMPILE_PHASE_LABELS[phase] ?? phase}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function BuilderChat({
   chatHistory,
   isCompiling,
+  compileStatus,
   onSendPrompt,
   onDragNodeStart,
   agentName,
 }: BuilderChatProps) {
   const [input, setInput] = useState("");
   const [expandedPalette, setExpandedPalette] = useState<string | null>(null);
+  const [connectedTools, setConnectedTools] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    async function loadTools() {
+      const { data } = await supabase
+        .from("organization_integrations" as never)
+        .select("integration_type")
+        .eq("is_active" as never, true) as { data: { integration_type: string }[] | null };
+      setConnectedTools(new Set((data ?? []).map((r) => r.integration_type)));
+    }
+    loadTools();
+  }, []);
+
+  const paletteItems = useMemo(() => filterPalette(connectedTools), [connectedTools]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory, isCompiling]);
+  }, [chatHistory, isCompiling, compileStatus?.phase]);
 
   const handleSend = (action: "generate" | "improve" | "add_tool" = "generate") => {
     if (!input.trim() || isCompiling) return;
@@ -58,7 +106,6 @@ export function BuilderChat({
 
   return (
     <div className="flex flex-col h-full bg-slate-900 border-r border-slate-700/50">
-      {/* Header */}
       <div className="px-3 py-3 border-b border-slate-700/50 bg-slate-900/80">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
@@ -73,7 +120,6 @@ export function BuilderChat({
         </div>
       </div>
 
-      {/* Chat messages */}
       <ScrollArea className="flex-1 px-3 py-3">
         {chatHistory.length === 0 && !isCompiling && (
           <div className="py-8 text-center">
@@ -82,7 +128,7 @@ export function BuilderChat({
             </div>
             <p className="text-xs font-medium text-slate-300">Describe what you want to build</p>
             <p className="text-[11px] mt-1.5 text-slate-500 leading-relaxed px-2">
-              e.g. "Analyze CRM leads every morning and send hot leads to Slack"
+              e.g. "Daily unread email summary delivered to Slack at 8am"
             </p>
           </div>
         )}
@@ -96,10 +142,7 @@ export function BuilderChat({
           {chatHistory.slice(-20).map((msg, i) => (
             <div
               key={i}
-              className={cn(
-                "flex",
-                msg.role === "user" ? "justify-end" : "justify-start",
-              )}
+              className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
             >
               {msg.role === "assistant" && (
                 <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-1 mr-2">
@@ -119,14 +162,23 @@ export function BuilderChat({
             </div>
           ))}
 
-          {isCompiling && (
+          {isCompiling && compileStatus && (
+            <div className="flex justify-start">
+              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-1 mr-2">
+                <Sparkles className="w-2.5 h-2.5 text-white" />
+              </div>
+              <CompileStatusPanel status={compileStatus} />
+            </div>
+          )}
+
+          {isCompiling && !compileStatus && (
             <div className="flex justify-start">
               <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-1 mr-2">
                 <Sparkles className="w-2.5 h-2.5 text-white" />
               </div>
               <div className="bg-slate-800 border border-slate-700/50 rounded-xl px-3 py-2 flex items-center gap-2">
                 <Loader2 className="w-3 h-3 animate-spin text-violet-400" />
-                <span className="text-xs text-slate-400">Compiling flow…</span>
+                <span className="text-xs text-slate-400">Starting…</span>
               </div>
             </div>
           )}
@@ -135,7 +187,6 @@ export function BuilderChat({
         <div ref={messagesEndRef} />
       </ScrollArea>
 
-      {/* Input area */}
       <div className="p-3 border-t border-slate-700/50 space-y-2">
         <div className="relative">
           <Textarea
@@ -161,7 +212,6 @@ export function BuilderChat({
           </Button>
         </div>
 
-        {/* Quick action buttons */}
         <div className="flex gap-1.5">
           <Button
             size="sm"
@@ -196,13 +246,12 @@ export function BuilderChat({
         </div>
       </div>
 
-      {/* Node Palette */}
       <div className="border-t border-slate-700/50">
         <p className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-          Node Palette
+          Node Palette (configured tools)
         </p>
         <div className="pb-2 space-y-0.5">
-          {Object.entries(PALETTE_ITEMS).map(([category, items]) => (
+          {Object.entries(paletteItems).map(([category, items]) => (
             <div key={category}>
               <button
                 className="w-full flex items-center justify-between px-3 py-1 text-[11px] text-slate-400 hover:bg-slate-800 transition-colors"

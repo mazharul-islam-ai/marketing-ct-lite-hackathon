@@ -44,7 +44,7 @@ export function DesignTab({
     [onFlowChange],
   );
 
-  const { chatHistory, isCompiling, sendPrompt } = useBuilderSession(
+  const { chatHistory, isCompiling, compileStatus, sendPrompt } = useBuilderSession(
     agentId,
     handleFlowUpdate,
     onAgentCreated,
@@ -134,6 +134,7 @@ export function DesignTab({
               <BuilderChat
                 chatHistory={chatHistory}
                 isCompiling={isCompiling}
+                compileStatus={compileStatus}
                 onSendPrompt={sendPrompt}
                 agentName={agentName}
               />

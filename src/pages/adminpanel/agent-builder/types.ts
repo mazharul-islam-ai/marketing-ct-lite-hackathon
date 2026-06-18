@@ -8,7 +8,7 @@ export type NodeType =
   // AI
   | "openai_llm" | "gemini_llm" | "anthropic_llm" | "custom_llm"
   // Tool
-  | "db_query" | "api_call" | "email_send" | "slack_notify" | "crm_update" | "mcp_tool"
+  | "db_query" | "api_call" | "email_send" | "slack_notify" | "crm_update" | "mcp_tool" | "gmail_fetch_unread"
   // Output
   | "dashboard_write" | "email_output" | "db_write" | "report_generate";
 
@@ -265,6 +265,12 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   {
     type: "mcp_tool", label: "MCP Tool", description: "Execute an MCP server tool", category: "tool",
     configSchema: { tool_name: { label: "Tool Name", type: "text", required: true } },
+  },
+  {
+    type: "gmail_fetch_unread", label: "Gmail Unread", description: "Fetch unread emails from Gmail inbox", category: "tool",
+    configSchema: {
+      max_results: { label: "Max Emails", type: "number", defaultValue: 25 },
+    },
   },
   // OUTPUT
   {

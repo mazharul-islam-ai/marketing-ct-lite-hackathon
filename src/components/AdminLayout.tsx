@@ -23,6 +23,8 @@ import {
   Video,
   Calculator,
   ImageIcon,
+  Workflow,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -68,6 +70,13 @@ const baseNavigation: Array<{ section: string; items: NavigationItem[] }> = [
       { name: "PODs & Teams", href: "/adminpanel/control-tower/pods", icon: Package, minRole: "manager" },
       { name: "Meetings", href: "/adminpanel/control-tower/meetings", icon: Video, minRole: "manager" },
       { name: "API Keys", href: "/adminpanel/control-tower/api-keys", icon: Key, minRole: "super_admin" },
+    ],
+  },
+  {
+    section: "Automations",
+    items: [
+      { name: "All Automations", href: "/adminpanel/automations", icon: Workflow, minRole: "super_admin" },
+      { name: "Logs", href: "/adminpanel/automations/logs", icon: Zap, minRole: "super_admin" },
     ],
   },
   {

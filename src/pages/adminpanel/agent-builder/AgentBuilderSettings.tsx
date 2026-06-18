@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertCircle, ExternalLink, Loader2,
   Lock, Unlock, ChevronDown, ChevronRight,
   Zap, Globe2, MessageSquare, BarChart3, FolderOpen, Users, Briefcase,
-  FileText, Save, History, CircleDot,
+  FileText, Save, History, CircleDot, Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -153,6 +153,14 @@ const TOOLS: ToolDef[] = [
     integrationKey: "google_drive",
     category: "Storage",
     icon: <FolderOpen className="w-4 h-4" />,
+  },
+  {
+    id: "gmail",
+    label: "Gmail",
+    description: "Read unread emails from Gmail inbox for automations",
+    integrationKey: "gmail",
+    category: "Email",
+    icon: <Mail className="w-4 h-4" />,
   },
   {
     id: "slack",

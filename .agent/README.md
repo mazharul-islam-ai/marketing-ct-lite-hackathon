@@ -114,6 +114,7 @@ Documentation about the current state of the system - architecture, tech stack, 
 - **[people-management.md](./System/features/people-management.md)** - User and people management
 - **[role-settings.md](./System/features/role-settings.md)** - Role-based permissions system
 - **[task-management-system.md](./System/features/task-management-system.md)** - Task management (NEW - Jan 16, 2026)
+- **[agent-builder-automations.md](./System/features/agent-builder-automations.md)** - Agent Builder, automations, integration-aware compiler (Jun 18, 2026)
   - My Tasks view with 3 view modes (Assigned, Delegated, All)
   - Task creation, editing, commenting
   - Searchable assignee selector

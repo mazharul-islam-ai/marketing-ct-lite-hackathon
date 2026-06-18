@@ -119,6 +119,7 @@ export const nodeTypes = {
   slack_notify:      FlowNodeComponent,
   crm_update:        FlowNodeComponent,
   mcp_tool:          FlowNodeComponent,
+  gmail_fetch_unread: FlowNodeComponent,
   dashboard_write:   FlowNodeComponent,
   email_output:      FlowNodeComponent,
   db_write:          FlowNodeComponent,
