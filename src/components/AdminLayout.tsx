@@ -76,7 +76,7 @@ const baseNavigation: Array<{ section: string; items: NavigationItem[] }> = [
     section: "Automations",
     items: [
       { name: "All Automations", href: "/adminpanel/automations", icon: Workflow, minRole: "super_admin" },
-      { name: "Logs", href: "/adminpanel/automations/logs", icon: Zap, minRole: "super_admin" },
+      { name: "Automation Logs", href: "/adminpanel/automations/logs", icon: Zap, minRole: "super_admin" },
     ],
   },
   {

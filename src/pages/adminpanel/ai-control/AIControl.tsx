@@ -1,22 +1,41 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { Shield, Bot, BookOpen, LineChart, Brain, Sparkles } from "lucide-react";
+import { Shield, Bot, BookOpen, LineChart, Brain, Sparkles, ScrollText } from "lucide-react";
 import { Link } from "react-router-dom";
 import AIAgentsSection from "@/components/ai-control/AIAgentsSection";
 import AIKnowledgeSection from "@/components/ai-control/AIKnowledgeSection";
 import AIMemorySection from "@/components/ai-control/AIMemorySection";
 import AIAnalytics from "@/components/ai-control/AIAnalytics";
+import AgentRunsLogsSection from "@/components/ai-control/AgentRunsLogsSection";
+
+const VALID_TABS = ["agents", "knowledge", "analytics", "memory", "agents-logs"] as const;
 
 const AIControl = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+
+  const tabParam = searchParams.get("tab");
+  const activeTab = VALID_TABS.includes(tabParam as typeof VALID_TABS[number])
+    ? (tabParam as typeof VALID_TABS[number])
+    : "agents";
 
   const role = user?.role ?? "user";
   const canManage = role === "super_admin" || role === "manager";
   const canViewAnalytics = role === "super_admin" || role === "manager";
+
+  const handleTabChange = (value: string) => {
+    if (value === "agents") {
+      searchParams.delete("tab");
+    } else {
+      searchParams.set("tab", value);
+    }
+    setSearchParams(searchParams, { replace: true });
+  };
 
   return (
     <div className="space-y-6">
@@ -51,8 +70,8 @@ const AIControl = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="agents" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:w-auto lg:grid-cols-5">
           <TabsTrigger value="agents" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             Agents
@@ -68,6 +87,10 @@ const AIControl = () => {
           <TabsTrigger value="memory" className="flex items-center gap-2">
             <Brain className="h-4 w-4" />
             Memory
+          </TabsTrigger>
+          <TabsTrigger value="agents-logs" className="flex items-center gap-2">
+            <ScrollText className="h-4 w-4" />
+            Agent Logs
           </TabsTrigger>
         </TabsList>
 
@@ -94,6 +117,10 @@ const AIControl = () => {
 
         <TabsContent value="memory">
           <AIMemorySection canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="agents-logs">
+          <AgentRunsLogsSection />
         </TabsContent>
       </Tabs>
     </div>

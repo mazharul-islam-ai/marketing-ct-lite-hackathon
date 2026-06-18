@@ -26,20 +26,22 @@ export default function AutomationsLogs() {
     try {
       const { data: automations } = await supabase
         .from("automations" as never)
-        .select("agent_id")
-        .eq("is_active" as never, true) as { data: { agent_id: string }[] | null };
+        .select("agent_id") as { data: { agent_id: string }[] | null };
 
       const agentIds = [...new Set((automations ?? []).map((a) => a.agent_id))];
+
+      if (agentIds.length === 0) {
+        setRuns([]);
+        return;
+      }
 
       let query = supabase
         .from("agent_runs" as never)
         .select("*")
+        .in("agent_id", agentIds)
+        .eq("trigger_type", "cron")
         .order("created_at", { ascending: false })
         .limit(100);
-
-      if (agentIds.length > 0) {
-        query = query.in("agent_id", agentIds);
-      }
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);

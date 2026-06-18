@@ -95,7 +95,8 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via Agent Bu
 |-------|------|
 | `/adminpanel/agent-builder` | Design & compile flows |
 | `/adminpanel/automations` | All published scheduled automations |
-| `/adminpanel/automations/logs` | Global automation run logs |
+| `/adminpanel/automations/logs` | Scheduled automation run logs (`trigger_type = cron` only) |
+| `/adminpanel/ai-control?tab=agents-logs` | Combined Agent Builder + legacy AI agent run history |
 
 ## Intelligence Studio (Phase 6 — Future)
 
@@ -118,3 +119,5 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | Scheduler | `trigger/automation-scheduler.ts` |
 | Node execution | `trigger/agent-flow/execute-node.ts` |
 | Gmail inbox | `supabase/functions/gmail-inbox/index.ts` |
+| Automation logs UI | `src/pages/adminpanel/automations/AutomationsLogs.tsx` |
+| Agent logs UI | `src/components/ai-control/AgentRunsLogsSection.tsx` |
