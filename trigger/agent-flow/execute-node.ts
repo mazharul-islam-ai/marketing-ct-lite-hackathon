@@ -3,6 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import {
   enrichLlmContext,
   buildLlmUserPrompt,
+  runDbQuery,
+  CHAT_LLM_PROMPT,
+  CHAT_LLM_SYSTEM,
+  type DbQueryNodeConfig,
 } from "./chat-context";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -208,19 +212,13 @@ export const executeFlowNode = task({
         // TOOL: db_query
         case "db_query": {
           const table = String(node.config.table ?? "");
-          const limit = Number(node.config.limit ?? 50);
-          const filters = (node.config.filters as Record<string, unknown>) ?? {};
-
           if (!table) throw new Error("db_query: table is required");
 
-          let query = supabase.from(table).select("*").limit(limit);
-          for (const [col, val] of Object.entries(filters)) {
-            query = query.eq(col, val);
-          }
-
-          const { data, error } = await query;
-          if (error) throw new Error(`db_query error: ${error.message}`);
-          output = { rows: data ?? [], count: (data ?? []).length };
+          const { rows, count } = await runDbQuery(
+            supabase,
+            node.config as DbQueryNodeConfig,
+          );
+          output = { rows, count };
           break;
         }
 
@@ -457,7 +455,15 @@ async function executeAINode(
   supabase: ReturnType<typeof createClient>,
 ): Promise<{ output: Record<string, unknown>; tokens_used: number; cost: number }> {
   const ctx = enrichLlmContext(inputData);
-  const promptTemplate = String(config.prompt ?? "Process this data and return a result.");
+
+  let promptTemplate = String(config.prompt ?? "Process this data and return a result.");
+  let systemPrompt = String(config.system_prompt ?? "You are a helpful AI assistant.");
+
+  if (ctx.mode === "chat") {
+    promptTemplate = CHAT_LLM_PROMPT;
+    systemPrompt = CHAT_LLM_SYSTEM;
+  }
+
   const prompt = interpolateTemplate(buildLlmUserPrompt(promptTemplate, ctx), ctx);
   const model = String(config.model ?? "gpt-4o-mini");
 
@@ -474,7 +480,7 @@ async function executeAINode(
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: String(config.system_prompt ?? "You are a helpful AI assistant.") },
+          { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
         ],
         temperature: Number(config.temperature ?? 0.3),
@@ -547,7 +553,7 @@ async function executeAINode(
       body: JSON.stringify({
         model: String(config.model ?? "sonar-reasoning-pro"),
         messages: [
-          { role: "system", content: String(config.system_prompt ?? "You are a helpful AI assistant.") },
+          { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
         ],
         max_tokens: Number(config.max_tokens ?? 1000),
@@ -564,9 +570,31 @@ async function executeAINode(
 }
 
 // ── Simple mustache-style template interpolation ──────────────────────────
+function resolveTemplateValue(key: string, data: Record<string, unknown>): unknown {
+  if (data[key] !== undefined && data[key] !== null) {
+    return data[key];
+  }
+
+  if (key === "rows" || key === "clients" || key === "data" || key === "records") {
+    for (const [k, val] of Object.entries(data)) {
+      if (
+        k.endsWith("_output") &&
+        val &&
+        typeof val === "object" &&
+        !Array.isArray(val) &&
+        Array.isArray((val as Record<string, unknown>).rows)
+      ) {
+        return (val as Record<string, unknown>).rows;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 function interpolateTemplate(template: string, data: Record<string, unknown>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-    const val = data[key];
+    const val = resolveTemplateValue(key, data);
     if (val === undefined || val === null) return `{{${key}}}`;
     if (typeof val === "object") {
       try {

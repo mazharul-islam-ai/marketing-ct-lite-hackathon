@@ -1,3 +1,4 @@
+import { logger } from "@trigger.dev/sdk";
 import type { createClient } from "@supabase/supabase-js";
 
 export const LLM_NODE_TYPES = new Set([
@@ -7,16 +8,61 @@ export const LLM_NODE_TYPES = new Set([
   "custom_llm",
 ]);
 
-interface DbQueryNodeConfig {
+export const CHAT_LLM_PROMPT = "User question: {{message}}\n\nData:\n{{rows}}";
+export const CHAT_LLM_SYSTEM =
+  "Answer the user question using the provided data JSON. Be concise and helpful. When data rows are provided, use them directly — do not say you lack information.";
+
+export interface DbQueryNodeConfig {
   table?: string;
   limit?: number;
   filters?: Record<string, unknown>;
+  order_by?: string;
+  order_asc?: boolean;
 }
 
 interface FlowNodeLike {
   id: string;
   type: string;
   config: Record<string, unknown>;
+}
+
+/** Cap rows for chat prompts to avoid token overflow */
+export function compactRowsForChat(rows: unknown[], message: string): unknown[] {
+  if (!rows.length) return rows;
+  const msg = message.toLowerCase();
+  if (/\bfirst\b/.test(msg)) return rows.slice(0, 1);
+  return rows.slice(0, 10);
+}
+
+/** Set template aliases: clients, data, records, first_client, message variants */
+export function applyRowAliases(ctx: Record<string, unknown>): Record<string, unknown> {
+  const message = String(ctx.message ?? ctx.user_message ?? ctx.chat_message ?? "");
+
+  if (!ctx.message) {
+    ctx.message = message;
+  }
+
+  const rows = Array.isArray(ctx.rows) ? ctx.rows : [];
+  const compact = compactRowsForChat(rows, message);
+
+  const result: Record<string, unknown> = {
+    ...ctx,
+    message,
+    user_message: message,
+    chat_message: message,
+    rows: compact,
+    count: compact.length,
+    clients: compact,
+    data: compact,
+    records: compact,
+  };
+
+  if (compact.length > 0) {
+    result.first_row = compact[0];
+    result.first_client = compact[0];
+  }
+
+  return result;
 }
 
 /** Normalize message aliases and resolve rows from execution context */
@@ -46,7 +92,58 @@ export function enrichLlmContext(
     }
   }
 
-  return ctx;
+  if (!Array.isArray(ctx.rows) || ctx.rows.length === 0) {
+    for (const [key, val] of Object.entries(ctx)) {
+      if (
+        key.endsWith("_output") &&
+        val &&
+        typeof val === "object" &&
+        !Array.isArray(val) &&
+        Array.isArray((val as Record<string, unknown>).rows)
+      ) {
+        ctx.rows = (val as Record<string, unknown>).rows;
+        if ((val as Record<string, unknown>).count != null) {
+          ctx.count = (val as Record<string, unknown>).count;
+        }
+        break;
+      }
+    }
+  }
+
+  return applyRowAliases(ctx);
+}
+
+/** Run a Supabase SELECT (shared by db_query node and chat prefetch) */
+export async function runDbQuery(
+  supabase: ReturnType<typeof createClient>,
+  config: DbQueryNodeConfig,
+): Promise<{ rows: unknown[]; count: number }> {
+  const table = String(config.table ?? "");
+  const limit = Number(config.limit ?? 50);
+  const filters = config.filters ?? {};
+  let orderBy = String(config.order_by ?? "");
+  const orderAsc = config.order_asc !== false;
+
+  if (!orderBy && table === "clients") {
+    orderBy = "created_at";
+  }
+
+  if (!table) return { rows: [], count: 0 };
+
+  let query = supabase.from(table).select("*");
+  for (const [col, val] of Object.entries(filters)) {
+    query = query.eq(col, val);
+  }
+  if (orderBy) {
+    query = query.order(orderBy, { ascending: orderAsc });
+  }
+  query = query.limit(limit);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`db_query error: ${error.message}`);
+
+  const rows = data ?? [];
+  return { rows, count: rows.length };
 }
 
 /** Run a db_query using node config (for chat auto-prefetch) */
@@ -54,22 +151,7 @@ export async function prefetchDbRows(
   supabase: ReturnType<typeof createClient>,
   config: DbQueryNodeConfig,
 ): Promise<{ rows: unknown[]; count: number }> {
-  const table = String(config.table ?? "");
-  const limit = Number(config.limit ?? 50);
-  const filters = config.filters ?? {};
-
-  if (!table) return { rows: [], count: 0 };
-
-  let query = supabase.from(table).select("*").limit(limit);
-  for (const [col, val] of Object.entries(filters)) {
-    query = query.eq(col, val);
-  }
-
-  const { data, error } = await query;
-  if (error) throw new Error(`chat prefetch db_query error: ${error.message}`);
-
-  const rows = data ?? [];
-  return { rows, count: rows.length };
+  return runDbQuery(supabase, config);
 }
 
 /** Ensure chat-mode LLM nodes have message + rows before execution */
@@ -78,21 +160,41 @@ export async function ensureChatContext(
   flowSteps: FlowNodeLike[],
   supabase: ReturnType<typeof createClient>,
 ): Promise<Record<string, unknown>> {
-  const enriched = enrichLlmContext(ctx);
+  let enriched = enrichLlmContext(ctx);
 
   if (enriched.mode !== "chat") return enriched;
-  if (Array.isArray(enriched.rows) && enriched.rows.length > 0) return enriched;
+
+  if (Array.isArray(enriched.rows) && enriched.rows.length > 0) {
+    return applyRowAliases(enriched);
+  }
 
   const dbNode = flowSteps.find((s) => s.type === "db_query");
-  if (!dbNode) return enriched;
+  if (!dbNode) {
+    logger.warn("ensureChatContext: no db_query node in flow for chat prefetch");
+    return enriched;
+  }
 
   try {
-    const { rows, count } = await prefetchDbRows(
+    const { rows, count } = await runDbQuery(
       supabase,
       dbNode.config as DbQueryNodeConfig,
     );
-    return { ...enriched, rows, count };
-  } catch {
+    logger.info("ensureChatContext: prefetched rows for chat", {
+      count,
+      table: (dbNode.config as DbQueryNodeConfig).table,
+    });
+    enriched = applyRowAliases({
+      ...enriched,
+      rows,
+      count,
+      chat_prefetch: true,
+    });
+    return enriched;
+  } catch (err) {
+    logger.warn("ensureChatContext: prefetch failed", {
+      error: err instanceof Error ? err.message : String(err),
+      table: (dbNode.config as DbQueryNodeConfig).table,
+    });
     return enriched;
   }
 }

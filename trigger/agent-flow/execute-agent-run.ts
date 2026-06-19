@@ -200,6 +200,20 @@ export const executeAgentRun = task({
           flow_json.steps,
           supabase,
         );
+
+        if (nodeInputData.mode === "chat") {
+          const rowCount = Array.isArray(nodeInputData.rows)
+            ? nodeInputData.rows.length
+            : 0;
+          metadata.set("chat_prefetch_rows", rowCount);
+          logger.info("Chat LLM context ready", {
+            run_id,
+            nodeId,
+            rowCount,
+            chat_prefetch: nodeInputData.chat_prefetch ?? false,
+          });
+          executionContext = { ...executionContext, ...nodeInputData };
+        }
       }
 
       // Execute the node as a subtask
