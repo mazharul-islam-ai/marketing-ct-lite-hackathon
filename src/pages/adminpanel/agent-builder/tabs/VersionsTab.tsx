@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { AgentVersion, FlowJSON } from "../types";
+import { ab } from "../agentBuilderTheme";
 
 interface VersionsTabProps {
   agentId: string;
@@ -58,9 +59,8 @@ export function VersionsTab({ agentId, currentVersionId, onRollback }: VersionsT
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+    <div className={cn("flex flex-col h-full", ab.canvas)}>
+      <div className={cn("px-4 py-2.5 flex items-center gap-2", ab.toolbar)}>
         <GitBranch className="w-3.5 h-3.5 text-slate-400" />
         <span className="text-xs font-semibold text-slate-600">Version History</span>
         <span className="ml-auto text-[10px] text-slate-400">{versions.length} versions</span>
@@ -88,7 +88,7 @@ export function VersionsTab({ agentId, currentVersionId, onRollback }: VersionsT
                 key={v.id}
                 className={cn(
                   "rounded-lg border text-xs transition-colors",
-                  isCurrent ? "border-primary/40 bg-primary/5" : "border-slate-200 hover:border-slate-300",
+                  isCurrent ? "border-[hsl(248_35%_82%)] bg-[hsl(248_40%_96%)]" : "border-[hsl(250_18%_90%)] hover:border-[hsl(248_35%_82%)]",
                 )}
               >
                 {/* Version row */}
@@ -96,7 +96,7 @@ export function VersionsTab({ agentId, currentVersionId, onRollback }: VersionsT
                   {/* Version number */}
                   <div className={cn(
                     "flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold shrink-0",
-                    isCurrent ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-600",
+                    isCurrent ? ab.accentBtn : "bg-[hsl(250_25%_94%)] text-[hsl(240_8%_40%)]",
                   )}>
                     v{v.version}
                   </div>
@@ -105,7 +105,7 @@ export function VersionsTab({ agentId, currentVersionId, onRollback }: VersionsT
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       {isCurrent && (
-                        <span className="text-[10px] font-semibold text-primary">● current</span>
+                        <span className={cn("text-[10px] font-semibold", ab.accentText)}>● current</span>
                       )}
                       <span className="text-slate-600 font-medium">{nodeCount} nodes</span>
                     </div>
@@ -139,11 +139,11 @@ export function VersionsTab({ agentId, currentVersionId, onRollback }: VersionsT
 
                 {/* Expanded flow JSON preview */}
                 {isExpanded && (
-                  <div className="px-3 pb-3 border-t border-slate-100">
+                  <div className="px-3 pb-3 border-t border-[hsl(250_18%_90%)]">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 mt-2">
                       Flow snapshot
                     </p>
-                    <pre className="text-[10px] bg-slate-950 text-slate-300 rounded p-2.5 overflow-x-auto max-h-36 font-mono">
+                    <pre className={cn("text-[10px] rounded p-2.5 overflow-x-auto max-h-36 font-mono border", ab.logArea, ab.borderSoft, ab.textForeground)}>
                       {JSON.stringify(v.flow_json, null, 2)}
                     </pre>
                   </div>

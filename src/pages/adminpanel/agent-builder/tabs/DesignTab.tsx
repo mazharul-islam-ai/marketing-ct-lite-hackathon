@@ -7,6 +7,7 @@ import { useBuilderSession } from "../hooks/useBuilderSession";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FlowJSON, FlowNode } from "../types";
+import { ab } from "../agentBuilderTheme";
 
 interface DesignTabProps {
   agentId: string | null;
@@ -114,20 +115,20 @@ export function DesignTab({
           {leftCollapsed ? (
             /* Collapsed left icon rail */
             <div
-              className="flex-1 flex flex-col items-center gap-3 py-4 bg-slate-900 border-r border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors"
+              className={cn("flex-1 flex flex-col items-center gap-3 py-4 border-r cursor-pointer transition-colors bg-[hsl(250_28%_96%)] border-[hsl(250_18%_90%)] hover:bg-[hsl(250_25%_94%)]", ab.borderSoft)}
               onClick={toggleLeft}
               title="Expand chat panel"
             >
-              <Sparkles className="w-4 h-4 text-violet-400" />
+              <Sparkles className={cn("w-4 h-4", ab.accentText)} />
               <div className="flex-1 flex items-center">
                 <span
-                  className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest"
+                  className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest"
                   style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
                 >
                   AI Chat
                 </span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
           ) : (
             <>
@@ -141,7 +142,7 @@ export function DesignTab({
               {/* Collapse toggle — right edge of left panel */}
               <button
                 onClick={toggleLeft}
-                className="absolute top-1/2 -translate-y-1/2 right-0 z-10 w-5 h-10 flex items-center justify-center bg-slate-800 border border-slate-700 rounded-r text-slate-400 hover:text-white hover:bg-slate-700 transition-colors shadow-md"
+                className={cn("absolute top-1/2 -translate-y-1/2 right-0 z-10 w-5 h-10 flex items-center justify-center rounded-r transition-colors shadow-sm border", ab.surfaceElevated, ab.textMuted, "hover:text-[hsl(248_45%_42%)]")}
                 title="Collapse chat panel"
               >
                 <ChevronLeft className="w-3 h-3" />
@@ -151,8 +152,8 @@ export function DesignTab({
         </Panel>
 
         {/* Resize handle between left and center */}
-        <PanelResizeHandle className="relative w-1 bg-transparent hover:bg-violet-500/30 active:bg-violet-500/50 transition-colors cursor-col-resize group">
-          <div className="absolute inset-y-0 left-0 w-px bg-slate-700/40 group-hover:bg-violet-400 transition-colors" />
+        <PanelResizeHandle className="relative w-1 bg-transparent hover:bg-[hsl(248_45%_70%/0.15)] active:bg-[hsl(248_45%_70%/0.25)] transition-colors cursor-col-resize group">
+          <div className="absolute inset-y-0 left-0 w-px bg-[hsl(250_18%_90%)] group-hover:bg-[hsl(248_45%_70%/0.5)] transition-colors" />
         </PanelResizeHandle>
 
         {/* ── Centre (Canvas) — takes all remaining space ── */}

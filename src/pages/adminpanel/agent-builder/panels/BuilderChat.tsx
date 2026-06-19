@@ -12,6 +12,7 @@ import {
   filterPalette,
 } from "../integrationConfig";
 import type { CompileStatus } from "../hooks/useBuilderSession";
+import { ab } from "../agentBuilderTheme";
 
 interface BuilderChatProps {
   chatHistory: ChatMessage[];
@@ -29,7 +30,7 @@ function CompileStatusPanel({ status }: { status: CompileStatus }) {
   const visiblePhases = ordered.length > 0 ? ordered : [status.phase];
 
   return (
-    <div className="bg-slate-800 border border-slate-700/50 rounded-xl px-3 py-2.5 space-y-1.5 min-w-[200px]">
+    <div className={cn("rounded-xl px-3 py-2.5 space-y-1.5 min-w-[200px] border", ab.accentSoft)}>
       {COMPILE_PHASE_ORDER.map((phase) => {
         const isDone = status.completedPhases.includes(phase);
         const isCurrent = status.phase === phase;
@@ -40,17 +41,17 @@ function CompileStatusPanel({ status }: { status: CompileStatus }) {
             key={phase}
             className={cn(
               "flex items-center gap-2 text-[11px]",
-              isDone && "text-slate-500",
-              isCurrent && "text-violet-300",
-              !isDone && !isCurrent && "text-slate-600",
+              isDone && ab.textMuted,
+              isCurrent && ab.accentText,
+              !isDone && !isCurrent && "text-[hsl(240_8%_55%)]",
             )}
           >
             {isDone ? (
               <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
             ) : isCurrent ? (
-              <Loader2 className="w-3 h-3 animate-spin text-violet-400 shrink-0" />
+              <Loader2 className={cn("w-3 h-3 animate-spin shrink-0", ab.accentText)} />
             ) : (
-              <span className="w-3 h-3 rounded-full border border-slate-600 shrink-0" />
+              <span className="w-3 h-3 rounded-full border border-[hsl(250_18%_88%)] shrink-0" />
             )}
             <span>{COMPILE_PHASE_LABELS[phase] ?? phase}</span>
           </div>
@@ -105,16 +106,16 @@ export function BuilderChat({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 border-r border-slate-700/50">
-      <div className="px-3 py-3 border-b border-slate-700/50 bg-slate-900/80">
+    <div className={cn("flex flex-col h-full border-r", ab.chatPanel)}>
+      <div className={cn("px-3 py-3 border-b", ab.chatHeader)}>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
+          <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0", ab.accentBtn)}>
             <Sparkles className="w-3.5 h-3.5 text-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide leading-none">AI Builder</p>
+            <p className={cn("text-[11px] font-semibold uppercase tracking-wide leading-none", ab.textMuted)}>AI Builder</p>
             {agentName && (
-              <p className="text-xs font-medium text-slate-200 truncate mt-0.5">{agentName}</p>
+              <p className={cn("text-xs font-medium truncate mt-0.5", ab.textForeground)}>{agentName}</p>
             )}
           </div>
         </div>
@@ -123,11 +124,11 @@ export function BuilderChat({
       <ScrollArea className="flex-1 px-3 py-3">
         {chatHistory.length === 0 && !isCompiling && (
           <div className="py-8 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/20 flex items-center justify-center mx-auto mb-3">
-              <Bot className="w-6 h-6 text-violet-400" />
+            <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 border", ab.accentSoft)}>
+              <Bot className={cn("w-6 h-6", ab.accentText)} />
             </div>
-            <p className="text-xs font-medium text-slate-300">Describe what you want to build</p>
-            <p className="text-[11px] mt-1.5 text-slate-500 leading-relaxed px-2">
+            <p className={cn("text-xs font-medium", ab.textForeground)}>Describe what you want to build</p>
+            <p className={cn("text-[11px] mt-1.5 leading-relaxed px-2", ab.textMuted)}>
               e.g. "Daily unread email summary delivered to Slack at 8am"
             </p>
           </div>
@@ -135,7 +136,7 @@ export function BuilderChat({
 
         <div className="space-y-3">
           {chatHistory.length > 20 && (
-            <p className="text-[11px] text-center text-slate-500 py-1">
+            <p className={cn("text-[11px] text-center py-1", ab.textMuted)}>
               {chatHistory.length - 20} earlier message{chatHistory.length - 20 > 1 ? "s" : ""} hidden
             </p>
           )}
@@ -145,16 +146,16 @@ export function BuilderChat({
               className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
             >
               {msg.role === "assistant" && (
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-1 mr-2">
+                <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2", ab.accentBtn)}>
                   <Sparkles className="w-2.5 h-2.5 text-white" />
                 </div>
               )}
               <div
                 className={cn(
-                  "max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed",
+                  "max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed",
                   msg.role === "user"
-                    ? "bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-br-sm shadow-lg shadow-violet-900/30"
-                    : "bg-slate-800 text-slate-200 rounded-bl-sm border border-slate-700/50",
+                    ? cn(ab.userBubble, "rounded-br-md")
+                    : cn(ab.assistantBubble, "rounded-bl-md border"),
                 )}
               >
                 {msg.content}
@@ -164,7 +165,7 @@ export function BuilderChat({
 
           {isCompiling && compileStatus && (
             <div className="flex justify-start">
-              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-1 mr-2">
+              <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2", ab.accentBtn)}>
                 <Sparkles className="w-2.5 h-2.5 text-white" />
               </div>
               <CompileStatusPanel status={compileStatus} />
@@ -173,12 +174,12 @@ export function BuilderChat({
 
           {isCompiling && !compileStatus && (
             <div className="flex justify-start">
-              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 mt-1 mr-2">
+              <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2", ab.accentBtn)}>
                 <Sparkles className="w-2.5 h-2.5 text-white" />
               </div>
-              <div className="bg-slate-800 border border-slate-700/50 rounded-xl px-3 py-2 flex items-center gap-2">
-                <Loader2 className="w-3 h-3 animate-spin text-violet-400" />
-                <span className="text-xs text-slate-400">Starting…</span>
+              <div className={cn("rounded-xl px-3 py-2 flex items-center gap-2 border", ab.assistantBubble)}>
+                <Loader2 className={cn("w-3 h-3 animate-spin", ab.accentText)} />
+                <span className={cn("text-xs", ab.textMuted)}>Starting…</span>
               </div>
             </div>
           )}
@@ -187,7 +188,7 @@ export function BuilderChat({
         <div ref={messagesEndRef} />
       </ScrollArea>
 
-      <div className="p-3 border-t border-slate-700/50 space-y-2">
+      <div className={cn("p-3 border-t space-y-2", ab.borderSoft)}>
         <div className="relative">
           <Textarea
             ref={textareaRef}
@@ -195,12 +196,12 @@ export function BuilderChat({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Describe or modify the flow…"
-            className="resize-none text-xs pr-10 min-h-[68px] max-h-[120px] bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-500 focus:border-violet-500/60 rounded-xl"
+            className={cn("resize-none text-xs pr-10 min-h-[68px] max-h-[120px] rounded-xl", ab.input)}
             disabled={isCompiling}
           />
           <Button
             size="icon"
-            className="absolute bottom-1.5 right-1.5 h-7 w-7 bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 border-0 rounded-lg shadow-md"
+            className={cn("absolute bottom-1.5 right-1.5 h-7 w-7 rounded-lg", ab.accentBtn)}
             onClick={() => handleSend("generate")}
             disabled={!input.trim() || isCompiling}
           >
@@ -216,7 +217,7 @@ export function BuilderChat({
           <Button
             size="sm"
             variant="ghost"
-            className="flex-1 text-[11px] h-7 gap-1 text-slate-400 hover:text-violet-300 hover:bg-slate-800 rounded-lg"
+            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(248_40%_96%)]", ab.textMuted)}
             onClick={() => handleSend("generate")}
             disabled={!input.trim() || isCompiling}
           >
@@ -226,7 +227,7 @@ export function BuilderChat({
           <Button
             size="sm"
             variant="ghost"
-            className="flex-1 text-[11px] h-7 gap-1 text-slate-400 hover:text-indigo-300 hover:bg-slate-800 rounded-lg"
+            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(248_40%_96%)]", ab.textMuted)}
             onClick={() => handleSend("improve")}
             disabled={!input.trim() || isCompiling}
           >
@@ -236,7 +237,7 @@ export function BuilderChat({
           <Button
             size="sm"
             variant="ghost"
-            className="flex-1 text-[11px] h-7 gap-1 text-slate-400 hover:text-emerald-300 hover:bg-slate-800 rounded-lg"
+            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(248_40%_96%)]", ab.textMuted)}
             onClick={() => handleSend("add_tool")}
             disabled={!input.trim() || isCompiling}
           >
@@ -246,19 +247,19 @@ export function BuilderChat({
         </div>
       </div>
 
-      <div className="border-t border-slate-700/50">
-        <p className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+      <div className={cn("border-t", ab.borderSoft)}>
+        <p className={cn("px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide", ab.textMuted)}>
           Node Palette (configured tools)
         </p>
         <div className="pb-2 space-y-0.5">
           {Object.entries(paletteItems).map(([category, items]) => (
             <div key={category}>
               <button
-                className="w-full flex items-center justify-between px-3 py-1 text-[11px] text-slate-400 hover:bg-slate-800 transition-colors"
+                className={cn("w-full flex items-center justify-between px-3 py-1 text-[11px] transition-colors hover:bg-[hsl(250_25%_94%)]", ab.textMuted)}
                 onClick={() => setExpandedPalette(expandedPalette === category ? null : category)}
               >
                 <span>{category}</span>
-                <span className="text-slate-600">{expandedPalette === category ? "▴" : "▾"}</span>
+                <span className="text-[hsl(240_8%_55%)]">{expandedPalette === category ? "▴" : "▾"}</span>
               </button>
 
               {expandedPalette === category && (
@@ -268,7 +269,11 @@ export function BuilderChat({
                       key={item.type}
                       draggable
                       onDragStart={() => onDragNodeStart?.(item.type)}
-                      className="cursor-grab active:cursor-grabbing px-2 py-0.5 rounded-md bg-slate-800 text-[10px] text-slate-400 hover:bg-violet-900/40 hover:text-violet-300 border border-slate-700 hover:border-violet-500/40 transition-colors select-none"
+                      className={cn(
+                        "cursor-grab active:cursor-grabbing px-2 py-0.5 rounded-md text-[10px] border transition-colors select-none",
+                        ab.chip,
+                        "hover:bg-[hsl(248_40%_96%)]",
+                      )}
                     >
                       {item.label}
                     </div>

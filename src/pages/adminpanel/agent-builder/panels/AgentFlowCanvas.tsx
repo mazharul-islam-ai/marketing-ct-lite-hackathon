@@ -16,6 +16,8 @@ import "reactflow/dist/style.css";
 import { nodeTypes } from "../nodes/FlowNodeRenderer";
 import type { FlowJSON, FlowNode, FlowEdge, NodeType } from "../types";
 import { NODE_TYPE_DEFS } from "../types";
+import { cn } from "@/lib/utils";
+import { ab } from "../agentBuilderTheme";
 
 interface AgentFlowCanvasProps {
   flowJson: FlowJSON | null;
@@ -171,7 +173,7 @@ export function AgentFlowCanvas({
 
   if (!flowJson || (flowJson.steps.length === 0 && !flowJson.trigger)) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400 select-none">
+      <div className={cn("flex-1 flex flex-col items-center justify-center select-none", ab.canvas, ab.textMuted)}>
         <div className="text-5xl mb-4 opacity-30">⬡</div>
         <p className="text-sm font-medium">Your flow canvas is empty</p>
         <p className="text-xs mt-1">Type a description in the chat to generate a flow, or drag nodes from the palette</p>
@@ -196,10 +198,10 @@ export function AgentFlowCanvas({
         minZoom={0.3}
         maxZoom={2}
         deleteKeyCode="Delete"
-        className="bg-slate-50"
+        className="bg-[hsl(250_33%_98%)]"
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
-        <Controls className="bg-white border border-slate-200 rounded-lg shadow-sm" />
+        <Controls className="bg-[hsl(250_32%_97.5%)] border border-[hsl(250_18%_90%)] rounded-lg shadow-sm" />
         <MiniMap
           nodeColor={(n) => {
             const type = n.data?.type as string;
@@ -209,7 +211,7 @@ export function AgentFlowCanvas({
             if (type?.includes("slack") || type?.includes("email") || type?.includes("notify")) return "#34d399";
             return "#94a3b8";
           }}
-          className="bg-white border border-slate-200 rounded-lg"
+          className="bg-[hsl(250_32%_97.5%)] border border-[hsl(250_18%_90%)] rounded-lg"
           maskColor="rgba(248,250,252,0.7)"
         />
       </ReactFlow>

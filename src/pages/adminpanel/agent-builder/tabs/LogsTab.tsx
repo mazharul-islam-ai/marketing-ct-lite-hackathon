@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { RunStep, AgentRun } from "../types";
+import { ab } from "../agentBuilderTheme";
 
 interface LogsTabProps {
   agentId: string;
@@ -123,11 +124,10 @@ export function LogsTab({ agentId, currentRunId }: LogsTabProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-100 bg-slate-50">
+    <div className={cn("flex flex-col h-full", ab.canvas)}>
+      <div className={cn("flex items-center gap-3 px-4 py-2", ab.toolbar)}>
         <select
-          className="flex-1 text-xs h-7 rounded border border-slate-200 bg-white px-2 text-slate-700"
+          className={cn("flex-1 text-xs h-7 rounded px-2", ab.input, ab.textForeground)}
           value={selectedRunId ?? ""}
           onChange={(e) => setSelectedRunId(e.target.value)}
         >
@@ -149,30 +149,30 @@ export function LogsTab({ agentId, currentRunId }: LogsTabProps) {
       </div>
 
       {/* Log output */}
-      <ScrollArea className="flex-1 bg-slate-950">
+      <ScrollArea className={cn("flex-1", ab.logArea)}>
         <div className="p-4 font-mono text-[11px] leading-6 space-y-0">
           {isLoading && (
-            <p className="text-slate-400">Loading logs…</p>
+            <p className="text-muted-foreground">Loading logs…</p>
           )}
           {!isLoading && logs.length === 0 && (
-            <p className="text-slate-500">No logs for this run.</p>
+            <p className="text-muted-foreground">No logs for this run.</p>
           )}
           {logs.map((line, i) => (
             <div key={i} className="flex gap-3">
-              <span className="text-slate-500 shrink-0 select-none">{formatTs(line.timestamp)}</span>
+              <span className="text-muted-foreground shrink-0 select-none">{formatTs(line.timestamp)}</span>
               <span
                 className={cn(
                   "shrink-0 w-12",
-                  line.level === "ERROR" && "text-red-400",
-                  line.level === "WARN" && "text-yellow-400",
-                  line.level === "INFO" && "text-green-400",
+                  line.level === "ERROR" && "text-red-600",
+                  line.level === "WARN" && "text-amber-600",
+                  line.level === "INFO" && "text-emerald-600",
                 )}
               >
                 [{line.level}]
               </span>
               <span className={cn(
-                "text-slate-300",
-                line.level === "ERROR" && "text-red-300",
+                "text-foreground",
+                line.level === "ERROR" && "text-red-600",
               )}>
                 {line.message}
               </span>
@@ -181,8 +181,7 @@ export function LogsTab({ agentId, currentRunId }: LogsTabProps) {
         </div>
       </ScrollArea>
 
-      {/* Footer */}
-      <div className="px-4 py-1.5 border-t border-slate-800 bg-slate-900 text-[10px] text-slate-500">
+      <div className={cn("px-4 py-1.5 border-t text-[10px]", ab.toolbar, ab.textMuted)}>
         {logs.length} lines — last 50 runs kept
       </div>
     </div>

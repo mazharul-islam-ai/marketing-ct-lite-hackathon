@@ -3,6 +3,7 @@ import { CheckCircle2, AlertCircle, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { FlowJSON } from "../types";
+import { ab } from "../agentBuilderTheme";
 
 const VALID_NODE_TYPES = [
   "cron_trigger", "webhook_trigger", "manual_trigger", "db_trigger", "crm_event_trigger",
@@ -105,11 +106,10 @@ export function JsonTab({ flowJson, onApply }: JsonTabProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-slate-50">
+    <div className={cn("flex flex-col h-full", ab.canvas)}>
+      <div className={cn("flex items-center justify-between px-4 py-2", ab.toolbar)}>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-600">Flow JSON</span>
+          <span className={cn("text-xs font-semibold", ab.textForeground)}>Flow JSON</span>
           {isValid && !validationError && (
             <div className="flex items-center gap-1 text-green-600">
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -145,7 +145,9 @@ export function JsonTab({ flowJson, onApply }: JsonTabProps) {
           value={text}
           onChange={(e) => handleChange(e.target.value)}
           className={cn(
-            "w-full h-full resize-none font-mono text-xs p-4 outline-none bg-slate-950 text-slate-100 leading-relaxed",
+            "w-full h-full resize-none font-mono text-xs p-4 outline-none leading-relaxed",
+            ab.logArea,
+            ab.textForeground,
             validationError && "border-l-2 border-red-500",
           )}
           spellCheck={false}
@@ -154,8 +156,8 @@ export function JsonTab({ flowJson, onApply }: JsonTabProps) {
       </div>
 
       {/* Valid node types hint */}
-      <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
-        <p className="text-[10px] text-slate-400">
+      <div className={cn("px-4 py-2 border-t", ab.toolbar)}>
+        <p className={cn("text-[10px]", ab.textMuted)}>
           <span className="font-semibold">Valid node types:</span>{" "}
           {VALID_NODE_TYPES.join(", ")}
         </p>

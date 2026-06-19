@@ -98,6 +98,21 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via Agent Bu
 | `/adminpanel/automations/logs` | Scheduled automation run logs (`trigger_type = cron` only) |
 | `/adminpanel/ai-control?tab=agents-logs` | Combined Agent Builder + legacy AI agent run history |
 
+## UI Conventions
+
+Agent Builder uses a **scoped soft Lovable-inspired palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). This is intentionally distinct from stark admin `bg-card` and the global `--primary` token used elsewhere in the admin panel.
+
+**Palette traits:**
+- Page canvas: warm blue-gray (`ab.canvas`), not pure white
+- Cards/composer: elevated lavender-gray surfaces (`ab.surface`, `ab.surfaceElevated`) with soft shadow
+- Inputs: filled soft gray-lavender (`ab.input`), not white boxes on white
+- Accent: muted periwinkle (`ab.accentText`, `ab.accentBtn`, `ab.chipActive`) — not saturated platform primary
+- Chat: soft panel (`ab.chatPanel`), periwinkle user bubbles (`ab.userBubble`), tinted assistant bubbles (`ab.assistantBubble`)
+
+List and Settings pages follow the same Breadcrumb + header pattern as AI Control. The studio workspace bleeds into admin content padding with `ab.studioShell`. Do not change global `index.css` tokens when styling Agent Builder — extend `agentBuilderTheme.ts` instead.
+
+**List page composer:** Prompt-first compact card (`composerCompact`, `promptBar`): unified input + Build bar, keyboard hint, short template labels with icons (`templateStrip` / `templateChip`); full prompt text applied on chip click. "Start from scratch" is an inline link in the card header.
+
 ## Intelligence Studio (Phase 6 — Future)
 
 Planned runtime shift from rigid node walking to **agentic reasoning**:
@@ -116,6 +131,7 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | Compiler | `supabase/functions/compile-agent-flow/index.ts` |
 | Integration mapping | `supabase/functions/_shared/agent-builder-integrations.ts` |
 | Frontend mapping | `src/pages/adminpanel/agent-builder/integrationConfig.ts` |
+| UI theme tokens | `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` |
 | Scheduler | `trigger/automation-scheduler.ts` |
 | Node execution | `trigger/agent-flow/execute-node.ts` |
 | Gmail inbox | `supabase/functions/gmail-inbox/index.ts` |

@@ -11,11 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
+  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage,
+} from "@/components/ui/breadcrumb";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { ab } from "./agentBuilderTheme";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AgentBuilderPrompt } from "./types";
@@ -568,47 +572,57 @@ export default function AgentBuilderSettings() {
   ];
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 min-h-0">
-      {/* Page header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => navigate("/adminpanel/agent-builder")}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
-              <Settings2 className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-semibold text-slate-900">Agent Builder Settings</h1>
-              <p className="text-xs text-slate-500">Configure models, tools, and data sources available to your agents</p>
-            </div>
+    <div className={cn(ab.page, ab.canvas, "min-h-0")}>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/adminpanel">Admin Panel</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/adminpanel/agent-builder">Agent Builder</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbItem>
+            <BreadcrumbPage>Settings</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => navigate("/adminpanel/agent-builder")}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <div className="flex items-center gap-2">
+          <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", ab.accentMuted)}>
+            <Settings2 className={cn("w-4 h-4", ab.accentText)} />
+          </div>
+          <div>
+            <h1 className="text-base font-semibold text-foreground">Agent Builder Settings</h1>
+            <p className="text-xs text-muted-foreground">Configure models, tools, and data sources available to your agents</p>
           </div>
         </div>
+      </div>
 
-        {/* Tab bar */}
-        <div className="flex items-center gap-1 mt-4">
-          {tabs.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg transition-all",
-                activeTab === id
-                  ? "bg-violet-50 text-violet-700 border border-violet-200"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-100",
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center gap-1 flex-wrap">
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg transition-all",
+              activeTab === id
+                ? ab.accentSoft
+                : "text-muted-foreground hover:text-foreground hover:bg-muted",
+            )}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Tab content */}
@@ -640,16 +654,16 @@ export default function AgentBuilderSettings() {
                   <div
                     key={provider.id}
                     className={cn(
-                      "rounded-xl border p-4 bg-white transition-all",
-                      isConnected  ? "border-slate-200 shadow-sm"
-                      : isLoading  ? "border-slate-200 opacity-70"
-                      : "border-slate-200 opacity-50",
+                      "rounded-xl border p-4 bg-[hsl(250_28%_96%)] transition-all",
+                      isConnected  ? "border-[hsl(250_18%_90%)] shadow-sm"
+                      : isLoading  ? "border-[hsl(250_18%_90%)] opacity-70"
+                      : "border-[hsl(250_18%_90%)] opacity-50",
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0",
-                        isConnected ? "bg-gradient-to-br from-violet-100 to-indigo-100" : "bg-slate-100",
+                        isConnected ? ab.accentMuted : "bg-muted",
                       )}>
                         {provider.icon}
                       </div>
@@ -664,7 +678,7 @@ export default function AgentBuilderSettings() {
                               <CheckCircle2 className="w-2.5 h-2.5" /> Connected
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-[hsl(250_18%_90%)]">
                               <AlertCircle className="w-2.5 h-2.5" /> Not configured
                             </span>
                           )}
@@ -701,7 +715,7 @@ export default function AgentBuilderSettings() {
                         ) : !isLoading ? (
                           <p className="text-xs text-slate-400 mt-1">
                             API key not configured.{" "}
-                            <Link to="/adminpanel/integrations" className="text-violet-600 hover:underline inline-flex items-center gap-0.5">
+                            <Link to="/adminpanel/integrations" className={cn(ab.accentText, "hover:underline inline-flex items-center gap-0.5")}>
                               Set up in Integrations <ExternalLink className="w-2.5 h-2.5" />
                             </Link>
                           </p>
@@ -715,7 +729,7 @@ export default function AgentBuilderSettings() {
 
             <div className="flex justify-end pt-2">
               <Button
-                className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 border-0"
+                className="gap-2"
                 onClick={saveModelDefaults}
                 disabled={isSavingModels}
               >
@@ -746,13 +760,13 @@ export default function AgentBuilderSettings() {
                     <div
                       key={tool.id}
                       className={cn(
-                        "rounded-xl border p-4 bg-white flex items-center gap-4 transition-all",
-                        isConnected ? "border-slate-200 shadow-sm" : "border-slate-200 opacity-60",
+                        "rounded-xl border p-4 bg-[hsl(250_28%_96%)] flex items-center gap-4 transition-all",
+                        isConnected ? "border-[hsl(250_18%_90%)] shadow-sm" : "border-[hsl(250_18%_90%)] opacity-60",
                       )}
                     >
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                        isConnected ? "bg-gradient-to-br from-violet-100 to-indigo-100 text-violet-600" : "bg-slate-100 text-slate-400",
+                        isConnected ? cn(ab.accentMuted, ab.accentText) : "bg-[hsl(250_25%_94%)] text-[hsl(240_8%_40%)]",
                       )}>
                         {tool.icon}
                       </div>
@@ -773,7 +787,7 @@ export default function AgentBuilderSettings() {
                         ) : (
                           <Link
                             to="/adminpanel/integrations"
-                            className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors"
+                            className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors", ab.accentSoft, "hover:bg-[hsl(248_45%_92%)]")}
                           >
                             Connect <ExternalLink className="w-3 h-3" />
                           </Link>
@@ -829,11 +843,11 @@ export default function AgentBuilderSettings() {
                 const enabledCount = group.tables.filter((t) => enabledTables.has(t.name)).length;
 
                 return (
-                  <div key={group.category} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                  <div key={group.category} className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] overflow-hidden shadow-sm">
                     {/* Group header */}
                     <button
                       onClick={() => toggleGroup(group.category)}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-[hsl(250_25%_95%)] transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-slate-700">{group.category}</span>
@@ -857,12 +871,12 @@ export default function AgentBuilderSettings() {
                               key={table.name}
                               className={cn(
                                 "flex items-center gap-3 px-4 py-3 transition-colors",
-                                !enabled && "bg-slate-50/50",
+                                !enabled && "bg-[hsl(250_25%_95%)]/50",
                               )}
                             >
                               <div className={cn(
                                 "w-6 h-6 rounded-md flex items-center justify-center shrink-0",
-                                enabled ? "bg-violet-100 text-violet-600" : "bg-slate-100 text-slate-400",
+                                enabled ? cn(ab.accentMuted, ab.accentText) : "bg-[hsl(250_25%_94%)] text-[hsl(240_8%_40%)]",
                               )}>
                                 {enabled
                                   ? <Unlock className="w-3 h-3" />
@@ -900,8 +914,8 @@ export default function AgentBuilderSettings() {
             </p>
 
             {/* Editor */}
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+            <div className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-[hsl(250_18%_90%)] bg-[hsl(250_25%_95%)] flex items-center gap-2">
                 <FileText className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-xs font-semibold text-slate-600">Prompt Editor</span>
                 {activePrompt && (
@@ -933,7 +947,7 @@ export default function AgentBuilderSettings() {
                       )}
                     </span>
                     <Button
-                      className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 border-0"
+                      className="gap-2"
                       onClick={savePromptVersion}
                       disabled={!isDirty || isSavingPrompt || !promptText.trim()}
                       size="sm"
@@ -953,8 +967,8 @@ export default function AgentBuilderSettings() {
             </div>
 
             {/* Version history */}
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+            <div className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-[hsl(250_18%_90%)] bg-[hsl(250_25%_95%)] flex items-center gap-2">
                 <History className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-xs font-semibold text-slate-600">Version History</span>
                 <span className="ml-auto text-[10px] text-slate-400">{promptVersions.length} versions</span>
@@ -981,14 +995,14 @@ export default function AgentBuilderSettings() {
                           key={v.id}
                           className={cn(
                             "flex items-center gap-3 px-4 py-3 transition-colors",
-                            isActive ? "bg-violet-50/60" : "hover:bg-slate-50",
+                            isActive ? "bg-[hsl(248_40%_96%)]" : "hover:bg-[hsl(250_25%_94%)]",
                           )}
                         >
                           {/* Version badge */}
                           <div className={cn(
                             "flex items-center justify-center w-8 h-8 rounded-full text-[11px] font-bold shrink-0",
                             isActive
-                              ? "bg-violet-600 text-white"
+                              ? ab.accentBtn
                               : "bg-slate-100 text-slate-600",
                           )}>
                             v{v.version_number}
@@ -1001,7 +1015,7 @@ export default function AgentBuilderSettings() {
                                 {v.version_name}
                               </span>
                               {isActive && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 shrink-0">
+                                <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border shrink-0", ab.accentSoft)}>
                                   <CircleDot className="w-2.5 h-2.5" /> active
                                 </span>
                               )}
