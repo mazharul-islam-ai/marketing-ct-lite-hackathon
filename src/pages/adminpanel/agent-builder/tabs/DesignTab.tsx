@@ -17,7 +17,11 @@ interface DesignTabProps {
   nodeRunStatuses?: Record<string, { status: string; cost?: number; tokens?: number }>;
   currentNodeId?: string | null;
   onAgentCreated?: (newAgentId: string, name: string) => void;
+  onCompileComplete?: (versionId: string, version: number) => void;
+  onVersionUpdated?: (versionId: string, version: number) => void;
+  onCompilingChange?: (isCompiling: boolean) => void;
   initialPrompt?: string;
+  onInitialPromptConsumed?: () => void;
 }
 
 export function DesignTab({
@@ -28,12 +32,17 @@ export function DesignTab({
   nodeRunStatuses,
   currentNodeId,
   onAgentCreated,
+  onCompileComplete,
+  onVersionUpdated,
+  onCompilingChange,
   initialPrompt,
+  onInitialPromptConsumed,
 }: DesignTabProps) {
   const [flowJson, setFlowJson] = useState<FlowJSON | null>(initialFlowJson);
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const firedInitialPromptRef = useRef(false);
+  const sendPromptRef = useRef<(prompt: string, action?: "generate" | "improve" | "add_tool") => Promise<FlowJSON | null>>(async () => null);
 
   const leftPanelRef = useRef<ImperativePanelHandle>(null);
 
@@ -45,13 +54,22 @@ export function DesignTab({
     [onFlowChange],
   );
 
-  const { chatHistory, isCompiling, compileStatus, sendPrompt } = useBuilderSession(
+  const { chatHistory, isCompiling, compileStatus, error, sendPrompt, clearError } = useBuilderSession(
     agentId,
     handleFlowUpdate,
-    onAgentCreated,
+    {
+      onAgentCreated,
+      onCompileComplete,
+      onVersionUpdated,
+    },
   );
 
-  // Sync canvas when parent loads flow from DB or compile resolves after a remount
+  sendPromptRef.current = sendPrompt;
+
+  useEffect(() => {
+    onCompilingChange?.(isCompiling);
+  }, [isCompiling, onCompilingChange]);
+
   useEffect(() => {
     if (initialFlowJson) {
       setFlowJson(initialFlowJson);
@@ -59,11 +77,19 @@ export function DesignTab({
   }, [initialFlowJson]);
 
   useEffect(() => {
-    if (initialPrompt && !firedInitialPromptRef.current) {
+    if (!initialPrompt || firedInitialPromptRef.current) return;
+
+    const lastUser = [...chatHistory].reverse().find((m) => m.role === "user");
+    if (lastUser?.content === initialPrompt) {
       firedInitialPromptRef.current = true;
-      sendPrompt(initialPrompt, "generate");
+      onInitialPromptConsumed?.();
+      return;
     }
-  }, [initialPrompt, sendPrompt]);
+
+    firedInitialPromptRef.current = true;
+    onInitialPromptConsumed?.();
+    sendPromptRef.current(initialPrompt, "generate");
+  }, [initialPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCanvasFlowChange = useCallback(
     (updated: FlowJSON) => {
@@ -101,7 +127,6 @@ export function DesignTab({
   return (
     <div className="h-full overflow-hidden relative">
       <PanelGroup direction="horizontal" className="h-full">
-        {/* ── Left panel (BuilderChat) ── */}
         <Panel
           ref={leftPanelRef}
           defaultSize={22}
@@ -113,7 +138,6 @@ export function DesignTab({
           className="relative flex flex-col overflow-hidden"
         >
           {leftCollapsed ? (
-            /* Collapsed left icon rail */
             <div
               className={cn("flex-1 flex flex-col items-center gap-3 py-4 border-r cursor-pointer transition-colors bg-[hsl(250_28%_96%)] border-[hsl(250_18%_90%)] hover:bg-[hsl(250_25%_94%)]", ab.borderSoft)}
               onClick={toggleLeft}
@@ -136,10 +160,11 @@ export function DesignTab({
                 chatHistory={chatHistory}
                 isCompiling={isCompiling}
                 compileStatus={compileStatus}
+                error={error}
+                onClearError={clearError}
                 onSendPrompt={sendPrompt}
                 agentName={agentName}
               />
-              {/* Collapse toggle — right edge of left panel */}
               <button
                 onClick={toggleLeft}
                 className={cn("absolute top-1/2 -translate-y-1/2 right-0 z-10 w-5 h-10 flex items-center justify-center rounded-r transition-colors shadow-sm border", ab.surfaceElevated, ab.textMuted, "hover:text-[hsl(248_45%_42%)]")}
@@ -151,12 +176,10 @@ export function DesignTab({
           )}
         </Panel>
 
-        {/* Resize handle between left and center */}
         <PanelResizeHandle className="relative w-1 bg-transparent hover:bg-[hsl(248_45%_70%/0.15)] active:bg-[hsl(248_45%_70%/0.25)] transition-colors cursor-col-resize group">
           <div className="absolute inset-y-0 left-0 w-px bg-[hsl(250_18%_90%)] group-hover:bg-[hsl(248_45%_70%/0.5)] transition-colors" />
         </PanelResizeHandle>
 
-        {/* ── Centre (Canvas) — takes all remaining space ── */}
         <Panel defaultSize={78} minSize={30} className="flex flex-col overflow-hidden min-w-0">
           <AgentFlowCanvas
             flowJson={flowJson}
@@ -168,8 +191,6 @@ export function DesignTab({
         </Panel>
       </PanelGroup>
 
-      {/* ── Node Inspector slide-in drawer ── */}
-      {/* Backdrop: closes drawer when clicking outside */}
       {selectedNode && (
         <div
           className="absolute inset-0 z-10"
@@ -177,7 +198,6 @@ export function DesignTab({
         />
       )}
 
-      {/* Drawer panel */}
       <div
         className={cn(
           "absolute top-0 right-0 h-full w-80 z-20 shadow-2xl",

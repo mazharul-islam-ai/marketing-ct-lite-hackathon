@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { RefreshCw, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -70,6 +70,7 @@ export function LogsTab({ agentId, currentRunId }: LogsTabProps) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(currentRunId ?? null);
   const [steps, setSteps] = useState<RunStep[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadRuns();
@@ -82,6 +83,10 @@ export function LogsTab({ agentId, currentRunId }: LogsTabProps) {
   useEffect(() => {
     if (selectedRunId) loadSteps(selectedRunId);
   }, [selectedRunId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [steps, selectedRunId, isLoading]);
 
   async function loadRuns() {
     const { data } = await supabase
@@ -148,41 +153,44 @@ export function LogsTab({ agentId, currentRunId }: LogsTabProps) {
         )}
       </div>
 
-      {/* Log output */}
-      <ScrollArea className={cn("flex-1", ab.logArea)}>
-        <div className="p-4 font-mono text-[11px] leading-6 space-y-0">
+      <ScrollArea className="flex-1 bg-[hsl(240_12%_8%)]">
+        <div className="p-4 font-mono text-[11px] leading-5 min-h-full">
           {isLoading && (
-            <p className="text-muted-foreground">Loading logs…</p>
+            <p className="text-emerald-400/70">$ loading logs…</p>
           )}
           {!isLoading && logs.length === 0 && (
-            <p className="text-muted-foreground">No logs for this run.</p>
+            <p className="text-emerald-400/70">$ no logs for this run — trigger a run to see output</p>
+          )}
+          {!isLoading && logs.length > 0 && (
+            <p className="text-emerald-400/50 mb-2 select-none">$ agent-runner — tail -f</p>
           )}
           {logs.map((line, i) => (
-            <div key={i} className="flex gap-3">
-              <span className="text-muted-foreground shrink-0 select-none">{formatTs(line.timestamp)}</span>
+            <div key={i} className="flex gap-2 hover:bg-white/5 rounded px-0.5 -mx-0.5">
+              <span className="text-slate-500 shrink-0 select-none tabular-nums">{formatTs(line.timestamp)}</span>
               <span
                 className={cn(
-                  "shrink-0 w-12",
-                  line.level === "ERROR" && "text-red-600",
-                  line.level === "WARN" && "text-amber-600",
-                  line.level === "INFO" && "text-emerald-600",
+                  "shrink-0 w-14 font-semibold",
+                  line.level === "ERROR" && "text-red-400",
+                  line.level === "WARN" && "text-amber-400",
+                  line.level === "INFO" && "text-emerald-400",
                 )}
               >
                 [{line.level}]
               </span>
               <span className={cn(
-                "text-foreground",
-                line.level === "ERROR" && "text-red-600",
+                "text-slate-200 break-all",
+                line.level === "ERROR" && "text-red-300",
               )}>
                 {line.message}
               </span>
             </div>
           ))}
+          <div ref={scrollEndRef} />
         </div>
       </ScrollArea>
 
-      <div className={cn("px-4 py-1.5 border-t text-[10px]", ab.toolbar, ab.textMuted)}>
-        {logs.length} lines — last 50 runs kept
+      <div className="px-4 py-1.5 border-t border-[hsl(240_12%_15%)] bg-[hsl(240_12%_10%)] text-[10px] font-mono text-slate-500">
+        — {logs.length} lines — agent {agentId.slice(0, 8)}… — last 20 runs
       </div>
     </div>
   );

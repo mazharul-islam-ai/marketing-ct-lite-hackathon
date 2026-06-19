@@ -19,6 +19,7 @@ import { JsonTab } from "./tabs/JsonTab";
 import { LogsTab } from "./tabs/LogsTab";
 import { VersionsTab } from "./tabs/VersionsTab";
 import { useFlowRun } from "./hooks/useFlowRun";
+import { useAutoSaveDraft } from "./hooks/useAutoSaveDraft";
 import { PublishModal } from "./PublishModal";
 import { ab } from "./agentBuilderTheme";
 import type { AgentVisibility } from "./types";
@@ -51,7 +52,10 @@ export default function AgentBuilderStudio() {
   const initialPromptRef = useRef<string | null>(
     (location.state as { initialPrompt?: string } | null)?.initialPrompt ?? null,
   );
-  const [designTabKey, setDesignTabKey] = useState(0);
+  const [pendingInitialPrompt, setPendingInitialPrompt] = useState<string | null>(
+    () => initialPromptRef.current,
+  );
+  const [isCompiling, setIsCompiling] = useState(false);
 
   useEffect(() => {
     if (isNew) return;
@@ -100,8 +104,27 @@ export default function AgentBuilderStudio() {
     setLiveAgentId(newAgentId);
     setAgentName(name);
     navigate(`/adminpanel/agent-builder/${newAgentId}`, { replace: true });
-    setDesignTabKey((k) => k + 1);
   }, [navigate]);
+
+  const handleInitialPromptConsumed = useCallback(() => {
+    initialPromptRef.current = null;
+    setPendingInitialPrompt(null);
+  }, []);
+
+  const handleCompileComplete = useCallback((versionId: string) => {
+    setCurrentVersionId(versionId);
+  }, []);
+
+  const handleVersionUpdated = useCallback((versionId: string) => {
+    setCurrentVersionId(versionId);
+  }, []);
+
+  const { saveStatus: draftSaveStatus } = useAutoSaveDraft(
+    liveAgentId,
+    currentVersionId,
+    currentFlow,
+    { isCompiling },
+  );
 
   const handleSave = useCallback(async () => {
     if (!liveAgentId || !agentName.trim()) return;
@@ -258,6 +281,16 @@ export default function AgentBuilderStudio() {
             <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusDot[agentStatus as keyof typeof statusDot] ?? statusDot.draft)} />
             {agentStatus}
           </span>
+
+          {draftSaveStatus === "saving" && (
+            <span className={cn("text-[10px] px-1.5 py-0.5 rounded", ab.textMuted)}>Saving draft…</span>
+          )}
+          {draftSaveStatus === "saved" && (
+            <span className={cn("text-[10px] px-1.5 py-0.5 rounded", ab.accentText)}>Draft saved</span>
+          )}
+          {draftSaveStatus === "error" && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded text-red-600">Save failed</span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -287,7 +320,7 @@ export default function AgentBuilderStudio() {
               size="sm"
               className={cn("h-7 px-2.5 text-[11px] gap-1", ab.accentBtn)}
               onClick={handleRun}
-              disabled={isTriggering || !currentVersionId || !liveAgentId}
+              disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId}
             >
               {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
               Run
@@ -340,9 +373,12 @@ export default function AgentBuilderStudio() {
           </TabsList>
         </div>
 
-        <TabsContent value="design" className="flex-1 overflow-hidden m-0 mt-0">
+        <TabsContent
+          value="design"
+          forceMount
+          className={cn("flex-1 overflow-hidden m-0 mt-0", activeTab !== "design" && "hidden")}
+        >
           <DesignTab
-            key={designTabKey}
             agentId={liveAgentId}
             agentName={agentName || "Untitled Agent"}
             initialFlowJson={currentFlow}
@@ -350,7 +386,11 @@ export default function AgentBuilderStudio() {
             nodeRunStatuses={nodeRunStatuses}
             currentNodeId={currentNodeId}
             onAgentCreated={handleAgentCreated}
-            initialPrompt={initialPromptRef.current ?? undefined}
+            onCompileComplete={handleCompileComplete}
+            onVersionUpdated={handleVersionUpdated}
+            onCompilingChange={setIsCompiling}
+            initialPrompt={pendingInitialPrompt ?? undefined}
+            onInitialPromptConsumed={handleInitialPromptConsumed}
           />
         </TabsContent>
         <TabsContent value="runtime" className="flex-1 overflow-hidden m-0 mt-0">

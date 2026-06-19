@@ -18,6 +18,8 @@ interface BuilderChatProps {
   chatHistory: ChatMessage[];
   isCompiling: boolean;
   compileStatus?: CompileStatus | null;
+  error?: string | null;
+  onClearError?: () => void;
   onSendPrompt: (prompt: string, action?: "generate" | "improve" | "add_tool") => void;
   onDragNodeStart?: (type: NodeType) => void;
   agentName?: string;
@@ -65,6 +67,8 @@ export function BuilderChat({
   chatHistory,
   isCompiling,
   compileStatus,
+  error,
+  onClearError,
   onSendPrompt,
   onDragNodeStart,
   agentName,
@@ -189,6 +193,16 @@ export function BuilderChat({
       </ScrollArea>
 
       <div className={cn("p-3 border-t space-y-2", ab.borderSoft)}>
+        {error && (
+          <div className={cn("flex items-start justify-between gap-2 rounded-lg px-2.5 py-2 text-[11px] border", "bg-red-50 border-red-200 text-red-700")}>
+            <span className="leading-relaxed">{error}</span>
+            {onClearError && (
+              <button type="button" onClick={onClearError} className="text-red-500 hover:text-red-700 shrink-0 text-[10px]">
+                Dismiss
+              </button>
+            )}
+          </div>
+        )}
         <div className="relative">
           <Textarea
             ref={textareaRef}
