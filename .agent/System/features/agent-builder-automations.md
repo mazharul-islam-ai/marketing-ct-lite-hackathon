@@ -86,9 +86,27 @@ manual_trigger → switch(mode)
 
 **Compiler** (`compile-agent-flow`): auto-inserts `db_query` on chat branch if missing (cloned from report-path table); validates chat path shape; standardizes chat LLM templates (`{{message}}`, `{{rows}}`).
 
-**Runtime** (`trigger/agent-flow/chat-context.ts`): before chat LLM execution, `ensureChatContext` normalizes `message`, resolves `rows` from prior steps, or auto-prefetches from the flow's first `db_query` config (fixes existing published agents without recompile).
+**Runtime** (`trigger/agent-flow/chat-context.ts`): before chat LLM execution, `ensureChatContext` normalizes `message`, sets aliases (`clients`, `data`, `first_client`), compacts rows for "first" queries, auto-prefetches from the flow's first `db_query` (with `order_by` default `created_at` for `clients`), and forces chat LLM templates at runtime.
 
-**Chat UI** passes `input_context`: `{ mode: "chat", message, session_id, chat_history }`. Recent history is appended to the LLM user prompt.
+**Chat UI** passes `input_context`: `{ mode: "chat", message, session_id, chat_history }`. Shows a diagnostic hint when the LLM reply indicates missing data.
+
+**Deploy checklist:**
+
+| Step | Command |
+|------|---------|
+| Compiler | `supabase functions deploy compile-agent-flow --project-ref <project-ref>` |
+| Runtime | `npx trigger.dev@latest deploy` |
+| Frontend | `npm run dev` or production rebuild |
+| Agent (optional) | Recompile in studio so JSON shows chat `db_query` |
+
+**Chat troubleshooting:**
+
+| Symptom | Fix |
+|---------|-----|
+| "I don't have information about the first client" | Redeploy Trigger.dev; runtime prefetch + forced chat templates fix this for existing agents |
+| Chat run has only 2–3 steps (no `db_query`) | Recompile agent or rely on runtime prefetch after Trigger.dev deploy |
+| Empty `rows` in LLM step input | Enable table in Agent Builder → Settings → Data Sources; verify table has rows |
+| Report works, chat does not | Report path runs `db_query` in flow; chat needs Trigger.dev deploy for prefetch back-compat |
 
 **Deploy:** compiler changes → `supabase functions deploy compile-agent-flow`; runtime changes → Trigger.dev redeploy (`execute-agent-run`, `execute-flow-node`).
 

@@ -11,6 +11,36 @@ import type { RunStep } from "@/pages/adminpanel/agent-builder/types";
 import { extractRunOutput } from "@/pages/adminpanel/agent-builder/runOutput";
 import { ab } from "@/pages/adminpanel/agent-builder/agentBuilderTheme";
 
+const LLM_STEP_TYPES = ["openai_llm", "gemini_llm", "anthropic_llm", "custom_llm"];
+
+function getChatDataDiagnostic(steps: RunStep[]): string | null {
+  const llmStep = steps.find((s) => LLM_STEP_TYPES.includes(s.node_type));
+  const dbStep = steps.find((s) => s.node_type === "db_query");
+  const llmInput = llmStep?.input as Record<string, unknown> | undefined;
+  const rowCount = Array.isArray(llmInput?.rows) ? llmInput.rows.length : 0;
+  const dbOutput = dbStep?.output as Record<string, unknown> | undefined;
+  const dbCount = typeof dbOutput?.count === "number" ? dbOutput.count : 0;
+
+  if (!dbStep && steps.length <= 3 && rowCount === 0) {
+    return "Chat data was not loaded. Redeploy Trigger.dev (npx trigger.dev@latest deploy) or recompile the agent so the chat branch includes db_query.";
+  }
+  if (rowCount === 0 && dbCount === 0) {
+    return "No rows returned from the database. Check that the table has data and data sources are enabled in Agent Builder → Settings.";
+  }
+  return null;
+}
+
+function looksLikeEmptyDataReply(content: string): boolean {
+  const lower = content.toLowerCase();
+  return (
+    lower.includes("don't have information") ||
+    lower.includes("do not have information") ||
+    lower.includes("cannot provide") ||
+    lower.includes("no data") ||
+    lower.includes("no information")
+  );
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -111,11 +141,17 @@ export function BuilderAgentChatDialog({
 
       const steps = await waitForRunCompletion(result.run_id);
       const { content } = extractRunOutput(steps);
+      const diagnostic = getChatDataDiagnostic(steps);
+
+      let reply = content ?? "I processed your message but no text response was generated.";
+      if (diagnostic && (looksLikeEmptyDataReply(reply) || !content)) {
+        reply = `${reply}\n\n_${diagnostic}_`;
+      }
 
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: content ?? "I processed your message but no text response was generated.",
+        content: reply,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
