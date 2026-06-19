@@ -1,5 +1,0 @@
-id,prompt,image_url,model,brand_id,generated_by,metadata,created_at
-7a041298-52dc-4a30-9321-7bcf39f3b563,Modern tech office with AI dashboard,https://placehold.co/800x600/1a1a2e/eee?text=AI+Dashboard,dall-e-3,b1000000-0000-0000-0000-000000000001,500b4a7f-4c4a-429e-a307-0601568c8525,,2026-02-24 11:28:48.952716+00
-a44671a5-8903-4a83-a54a-979e3e8dbfa6,Startup team brainstorming session,https://placehold.co/800x600/2d3436/dfe6e9?text=Team+Brainstorm,dall-e-3,b1000000-0000-0000-0000-000000000002,500b4a7f-4c4a-429e-a307-0601568c8525,,2026-02-24 11:28:48.952716+00
-207fcfc9-ab13-48c4-84be-92f8861c929a,Creative design workspace,https://placehold.co/800x600/6c5ce7/fff?text=Design+Workspace,dall-e-3,b1000000-0000-0000-0000-000000000004,c5806b04-2637-4c5d-bfba-a0c93188d879,,2026-02-24 11:28:48.952716+00
-a1000001-0000-0000-0000-000000000001,"Professional headshot of a tech entrepreneur, modern office background, warm lighting",https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1024,dall-e-3,b1000000-0000-0000-0000-000000000001,500b4a7f-4c4a-429e-a307-0601568c8525,,2026-02-01 08:27:34.694116+00

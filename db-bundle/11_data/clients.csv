@@ -1,9 +1,0 @@
-id,name,slug,email,phone,company,industry,status,activecollab_id,metadata,created_at,updated_at
-f1000000-0000-0000-0000-000000000001,Tech Startup Inc,tech-startup-inc,contact@techstartup.com,,Tech Startup Inc,Technology,active,,,2026-02-24 11:30:21.423341+00,2026-02-24 11:30:21.423341+00
-f1000000-0000-0000-0000-000000000002,GreenLeaf Health,greenleaf-health,hello@greenleaf.com,,GreenLeaf Health,Healthcare,active,,,2026-02-24 11:30:21.423341+00,2026-02-24 11:30:21.423341+00
-f1000000-0000-0000-0000-000000000003,Urban Eats,urban-eats,info@urbaneats.com,,Urban Eats LLC,Food & Beverage,active,,,2026-02-24 11:30:21.423341+00,2026-02-24 11:30:21.423341+00
-f1000000-0000-0000-0000-000000000004,Finova Capital,finova-capital,team@finova.com,,Finova Capital Group,Finance,active,,,2026-02-24 11:30:21.423341+00,2026-02-24 11:30:21.423341+00
-f1000000-0000-0000-0000-000000000005,EduSpark,eduspark,hello@eduspark.io,,EduSpark Inc,Education,active,,,2026-02-24 11:30:21.423341+00,2026-02-24 11:30:21.423341+00
-3560cb4b-b576-4196-9918-26476d27d357,Acme Tech Solutions,acme-tech,contact@acmetech.com,+1-555-0101,Acme Tech Solutions,Software Development,active,,"{""contract_value"": 150000}",2025-11-28 08:27:34.694116+00,2025-11-28 08:27:34.694116+00
-02d2a550-9c03-4dcc-95ca-5b2288b09aaa,CloudFirst Inc,cloudfirst,info@cloudfirst.io,+1-555-0102,CloudFirst Inc,Cloud Services,active,,"{""contract_value"": 200000}",2025-12-03 08:27:34.694116+00,2025-12-03 08:27:34.694116+00
-7d17288f-bab2-4ecf-adcd-758adce44897,DataDriven Analytics,datadriven-analytics,hello@datadrivenanalytics.com,+1-555-0103,DataDriven Analytics,Analytics,active,,"{""contract_value"": 125000}",2025-12-08 08:27:34.694116+00,2025-12-08 08:27:34.694116+00

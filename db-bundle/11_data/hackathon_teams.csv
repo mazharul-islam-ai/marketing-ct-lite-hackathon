@@ -1,6 +1,0 @@
-id,event_id,team_name,team_lead_id,project_name,project_description,created_at,status
-f7000000-0000-0000-0000-000000000001,f6000000-0000-0000-0000-000000000001,AI Wizards,500b4a7f-4c4a-429e-a307-0601568c8525,SmartDoc AI,AI-powered document analysis and summarization tool,2026-02-24 11:31:31.825974+00,active
-f7000000-0000-0000-0000-000000000002,f6000000-0000-0000-0000-000000000001,Code Crusaders,afa2dd3c-4213-4137-a743-12c7c65b4e7d,EcoTracker,Carbon footprint tracking with AI recommendations,2026-02-24 11:31:31.825974+00,active
-f7000000-0000-0000-0000-000000000003,f6000000-0000-0000-0000-000000000001,Design Dragons,c5806b04-2637-4c5d-bfba-a0c93188d879,AccessiVision,AI accessibility checker for web applications,2026-02-24 11:31:31.825974+00,active
-dea00001-0000-0000-0000-000000000001,ac100001-0000-0000-0000-000000000001,AI Content Automation,500b4a7f-4c4a-429e-a307-0601568c8525,,Building AI tools for automated content generation,2026-02-01 08:27:34.694116+00,forming
-dea00002-0000-0000-0000-000000000002,ac100001-0000-0000-0000-000000000001,Analytics Dashboard,afa2dd3c-4213-4137-a743-12c7c65b4e7d,,Real-time analytics dashboard for campaign metrics,2026-02-01 08:27:34.694116+00,forming
