@@ -74,6 +74,24 @@ Published agents with `status = published` and `visibility = workspace` appear o
 - **Run Report** — triggers `trigger-flow-run` with `mode: "report"`
 - **Chat** — shown when flow has a switch with a `chat` edge; opens `BuilderAgentChatDialog` which runs with `mode: "chat"` per message
 
+### Chat branch requirements
+
+Dual-mode flows must fetch data on the chat path, not only on report:
+
+```
+manual_trigger → switch(mode)
+  → report: db_query → openai_llm → report_generate
+  → chat:   db_query → openai_llm   (no report_generate)
+```
+
+**Compiler** (`compile-agent-flow`): auto-inserts `db_query` on chat branch if missing (cloned from report-path table); validates chat path shape; standardizes chat LLM templates (`{{message}}`, `{{rows}}`).
+
+**Runtime** (`trigger/agent-flow/chat-context.ts`): before chat LLM execution, `ensureChatContext` normalizes `message`, resolves `rows` from prior steps, or auto-prefetches from the flow's first `db_query` config (fixes existing published agents without recompile).
+
+**Chat UI** passes `input_context`: `{ mode: "chat", message, session_id, chat_history }`. Recent history is appended to the LLM user prompt.
+
+**Deploy:** compiler changes → `supabase functions deploy compile-agent-flow`; runtime changes → Trigger.dev redeploy (`execute-agent-run`, `execute-flow-node`).
+
 Studio Design chat is for **editing the flow**; workspace chat is for **end-user interaction** with published agents.
 
 Draft agents do not appear on `/ai-agents` until published with Workspace visibility.
@@ -182,6 +200,7 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | UI theme tokens | `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` |
 | Run output helpers | `src/pages/adminpanel/agent-builder/runOutput.ts` |
 | Flow capabilities | `src/pages/adminpanel/agent-builder/flowCapabilities.ts` |
+| Chat context runtime | `trigger/agent-flow/chat-context.ts` |
 | Workspace chat UI | `src/components/agents/BuilderAgentChatDialog.tsx` |
 | Scheduler | `trigger/automation-scheduler.ts` |
 | Node execution | `trigger/agent-flow/execute-node.ts` |

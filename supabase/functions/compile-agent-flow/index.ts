@@ -300,6 +300,8 @@ RULES:
 11. Return ONLY the JSON object, no markdown, no explanation.
 12. If the user mentions database/db/table/query without naming a specific enabled table, return clarification_needed asking which enabled table.
 13. For report+chat dual mode, use input_variable "mode" on switch nodes; edge conditions must be "report" and "chat"; set cases: { "report": "report", "chat": "chat" }.
+14. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
+15. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON without asking user to supply missing data.
 
 ${enabledTablesBlock}
 
@@ -443,7 +445,92 @@ function normalizeFlowJSON(raw: unknown): unknown {
     })
   }
 
+  normalizeChatBranch(obj)
+
   return obj
+}
+
+const LLM_NODE_TYPES = new Set(['openai_llm', 'gemini_llm', 'anthropic_llm', 'custom_llm'])
+
+const CHAT_LLM_PROMPT = 'User question: {{message}}\n\nData:\n{{rows}}'
+const CHAT_LLM_SYSTEM = 'Answer the user question using the provided data JSON. Be concise and helpful. Do not ask the user to supply data that is already in the context.'
+
+/** Ensure chat branch has db_query before LLM and standard LLM templates */
+function normalizeChatBranch(obj: Record<string, unknown>): void {
+  if (!Array.isArray(obj.steps) || !Array.isArray(obj.edges)) return
+
+  const steps = obj.steps as Record<string, unknown>[]
+  const edges = obj.edges as Record<string, unknown>[]
+
+  const hasChatEdge = edges.some((e) => String(e.condition ?? '').toLowerCase() === 'chat')
+  if (!hasChatEdge) return
+
+  const switchNode = steps.find((s) => s.type === 'switch')
+  if (!switchNode) return
+
+  const chatEdge = edges.find(
+    (e) => e.source === switchNode.id && String(e.condition ?? '').toLowerCase() === 'chat',
+  )
+  if (!chatEdge) return
+
+  const chatTargetId = String(chatEdge.target ?? '')
+  const chatTarget = steps.find((s) => s.id === chatTargetId)
+  if (!chatTarget) return
+
+  const reportEdge = edges.find(
+    (e) => e.source === switchNode.id && String(e.condition ?? '').toLowerCase() === 'report',
+  )
+  let refDbQuery = steps.find((s) => s.type === 'db_query')
+  if (reportEdge) {
+    const reportTarget = steps.find((s) => s.id === reportEdge.target)
+    if (reportTarget?.type === 'db_query') refDbQuery = reportTarget
+  }
+
+  if (LLM_NODE_TYPES.has(String(chatTarget.type)) && refDbQuery) {
+    const maxNum = steps.reduce((max, s) => {
+      const m = String(s.id).match(/^n(\d+)$/)
+      return m ? Math.max(max, parseInt(m[1], 10)) : max
+    }, 0)
+    const newId = `n${maxNum + 1}`
+    const refConfig = (refDbQuery.config as Record<string, unknown>) ?? {}
+    const chatTargetPos = chatTarget.position as { x?: number; y?: number } | undefined
+    steps.push({
+      id: newId,
+      type: 'db_query',
+      label: `Query ${refConfig.table ?? 'data'} (chat)`,
+      config: { ...refConfig },
+      position: {
+        x: (chatTargetPos?.x ?? 440) - 220,
+        y: chatTargetPos?.y ?? 600,
+      },
+    })
+    chatEdge.target = newId
+    const maxEdge = edges.reduce((max, e) => {
+      const m = String(e.id).match(/^e(\d+)$/)
+      return m ? Math.max(max, parseInt(m[1], 10)) : max
+    }, 0)
+    edges.push({
+      id: `e${maxEdge + 1}`,
+      source: newId,
+      target: chatTargetId,
+    })
+    obj.steps = steps
+    obj.edges = edges
+  }
+
+  for (const step of steps) {
+    if (!LLM_NODE_TYPES.has(String(step.type))) continue
+    const config = { ...(step.config as Record<string, unknown> ?? {}) }
+    const prompt = String(config.prompt ?? '')
+    if (!prompt.includes('{{message}}')) {
+      config.prompt = CHAT_LLM_PROMPT
+    }
+    const system = String(config.system_prompt ?? '')
+    if (!system || system.toLowerCase().includes('cannot provide') || system.length < 30) {
+      config.system_prompt = CHAT_LLM_SYSTEM
+    }
+    step.config = config
+  }
 }
 
 // Resolve and normalise the .type field on a raw node object in-place
@@ -489,6 +576,43 @@ function validateDbQueryTables(
         error: `db_query references table "${table}" which is not enabled. Enabled tables: ${enabledTables.join(', ')}`,
       }
     }
+  }
+
+  return { valid: true }
+}
+
+function validateChatBranch(flow: FlowJSON): { valid: boolean; error?: string } {
+  const hasChatEdge = flow.edges.some((e) => e.condition?.toLowerCase() === 'chat')
+  if (!hasChatEdge) return { valid: true }
+
+  const switchNode = flow.steps.find((s) => s.type === 'switch')
+  if (!switchNode) return { valid: true }
+
+  const chatEdge = flow.edges.find(
+    (e) => e.source === switchNode.id && e.condition?.toLowerCase() === 'chat',
+  )
+  if (!chatEdge) return { valid: true }
+
+  let currentId: string | undefined = chatEdge.target
+  const visited = new Set<string>()
+  let foundDbBeforeLlm = false
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId)
+    const node = flow.steps.find((s) => s.id === currentId)
+    if (!node) break
+    if (node.type === 'db_query') foundDbBeforeLlm = true
+    if (LLM_NODE_TYPES.has(node.type)) {
+      if (!foundDbBeforeLlm) {
+        return {
+          valid: false,
+          error: 'Chat branch must include db_query before LLM. Recompile or add a db_query node on the chat path.',
+        }
+      }
+      break
+    }
+    const nextEdge = flow.edges.find((e) => e.source === currentId && !e.condition)
+    currentId = nextEdge?.target
   }
 
   return { valid: true }
@@ -544,6 +668,9 @@ function validateFlowJSON(
     const dbValidation = validateDbQueryTables(f, enabledTables)
     if (!dbValidation.valid) return dbValidation
   }
+
+  const chatValidation = validateChatBranch(f)
+  if (!chatValidation.valid) return chatValidation
 
   return { valid: true }
 }

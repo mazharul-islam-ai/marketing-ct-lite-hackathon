@@ -85,6 +85,10 @@ export function BuilderAgentChatDialog({
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
+      const historyForContext = [...messages, userMessage]
+        .slice(-10)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       const response = await supabase.functions.invoke("trigger-flow-run", {
         body: {
           agent_id: agentId,
@@ -94,6 +98,7 @@ export function BuilderAgentChatDialog({
             mode: "chat",
             message: text,
             session_id: sessionIdRef.current,
+            chat_history: historyForContext,
           },
           budget_limit: 5.0,
         },

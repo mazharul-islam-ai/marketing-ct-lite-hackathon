@@ -1,6 +1,7 @@
 import { task, metadata, AbortTaskRunError, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { executeFlowNode, type NodeExecutionPayload } from "./execute-node";
+import { ensureChatContext, LLM_NODE_TYPES } from "./chat-context";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -191,11 +192,21 @@ export const executeAgentRun = task({
 
       logger.info(`Executing node ${nodeId} (${node.type})`, { run_id });
 
+      let nodeInputData: Record<string, unknown> = { ...executionContext, ...inputData };
+
+      if (LLM_NODE_TYPES.has(node.type)) {
+        nodeInputData = await ensureChatContext(
+          nodeInputData,
+          flow_json.steps,
+          supabase,
+        );
+      }
+
       // Execute the node as a subtask
       const nodePayload: NodeExecutionPayload = {
         run_id,
         node: { id: node.id, type: node.type, label: node.label, config: node.config },
-        input_data: { ...executionContext, ...inputData },
+        input_data: nodeInputData,
         budget_remaining: budget_limit - totalCost,
       };
 
