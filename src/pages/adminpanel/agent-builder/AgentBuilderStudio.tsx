@@ -5,11 +5,12 @@ import {
   CheckCircle2, MoreHorizontal, Archive, Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -19,20 +20,14 @@ import { JsonTab } from "./tabs/JsonTab";
 import { LogsTab } from "./tabs/LogsTab";
 import { VersionsTab } from "./tabs/VersionsTab";
 import { useFlowRun } from "./hooks/useFlowRun";
+import { useAutoSaveDraft } from "./hooks/useAutoSaveDraft";
 import { PublishModal } from "./PublishModal";
+import { ab } from "./agentBuilderTheme";
 import type { AgentVisibility } from "./types";
 import type { Agent, AgentVersion, FlowJSON } from "./types";
 import { extractCronFromFlow, computeNextRunAt } from "@/lib/automationSchedule";
 
 type StudioTab = "design" | "runtime" | "json" | "logs" | "versions";
-
-const TABS: { id: StudioTab; label: string }[] = [
-  { id: "design",   label: "Design" },
-  { id: "runtime",  label: "Runtime" },
-  { id: "json",     label: "JSON" },
-  { id: "logs",     label: "Logs" },
-  { id: "versions", label: "Versions" },
-];
 
 export default function AgentBuilderStudio() {
   const { agentId: agentIdParam } = useParams<{ agentId: string }>();
@@ -58,7 +53,10 @@ export default function AgentBuilderStudio() {
   const initialPromptRef = useRef<string | null>(
     (location.state as { initialPrompt?: string } | null)?.initialPrompt ?? null,
   );
-  const [designTabKey, setDesignTabKey] = useState(0);
+  const [pendingInitialPrompt, setPendingInitialPrompt] = useState<string | null>(
+    () => initialPromptRef.current,
+  );
+  const [isCompiling, setIsCompiling] = useState(false);
 
   useEffect(() => {
     if (isNew) return;
@@ -107,8 +105,27 @@ export default function AgentBuilderStudio() {
     setLiveAgentId(newAgentId);
     setAgentName(name);
     navigate(`/adminpanel/agent-builder/${newAgentId}`, { replace: true });
-    setDesignTabKey((k) => k + 1);
   }, [navigate]);
+
+  const handleInitialPromptConsumed = useCallback(() => {
+    initialPromptRef.current = null;
+    setPendingInitialPrompt(null);
+  }, []);
+
+  const handleCompileComplete = useCallback((versionId: string) => {
+    setCurrentVersionId(versionId);
+  }, []);
+
+  const handleVersionUpdated = useCallback((versionId: string) => {
+    setCurrentVersionId(versionId);
+  }, []);
+
+  const { saveStatus: draftSaveStatus } = useAutoSaveDraft(
+    liveAgentId,
+    currentVersionId,
+    currentFlow,
+    { isCompiling },
+  );
 
   const handleSave = useCallback(async () => {
     if (!liveAgentId || !agentName.trim()) return;
@@ -217,33 +234,27 @@ export default function AgentBuilderStudio() {
   const agentStatus = agent?.status ?? "draft";
 
   const statusColors = {
-    published: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-    draft:     "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    archived:  "bg-slate-500/20 text-slate-400 border-slate-500/30",
+    published: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    draft: "bg-amber-50 text-amber-700 border-amber-200",
+    archived: "bg-muted text-muted-foreground border-border",
   };
   const statusDot = {
-    published: "bg-emerald-400",
-    draft:     "bg-amber-400",
-    archived:  "bg-slate-500",
+    published: "bg-emerald-500",
+    draft: "bg-amber-500",
+    archived: "bg-muted-foreground",
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 overflow-hidden">
-      {/* ── Top gradient accent ── */}
-      <div className="h-px w-full bg-gradient-to-r from-violet-600 via-indigo-500 to-purple-600 shrink-0" />
-
-      {/* ── Dark IDE Header ── */}
-      <div className="flex items-center gap-0 px-3 h-11 border-b border-slate-800 bg-slate-950 shrink-0">
-
-        {/* Breadcrumb + editable name */}
+    <div className={ab.studioShell}>
+      <div className={ab.studioHeader}>
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button
             onClick={() => navigate("/adminpanel/agent-builder")}
-            className="text-xs text-slate-500 hover:text-slate-300 transition-colors whitespace-nowrap shrink-0"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap shrink-0"
           >
             Agents
           </button>
-          <ChevronRight className="w-3 h-3 text-slate-700 shrink-0" />
+          <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
           {isEditingName ? (
             <input
               autoFocus
@@ -251,20 +262,19 @@ export default function AgentBuilderStudio() {
               onChange={(e) => setAgentName(e.target.value)}
               onBlur={handleSave}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setIsEditingName(false); }}
-              className="text-xs font-semibold text-white bg-slate-800 border border-violet-500/50 rounded px-2 py-0.5 outline-none max-w-56 min-w-20"
+              className={cn("text-xs font-semibold rounded px-2 py-0.5 outline-none max-w-56 min-w-20", ab.input, ab.textForeground)}
               placeholder="Untitled Agent"
             />
           ) : (
             <button
               onClick={() => setIsEditingName(true)}
-              className="text-xs font-semibold text-slate-200 hover:text-white truncate max-w-56 text-left hover:bg-slate-800 rounded px-1.5 py-0.5 transition-colors"
+              className={cn("text-xs font-semibold truncate max-w-56 text-left rounded px-1.5 py-0.5 transition-colors hover:bg-[hsl(250_25%_94%)]", ab.textForeground)}
               title="Click to rename"
             >
               {agentName || "Untitled Agent"}
             </button>
           )}
 
-          {/* Status badge */}
           <span className={cn(
             "inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border shrink-0",
             statusColors[agentStatus as keyof typeof statusColors] ?? statusColors.draft,
@@ -272,39 +282,23 @@ export default function AgentBuilderStudio() {
             <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusDot[agentStatus as keyof typeof statusDot] ?? statusDot.draft)} />
             {agentStatus}
           </span>
+
+          {draftSaveStatus === "saving" && (
+            <span className={cn("text-[10px] px-1.5 py-0.5 rounded", ab.textMuted)}>Saving draft…</span>
+          )}
+          {draftSaveStatus === "saved" && (
+            <span className={cn("text-[10px] px-1.5 py-0.5 rounded", ab.accentText)}>Draft saved</span>
+          )}
+          {draftSaveStatus === "error" && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded text-red-600">Save failed</span>
+          )}
         </div>
 
-        {/* ── Tab bar (centred) ── */}
-        <div className="flex items-center gap-0.5 mx-4">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "relative px-3 py-1 text-[11px] font-medium rounded-md transition-all duration-150",
-                activeTab === tab.id
-                  ? "bg-slate-800 text-violet-300"
-                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50",
-              )}
-            >
-              {tab.label}
-              {activeTab === tab.id && (
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 h-px bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full" />
-              )}
-              {tab.id === "runtime" && isRunActive && (
-                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-blue-400 inline-block align-middle animate-pulse" />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Right actions ── */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Save */}
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2.5 text-[11px] gap-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+            className="h-7 px-2.5 text-[11px] gap-1"
             onClick={handleSave}
             disabled={isSaving || !liveAgentId}
           >
@@ -312,47 +306,56 @@ export default function AgentBuilderStudio() {
             Save
           </Button>
 
-          {/* Run / Stop */}
           {isRunActive ? (
             <Button
+              variant="destructive"
               size="sm"
-              className="h-7 px-2.5 text-[11px] gap-1 bg-red-900/40 hover:bg-red-900/60 text-red-300 border border-red-800/50"
+              className="h-7 px-2.5 text-[11px] gap-1"
               onClick={() => currentRun && cancelRun(currentRun.id)}
             >
               <Square className="w-3 h-3" />
               Stop
             </Button>
           ) : (
-            <Button
-              size="sm"
-              className="h-7 px-2.5 text-[11px] gap-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 border-0 text-white shadow-md shadow-violet-900/40"
-              onClick={handleRun}
-              disabled={isTriggering || !currentVersionId || !liveAgentId}
-            >
-              {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-              Run
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  className={cn("h-7 px-2.5 text-[11px] gap-1", ab.accentBtn)}
+                  onClick={handleRun}
+                  disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId}
+                >
+                  {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                  Run
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs max-w-[220px]">
+                Runs execute on Trigger.dev — see Runtime tab for report output (mode=report).
+              </TooltipContent>
+            </Tooltip>
           )}
 
-          {/* Publish */}
-          <Button
-            size="sm"
-            className="h-7 px-2.5 text-[11px] gap-1 bg-emerald-700 hover:bg-emerald-600 text-white border-0"
-            onClick={() => setShowPublishModal(true)}
-            disabled={!currentVersionId || !liveAgentId}
-          >
-            <Globe className="w-3 h-3" />
-            Publish
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {agentStatus === "draft" && (
+              <span className={cn("text-[10px] hidden sm:inline", ab.textMuted)}>
+                Publish as Workspace to show on /ai-agents
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 px-2.5 text-[11px] gap-1"
+              onClick={() => setShowPublishModal(true)}
+              disabled={!currentVersionId || !liveAgentId}
+            >
+              <Globe className="w-3 h-3" />
+              Publish
+            </Button>
+          </div>
 
-          {/* Overflow: clone, archive */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-slate-500 hover:text-slate-200 hover:bg-slate-800"
-              >
+              <Button variant="ghost" size="icon" className="h-7 w-7">
                 <MoreHorizontal className="w-3.5 h-3.5" />
               </Button>
             </DropdownMenuTrigger>
@@ -361,7 +364,7 @@ export default function AgentBuilderStudio() {
                 <Copy className="w-3.5 h-3.5" /> Duplicate
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleArchive} className="gap-2 text-slate-500">
+              <DropdownMenuItem onClick={handleArchive} className="gap-2 text-muted-foreground">
                 <Archive className="w-3.5 h-3.5" /> Archive
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -369,11 +372,28 @@ export default function AgentBuilderStudio() {
         </div>
       </div>
 
-      {/* ── Tab content (full remaining height) ── */}
-      <div className="flex-1 overflow-hidden bg-white">
-        {activeTab === "design" && (
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StudioTab)} className="flex flex-col flex-1 overflow-hidden">
+        <div className={ab.studioTabs}>
+          <TabsList className="h-9 bg-transparent p-0 gap-1 overflow-x-auto">
+            <TabsTrigger value="design" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>Design</TabsTrigger>
+            <TabsTrigger value="runtime" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>
+              Runtime
+              {isRunActive && (
+                <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-[hsl(248_50%_62%)] inline-block align-middle animate-pulse" />
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="json" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>JSON</TabsTrigger>
+            <TabsTrigger value="logs" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>Logs</TabsTrigger>
+            <TabsTrigger value="versions" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>Versions</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent
+          value="design"
+          forceMount
+          className={cn("flex-1 overflow-hidden m-0 mt-0", activeTab !== "design" && "hidden")}
+        >
           <DesignTab
-            key={designTabKey}
             agentId={liveAgentId}
             agentName={agentName || "Untitled Agent"}
             initialFlowJson={currentFlow}
@@ -381,29 +401,45 @@ export default function AgentBuilderStudio() {
             nodeRunStatuses={nodeRunStatuses}
             currentNodeId={currentNodeId}
             onAgentCreated={handleAgentCreated}
-            initialPrompt={initialPromptRef.current ?? undefined}
+            onCompileComplete={handleCompileComplete}
+            onVersionUpdated={handleVersionUpdated}
+            onCompilingChange={setIsCompiling}
+            initialPrompt={pendingInitialPrompt ?? undefined}
+            onInitialPromptConsumed={handleInitialPromptConsumed}
           />
-        )}
-        {activeTab === "runtime" && (
+        </TabsContent>
+        <TabsContent value="runtime" className="flex-1 overflow-hidden m-0 mt-0">
           <RuntimeTab
             currentRun={currentRun}
             onCancelRun={currentRun ? () => cancelRun(currentRun.id) : undefined}
           />
-        )}
-        {activeTab === "json" && (
+        </TabsContent>
+        <TabsContent value="json" className="flex-1 overflow-hidden m-0 mt-0">
           <JsonTab flowJson={currentFlow} onApply={handleJsonApply} />
-        )}
-        {activeTab === "logs" && liveAgentId && (
-          <LogsTab agentId={liveAgentId} currentRunId={currentRun?.id} />
-        )}
-        {activeTab === "versions" && liveAgentId && (
-          <VersionsTab
-            agentId={liveAgentId}
-            currentVersionId={currentVersionId}
-            onRollback={handleRollback}
-          />
-        )}
-      </div>
+        </TabsContent>
+        <TabsContent value="logs" className="flex-1 overflow-hidden m-0 mt-0">
+          {liveAgentId ? (
+            <LogsTab agentId={liveAgentId} currentRunId={currentRun?.id} />
+          ) : (
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+              Save the agent first to view logs
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="versions" className="flex-1 overflow-hidden m-0 mt-0">
+          {liveAgentId ? (
+            <VersionsTab
+              agentId={liveAgentId}
+              currentVersionId={currentVersionId}
+              onRollback={handleRollback}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+              Save the agent first to view versions
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {showPublishModal && agent && (
         <PublishModal
@@ -413,7 +449,6 @@ export default function AgentBuilderStudio() {
           onClose={() => setShowPublishModal(false)}
         />
       )}
-
     </div>
   );
 }

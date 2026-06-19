@@ -36,6 +36,66 @@ Before generating flows, `compile-agent-flow`:
 4. Returns `needs_clarification` if required integration is missing
 5. Streams real compile phases to Builder Chat via SSE (`stream: true`)
 
+### Data source clarifications (DB queries)
+
+Before compiling flows that query the database, the compiler:
+
+1. Loads `enabled_tables` from `organization_integrations` where `integration_type = 'agent_builder_data_sources'` (configured in Agent Builder → Settings → Data Sources)
+2. If the prompt mentions database/db/table/query without naming a specific enabled table → returns `needs_clarification` listing enabled tables
+3. If zero tables are enabled → asks user to enable data sources first
+4. Post-compile validation: every `db_query` node `config.table` must be in `enabled_tables`; invalid tables surface as clarification errors
+
+## Manual runs & switch routing
+
+Manual runs from Studio or `/ai-agents` pass `input_context: { mode: "report" }` by default via `trigger-flow-run`. Chat runs pass `mode: "chat"` plus `message`.
+
+For dual-mode report+chat agents:
+
+- Switch nodes should use `input_variable: "mode"` with `cases: { "report": "report", "chat": "chat" }`
+- Outgoing edges use `condition: "report"` or `condition: "chat"`
+- If `mode` is missing on manual runs, the runtime defaults to `"report"`
+- If no branch edge matches, `execute-agent-run` logs a warning and tries a fallback edge
+
+## Run output location
+
+| Where | What |
+|-------|------|
+| `agent_runs` + `run_steps` tables | Persistent run history |
+| Studio **Runtime** tab | Step list + **Output** panel (markdown from `report_generate` or LLM `result`) |
+| Studio **Logs** tab | Terminal lines per step; completed steps include `OUTPUT: <preview>` |
+| `agent-outputs` storage bucket | Large outputs (when used) |
+
+Runtime shows an amber banner if a run completes with &lt;3 steps and the last node is a `switch` (routing stopped early).
+
+## Workspace agents (`/ai-agents`)
+
+Published agents with `status = published` and `visibility = workspace` appear on `/ai-agents`.
+
+- **Run Report** — triggers `trigger-flow-run` with `mode: "report"`
+- **Chat** — shown when flow has a switch with a `chat` edge; opens `BuilderAgentChatDialog` which runs with `mode: "chat"` per message
+
+### Chat branch requirements
+
+Dual-mode flows must fetch data on the chat path, not only on report:
+
+```
+manual_trigger → switch(mode)
+  → report: db_query → openai_llm → report_generate
+  → chat:   db_query → openai_llm   (no report_generate)
+```
+
+**Compiler** (`compile-agent-flow`): auto-inserts `db_query` on chat branch if missing (cloned from report-path table); validates chat path shape; standardizes chat LLM templates (`{{message}}`, `{{rows}}`).
+
+**Runtime** (`trigger/agent-flow/chat-context.ts`): before chat LLM execution, `ensureChatContext` normalizes `message`, resolves `rows` from prior steps, or auto-prefetches from the flow's first `db_query` config (fixes existing published agents without recompile).
+
+**Chat UI** passes `input_context`: `{ mode: "chat", message, session_id, chat_history }`. Recent history is appended to the LLM user prompt.
+
+**Deploy:** compiler changes → `supabase functions deploy compile-agent-flow`; runtime changes → Trigger.dev redeploy (`execute-agent-run`, `execute-flow-node`).
+
+Studio Design chat is for **editing the flow**; workspace chat is for **end-user interaction** with published agents.
+
+Draft agents do not appear on `/ai-agents` until published with Workspace visibility.
+
 ### Compile status phases
 
 | Phase | User label |
@@ -98,6 +158,27 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via Agent Bu
 | `/adminpanel/automations/logs` | Scheduled automation run logs (`trigger_type = cron` only) |
 | `/adminpanel/ai-control?tab=agents-logs` | Combined Agent Builder + legacy AI agent run history |
 
+## UI Conventions
+
+Agent Builder uses a **scoped soft Lovable-inspired palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). This is intentionally distinct from stark admin `bg-card` and the global `--primary` token used elsewhere in the admin panel.
+
+**Palette traits:**
+- Page canvas: warm blue-gray (`ab.canvas`), not pure white
+- Cards/composer: elevated lavender-gray surfaces (`ab.surface`, `ab.surfaceElevated`) with soft shadow
+- Inputs: filled soft gray-lavender (`ab.input`), not white boxes on white
+- Accent: muted periwinkle (`ab.accentText`, `ab.accentBtn`, `ab.chipActive`) — not saturated platform primary
+- Chat: soft panel (`ab.chatPanel`), periwinkle user bubbles (`ab.userBubble`), tinted assistant bubbles (`ab.assistantBubble`)
+
+List and Settings pages follow the same Breadcrumb + header pattern as AI Control. The studio workspace bleeds into admin content padding with `ab.studioShell`. Do not change global `index.css` tokens when styling Agent Builder — extend `agentBuilderTheme.ts` instead.
+
+**List page composer:** Prompt-first compact card (`composerCompact`, `promptBar`): unified input + Build bar, keyboard hint, short template labels with icons (`templateStrip` / `templateChip`); full prompt text applied on chip click. "Start from scratch" is an inline link in the card header.
+
+**Studio compile:** `initialPrompt` from the list page is consumed **once** per navigation (`pendingInitialPrompt` cleared after first fire). Design tab uses `forceMount` so switching JSON/Logs tabs does not remount chat or re-trigger compile. `sendPrompt` uses a compile mutex to block concurrent runs.
+
+**Draft auto-save:** Canvas/JSON edits debounce-save to `agent_versions.flow_json` on the current version (requires `agent_versions_update_admin` RLS). Header shows Saving / Draft saved status.
+
+**Studio run state:** `useFlowRun` subscribes to `agent_runs` (realtime + 5s poll) so the header **Stop** button reverts to **Run** when status reaches `completed`, `failed`, or `cancelled`. Runtime tab uses the same `currentRun` prop from the hook.
+
 ## Intelligence Studio (Phase 6 — Future)
 
 Planned runtime shift from rigid node walking to **agentic reasoning**:
@@ -116,6 +197,11 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | Compiler | `supabase/functions/compile-agent-flow/index.ts` |
 | Integration mapping | `supabase/functions/_shared/agent-builder-integrations.ts` |
 | Frontend mapping | `src/pages/adminpanel/agent-builder/integrationConfig.ts` |
+| UI theme tokens | `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` |
+| Run output helpers | `src/pages/adminpanel/agent-builder/runOutput.ts` |
+| Flow capabilities | `src/pages/adminpanel/agent-builder/flowCapabilities.ts` |
+| Chat context runtime | `trigger/agent-flow/chat-context.ts` |
+| Workspace chat UI | `src/components/agents/BuilderAgentChatDialog.tsx` |
 | Scheduler | `trigger/automation-scheduler.ts` |
 | Node execution | `trigger/agent-flow/execute-node.ts` |
 | Gmail inbox | `supabase/functions/gmail-inbox/index.ts` |

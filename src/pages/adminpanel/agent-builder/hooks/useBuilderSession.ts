@@ -20,6 +20,12 @@ interface BuilderSessionState {
   lastVersion: number | null;
 }
 
+export interface UseBuilderSessionOptions {
+  onAgentCreated?: (newAgentId: string, name: string) => void;
+  onCompileComplete?: (versionId: string, version: number) => void;
+  onVersionUpdated?: (versionId: string, version: number) => void;
+}
+
 interface UseBuilderSessionReturn extends BuilderSessionState {
   sendPrompt: (prompt: string, action?: "generate" | "improve" | "add_tool") => Promise<FlowJSON | null>;
   updateCanvasFlow: (flow: FlowJSON) => void;
@@ -108,43 +114,56 @@ async function compileWithStream(
 
 function handleCompileResult(
   result: CompileResult,
-  prompt: string,
   setChatHistory: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
   onFlowUpdate: (flow: FlowJSON) => void,
   setLastVersionId: (id: string) => void,
   setLastVersion: (v: number) => void,
   setError: (msg: string | null) => void,
+  onCompileComplete?: (versionId: string, version: number) => void,
 ): FlowJSON | null {
+  if (result.chat_history?.length) {
+    setChatHistory(result.chat_history);
+  }
+
   if (result.success && result.flow_json) {
-    const aiMsg: ChatMessage = {
-      role: "assistant",
-      content: result.ai_message ?? "Flow updated.",
-      timestamp: new Date().toISOString(),
-    };
-    setChatHistory((prev) => [...prev, aiMsg]);
+    if (!result.chat_history?.length) {
+      const aiMsg: ChatMessage = {
+        role: "assistant",
+        content: result.ai_message ?? "Flow updated.",
+        timestamp: new Date().toISOString(),
+      };
+      setChatHistory((prev) => [...prev, aiMsg]);
+    }
     onFlowUpdate(result.flow_json);
-    if (result.version_id) setLastVersionId(result.version_id);
+    if (result.version_id) {
+      setLastVersionId(result.version_id);
+      onCompileComplete?.(result.version_id, result.version ?? 1);
+    }
     if (result.version) setLastVersion(result.version);
     return result.flow_json;
   }
 
   if (!result.success && result.needs_clarification && result.question) {
-    const questionMsg: ChatMessage = {
-      role: "assistant",
-      content: result.question,
-      timestamp: new Date().toISOString(),
-    };
-    setChatHistory((prev) => [...prev, questionMsg]);
+    if (!result.chat_history?.length) {
+      const questionMsg: ChatMessage = {
+        role: "assistant",
+        content: result.question,
+        timestamp: new Date().toISOString(),
+      };
+      setChatHistory((prev) => [...prev, questionMsg]);
+    }
     return null;
   }
 
   const failMsg = result.message ?? result.ai_message ?? result.error ?? "Could not generate a valid flow. Please try rephrasing.";
-  const failChatMsg: ChatMessage = {
-    role: "assistant",
-    content: failMsg,
-    timestamp: new Date().toISOString(),
-  };
-  setChatHistory((prev) => [...prev, failChatMsg]);
+  if (!result.chat_history?.length) {
+    const failChatMsg: ChatMessage = {
+      role: "assistant",
+      content: failMsg,
+      timestamp: new Date().toISOString(),
+    };
+    setChatHistory((prev) => [...prev, failChatMsg]);
+  }
   setError(failMsg);
   return null;
 }
@@ -152,8 +171,12 @@ function handleCompileResult(
 export function useBuilderSession(
   agentId: string | null,
   onFlowUpdate: (flow: FlowJSON) => void,
-  onAgentCreated?: (newAgentId: string, name: string) => void,
+  options?: UseBuilderSessionOptions,
 ): UseBuilderSessionReturn {
+  const onAgentCreated = options?.onAgentCreated;
+  const onCompileComplete = options?.onCompileComplete;
+  const onVersionUpdated = options?.onVersionUpdated;
+
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isCompiling, setIsCompiling] = useState(false);
   const [compileStatus, setCompileStatus] = useState<CompileStatus | null>(null);
@@ -162,6 +185,7 @@ export function useBuilderSession(
   const [lastVersion, setLastVersion] = useState<number | null>(null);
   const resolvedAgentIdRef = useRef<string | null>(agentId);
   const completedPhasesRef = useRef<string[]>([]);
+  const isCompilingRef = useRef(false);
 
   useEffect(() => {
     resolvedAgentIdRef.current = agentId;
@@ -208,6 +232,7 @@ export function useBuilderSession(
             onFlowUpdate(newVersion.flow_json);
             setLastVersionId(newVersion.id);
             setLastVersion(newVersion.version);
+            onVersionUpdated?.(newVersion.id, newVersion.version);
           }
         },
       )
@@ -216,7 +241,7 @@ export function useBuilderSession(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [agentId, onFlowUpdate]);
+  }, [agentId, onFlowUpdate, onVersionUpdated]);
 
   const sendPrompt = useCallback(
     async (
@@ -224,7 +249,9 @@ export function useBuilderSession(
       action: "generate" | "improve" | "add_tool" = "generate",
     ): Promise<FlowJSON | null> => {
       if (!prompt.trim()) return null;
+      if (isCompilingRef.current) return null;
 
+      isCompilingRef.current = true;
       setIsCompiling(true);
       setError(null);
       completedPhasesRef.current = [];
@@ -272,11 +299,6 @@ export function useBuilderSession(
           token,
           { prompt, agent_id: effectiveAgentId, action },
           (phase, label) => {
-            const completed = [...completedPhasesRef.current];
-            const lastPhase = completed[completed.length - 1];
-            if (lastPhase !== phase && lastPhase && !completed.includes(phase)) {
-              // keep prior phases in completed list via ref update on phase change
-            }
             setCompileStatus((prev) => {
               const done = [...(prev?.completedPhases ?? [])];
               if (prev?.phase && prev.phase !== phase && !done.includes(prev.phase)) {
@@ -290,12 +312,12 @@ export function useBuilderSession(
 
         return handleCompileResult(
           result,
-          prompt,
           setChatHistory,
           onFlowUpdate,
           setLastVersionId,
           setLastVersion,
           setError,
+          onCompileComplete,
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
@@ -306,12 +328,13 @@ export function useBuilderSession(
         ]);
         return null;
       } finally {
+        isCompilingRef.current = false;
         setIsCompiling(false);
         setCompileStatus(null);
         completedPhasesRef.current = [];
       }
     },
-    [onAgentCreated, onFlowUpdate],
+    [onAgentCreated, onCompileComplete, onFlowUpdate],
   );
 
   const updateCanvasFlow = useCallback((_flow: FlowJSON) => {

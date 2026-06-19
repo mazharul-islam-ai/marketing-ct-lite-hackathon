@@ -1,5 +1,9 @@
 import { task, AbortTaskRunError, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
+import {
+  enrichLlmContext,
+  buildLlmUserPrompt,
+} from "./chat-context";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -141,9 +145,27 @@ export const executeFlowNode = task({
 
         // LOGIC: switch
         case "switch": {
-          const switchValue = input_data[String(node.config.input_variable ?? "value")];
+          const inputVar = String(node.config.input_variable ?? "mode");
+          let switchValue = input_data[inputVar];
+          if (switchValue === undefined || switchValue === null || switchValue === "") {
+            switchValue = input_data.mode;
+          }
+          if (switchValue === undefined || switchValue === null || switchValue === "") {
+            switchValue = "report";
+          }
+
           const cases = (node.config.cases as Record<string, unknown>) ?? {};
-          branch = String(cases[String(switchValue)] ?? node.config.default_branch ?? "default");
+          const switchKey = String(switchValue);
+          let resolvedBranch: string;
+          if (cases[switchKey] !== undefined) {
+            resolvedBranch = String(cases[switchKey]);
+          } else if (cases[switchKey.toLowerCase()] !== undefined) {
+            resolvedBranch = String(cases[switchKey.toLowerCase()]);
+          } else {
+            resolvedBranch = switchKey;
+          }
+
+          branch = resolvedBranch || String(node.config.default_branch ?? "default");
           output = { matched_value: switchValue, branch };
           break;
         }
@@ -175,7 +197,8 @@ export const executeFlowNode = task({
           }
 
           const provider = node.type.replace("_llm", "");
-          const result = await executeAINode(node.config, input_data, provider, supabase);
+          const enrichedInput = enrichLlmContext(input_data);
+          const result = await executeAINode(node.config, enrichedInput, provider, supabase);
           output = result.output;
           tokensUsed = result.tokens_used;
           cost = result.cost;
@@ -433,10 +456,9 @@ async function executeAINode(
   provider: string,
   supabase: ReturnType<typeof createClient>,
 ): Promise<{ output: Record<string, unknown>; tokens_used: number; cost: number }> {
-  const prompt = interpolateTemplate(
-    String(config.prompt ?? "Process this data and return a result."),
-    inputData,
-  );
+  const ctx = enrichLlmContext(inputData);
+  const promptTemplate = String(config.prompt ?? "Process this data and return a result.");
+  const prompt = interpolateTemplate(buildLlmUserPrompt(promptTemplate, ctx), ctx);
   const model = String(config.model ?? "gpt-4o-mini");
 
   // Resolve API key from DB (org integrations) with env var fallback
@@ -546,6 +568,13 @@ function interpolateTemplate(template: string, data: Record<string, unknown>): s
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
     const val = data[key];
     if (val === undefined || val === null) return `{{${key}}}`;
-    return typeof val === "object" ? JSON.stringify(val) : String(val);
+    if (typeof val === "object") {
+      try {
+        return JSON.stringify(val);
+      } catch {
+        return String(val);
+      }
+    }
+    return String(val);
   });
 }

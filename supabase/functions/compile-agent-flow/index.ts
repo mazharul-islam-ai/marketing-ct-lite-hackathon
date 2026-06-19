@@ -4,6 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 import {
   buildPlatformOverview,
   checkPromptIntegrations,
+  checkDbSourceClarification,
   getAllowedNodeTypes,
   COMPILE_PHASES,
   type CompilePhase,
@@ -170,6 +171,20 @@ async function loadConfiguredIntegrations(
   return new Set((data ?? []).map((r: { integration_type: string }) => r.integration_type))
 }
 
+async function loadEnabledDataTables(
+  supabase: ReturnType<typeof createClient>,
+): Promise<string[]> {
+  const { data } = await supabase
+    .from('organization_integrations')
+    .select('config')
+    .eq('integration_type', 'agent_builder_data_sources')
+    .eq('is_active', true)
+    .maybeSingle()
+
+  const tables = (data as { config?: { enabled_tables?: string[] } } | null)?.config?.enabled_tables
+  return Array.isArray(tables) ? tables : []
+}
+
 function buildFlowJsonSchema(allowedNodeTypes: string[]) {
   const nodeEnum = allowedNodeTypes.length > 0 ? allowedNodeTypes : [...VALID_NODE_TYPES]
   return {
@@ -256,9 +271,13 @@ function buildSystemPrompt(
   customPrefix: string | null | undefined,
   configuredTypes: Set<string>,
   allowedNodeTypes: string[],
+  enabledTables: string[],
 ): string {
   const platformBlock = buildPlatformOverview(configuredTypes)
   const allowedList = allowedNodeTypes.join(', ')
+  const enabledTablesBlock = enabledTables.length > 0
+    ? `ENABLED DATA TABLES (only these may be used in db_query config.table):\n${enabledTables.join(', ')}`
+    : 'ENABLED DATA TABLES: (none — user must enable tables in Agent Builder → Settings → Data Sources before db_query flows can run)'
 
   const structural = `You are an AI workflow compiler for an enterprise Agent Builder platform.
 
@@ -279,6 +298,12 @@ RULES:
 9. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
 10. The trigger field should be a single trigger node (or null for manual/on-demand workflows).
 11. Return ONLY the JSON object, no markdown, no explanation.
+12. If the user mentions database/db/table/query without naming a specific enabled table, return clarification_needed asking which enabled table.
+13. For report+chat dual mode, use input_variable "mode" on switch nodes; edge conditions must be "report" and "chat"; set cases: { "report": "report", "chat": "chat" }.
+14. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
+15. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON without asking user to supply missing data.
+
+${enabledTablesBlock}
 
 COMMON PATTERNS — use these exact node types:
 - "retrieve unread emails / Gmail inbox"              → gmail_fetch_unread
@@ -387,7 +412,125 @@ function normalizeFlowJSON(raw: unknown): unknown {
     obj.trigger = null
   }
 
+  // Normalize switch nodes: ensure mode routing when edges use report/chat conditions
+  if (Array.isArray(obj.steps)) {
+    const edges = Array.isArray(obj.edges) ? (obj.edges as Record<string, unknown>[]) : []
+    obj.steps = (obj.steps as Record<string, unknown>[]).map((rawNode) => {
+      if (!rawNode || rawNode.type !== 'switch') return rawNode
+      const node = { ...rawNode }
+      const config = { ...(node.config as Record<string, unknown> ?? {}) }
+      const outgoing = edges.filter((e) => e.source === node.id)
+      const conditions = outgoing
+        .map((e) => String(e.condition ?? '').trim())
+        .filter(Boolean)
+      const hasModeRouting = conditions.some(
+        (c) => c.toLowerCase() === 'report' || c.toLowerCase() === 'chat',
+      )
+      if (hasModeRouting) {
+        config.input_variable = config.input_variable ?? 'mode'
+        const cases: Record<string, string> = {
+          ...(config.cases as Record<string, string> ?? {}),
+        }
+        for (const cond of conditions) {
+          const lower = cond.toLowerCase()
+          if (lower === 'report' || lower === 'chat') {
+            cases[cond] = cond
+            cases[lower] = lower
+          }
+        }
+        config.cases = cases
+        node.config = config
+      }
+      return node
+    })
+  }
+
+  normalizeChatBranch(obj)
+
   return obj
+}
+
+const LLM_NODE_TYPES = new Set(['openai_llm', 'gemini_llm', 'anthropic_llm', 'custom_llm'])
+
+const CHAT_LLM_PROMPT = 'User question: {{message}}\n\nData:\n{{rows}}'
+const CHAT_LLM_SYSTEM = 'Answer the user question using the provided data JSON. Be concise and helpful. Do not ask the user to supply data that is already in the context.'
+
+/** Ensure chat branch has db_query before LLM and standard LLM templates */
+function normalizeChatBranch(obj: Record<string, unknown>): void {
+  if (!Array.isArray(obj.steps) || !Array.isArray(obj.edges)) return
+
+  const steps = obj.steps as Record<string, unknown>[]
+  const edges = obj.edges as Record<string, unknown>[]
+
+  const hasChatEdge = edges.some((e) => String(e.condition ?? '').toLowerCase() === 'chat')
+  if (!hasChatEdge) return
+
+  const switchNode = steps.find((s) => s.type === 'switch')
+  if (!switchNode) return
+
+  const chatEdge = edges.find(
+    (e) => e.source === switchNode.id && String(e.condition ?? '').toLowerCase() === 'chat',
+  )
+  if (!chatEdge) return
+
+  const chatTargetId = String(chatEdge.target ?? '')
+  const chatTarget = steps.find((s) => s.id === chatTargetId)
+  if (!chatTarget) return
+
+  const reportEdge = edges.find(
+    (e) => e.source === switchNode.id && String(e.condition ?? '').toLowerCase() === 'report',
+  )
+  let refDbQuery = steps.find((s) => s.type === 'db_query')
+  if (reportEdge) {
+    const reportTarget = steps.find((s) => s.id === reportEdge.target)
+    if (reportTarget?.type === 'db_query') refDbQuery = reportTarget
+  }
+
+  if (LLM_NODE_TYPES.has(String(chatTarget.type)) && refDbQuery) {
+    const maxNum = steps.reduce((max, s) => {
+      const m = String(s.id).match(/^n(\d+)$/)
+      return m ? Math.max(max, parseInt(m[1], 10)) : max
+    }, 0)
+    const newId = `n${maxNum + 1}`
+    const refConfig = (refDbQuery.config as Record<string, unknown>) ?? {}
+    const chatTargetPos = chatTarget.position as { x?: number; y?: number } | undefined
+    steps.push({
+      id: newId,
+      type: 'db_query',
+      label: `Query ${refConfig.table ?? 'data'} (chat)`,
+      config: { ...refConfig },
+      position: {
+        x: (chatTargetPos?.x ?? 440) - 220,
+        y: chatTargetPos?.y ?? 600,
+      },
+    })
+    chatEdge.target = newId
+    const maxEdge = edges.reduce((max, e) => {
+      const m = String(e.id).match(/^e(\d+)$/)
+      return m ? Math.max(max, parseInt(m[1], 10)) : max
+    }, 0)
+    edges.push({
+      id: `e${maxEdge + 1}`,
+      source: newId,
+      target: chatTargetId,
+    })
+    obj.steps = steps
+    obj.edges = edges
+  }
+
+  for (const step of steps) {
+    if (!LLM_NODE_TYPES.has(String(step.type))) continue
+    const config = { ...(step.config as Record<string, unknown> ?? {}) }
+    const prompt = String(config.prompt ?? '')
+    if (!prompt.includes('{{message}}')) {
+      config.prompt = CHAT_LLM_PROMPT
+    }
+    const system = String(config.system_prompt ?? '')
+    if (!system || system.toLowerCase().includes('cannot provide') || system.length < 30) {
+      config.system_prompt = CHAT_LLM_SYSTEM
+    }
+    step.config = config
+  }
 }
 
 // Resolve and normalise the .type field on a raw node object in-place
@@ -406,9 +549,79 @@ function resolveNodeType(node: Record<string, unknown>): void {
 }
 
 // ── Validate flow JSON structure ─────────────────────────────────────────────
+function validateDbQueryTables(
+  flow: FlowJSON,
+  enabledTables: string[],
+): { valid: boolean; error?: string } {
+  const allNodes = [...(flow.trigger ? [flow.trigger] : []), ...flow.steps]
+  const dbNodes = allNodes.filter((n) => n.type === 'db_query')
+  if (dbNodes.length === 0) return { valid: true }
+
+  if (enabledTables.length === 0) {
+    return {
+      valid: false,
+      error: 'db_query nodes require enabled data sources. Enable tables in Agent Builder → Settings → Data Sources.',
+    }
+  }
+
+  const enabledSet = new Set(enabledTables)
+  for (const node of dbNodes) {
+    const table = String((node.config as Record<string, unknown>)?.table ?? '').trim()
+    if (!table) {
+      return { valid: false, error: 'db_query node is missing config.table — specify which enabled table to query' }
+    }
+    if (!enabledSet.has(table)) {
+      return {
+        valid: false,
+        error: `db_query references table "${table}" which is not enabled. Enabled tables: ${enabledTables.join(', ')}`,
+      }
+    }
+  }
+
+  return { valid: true }
+}
+
+function validateChatBranch(flow: FlowJSON): { valid: boolean; error?: string } {
+  const hasChatEdge = flow.edges.some((e) => e.condition?.toLowerCase() === 'chat')
+  if (!hasChatEdge) return { valid: true }
+
+  const switchNode = flow.steps.find((s) => s.type === 'switch')
+  if (!switchNode) return { valid: true }
+
+  const chatEdge = flow.edges.find(
+    (e) => e.source === switchNode.id && e.condition?.toLowerCase() === 'chat',
+  )
+  if (!chatEdge) return { valid: true }
+
+  let currentId: string | undefined = chatEdge.target
+  const visited = new Set<string>()
+  let foundDbBeforeLlm = false
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId)
+    const node = flow.steps.find((s) => s.id === currentId)
+    if (!node) break
+    if (node.type === 'db_query') foundDbBeforeLlm = true
+    if (LLM_NODE_TYPES.has(node.type)) {
+      if (!foundDbBeforeLlm) {
+        return {
+          valid: false,
+          error: 'Chat branch must include db_query before LLM. Recompile or add a db_query node on the chat path.',
+        }
+      }
+      break
+    }
+    const nextEdge = flow.edges.find((e) => e.source === currentId && !e.condition)
+    currentId = nextEdge?.target
+  }
+
+  return { valid: true }
+}
+
 function validateFlowJSON(
   flow: unknown,
   allowedNodeTypes?: Set<string>,
+  enabledTables?: string[],
 ): { valid: boolean; error?: string } {
   if (!flow || typeof flow !== 'object') {
     return { valid: false, error: 'Flow must be an object' }
@@ -450,6 +663,14 @@ function validateFlowJSON(
       return { valid: false, error: `Edge references unknown node: ${edge.source} → ${edge.target}` }
     }
   }
+
+  if (enabledTables) {
+    const dbValidation = validateDbQueryTables(f, enabledTables)
+    if (!dbValidation.valid) return dbValidation
+  }
+
+  const chatValidation = validateChatBranch(f)
+  if (!chatValidation.valid) return chatValidation
 
   return { valid: true }
 }
@@ -767,6 +988,7 @@ serve(async (req) => {
 
     emit('loading_integrations')
     const configuredTypes = await loadConfiguredIntegrations(supabase)
+    const enabledTables = await loadEnabledDataTables(supabase)
     const allowedNodeTypes = getAllowedNodeTypes(configuredTypes)
     const allowedSet = new Set(allowedNodeTypes)
     const flowSchema = buildFlowJsonSchema(allowedNodeTypes)
@@ -776,6 +998,14 @@ serve(async (req) => {
     if (integrationCheck) {
       return await upsertClarification(
         supabase, agent_id, user.id, prompt, integrationCheck.question,
+        (await supabase.from('builder_sessions').select('chat_history').eq('agent_id', agent_id).eq('user_id', user.id).maybeSingle()).data?.chat_history ?? [],
+      )
+    }
+
+    const dbClarification = checkDbSourceClarification(prompt, enabledTables)
+    if (dbClarification) {
+      return await upsertClarification(
+        supabase, agent_id, user.id, prompt, dbClarification.question,
         (await supabase.from('builder_sessions').select('chat_history').eq('agent_id', agent_id).eq('user_id', user.id).maybeSingle()).data?.chat_history ?? [],
       )
     }
@@ -808,7 +1038,7 @@ serve(async (req) => {
 
     const customSystemPrompt = await loadCustomSystemPrompt(supabase)
 
-    const systemPrompt = buildSystemPrompt(customSystemPrompt, configuredTypes, allowedNodeTypes) + (
+    const systemPrompt = buildSystemPrompt(customSystemPrompt, configuredTypes, allowedNodeTypes, enabledTables) + (
       currentFlow
         ? `\n\n---\n\nCURRENT FLOW STATE (for context):\n${JSON.stringify(currentFlow, null, 2)}`
         : ''
@@ -856,10 +1086,15 @@ serve(async (req) => {
 
         flowJSON = normalized as FlowJSON
         emit('validating_flow')
-        const validation = validateFlowJSON(flowJSON, allowedSet)
+        const validation = validateFlowJSON(flowJSON, allowedSet, enabledTables)
         if (validation.valid) break
 
         lastError = validation.error ?? 'Unknown validation error'
+        if (validation.error?.includes('db_query') || validation.error?.includes('enabled')) {
+          return await upsertClarification(
+            supabase, agent_id, user.id, prompt, validation.error, chatHistory,
+          )
+        }
         flowJSON = null
       } catch (e) {
         lastError = e instanceof Error ? e.message : String(e)

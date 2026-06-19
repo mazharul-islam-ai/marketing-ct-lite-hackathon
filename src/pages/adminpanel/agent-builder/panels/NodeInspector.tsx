@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getNodeDef, getCategoryDef } from "../types";
 import type { FlowNode, ConfigField } from "../types";
+import { ab } from "../agentBuilderTheme";
 
 interface NodeInspectorProps {
   node: FlowNode | null;
@@ -50,10 +51,10 @@ export function NodeInspector({
 
   if (!node) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-white border-l border-slate-200 p-4 text-center">
+      <div className={cn("flex flex-col items-center justify-center h-full border-l p-4 text-center", ab.surfaceElevated)}>
         <div className="text-3xl mb-3 opacity-20">◻</div>
-        <p className="text-xs text-slate-400 font-medium">Click a node to inspect</p>
-        <p className="text-[11px] text-slate-300 mt-1">View and edit node configuration</p>
+        <p className="text-xs text-muted-foreground font-medium">Click a node to inspect</p>
+        <p className="text-[11px] text-muted-foreground/70 mt-1">View and edit node configuration</p>
       </div>
     );
   }
@@ -157,9 +158,8 @@ export function NodeInspector({
   const configFields = def?.configSchema ? Object.entries(def.configSchema) : [];
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-slate-200">
-      {/* Header */}
-      <div className={cn("px-3 py-2.5 border-b border-slate-100 flex items-center justify-between", category?.bgColor ?? "bg-slate-50")}>
+    <div className={cn("flex flex-col h-full border-l", ab.surfaceElevated)}>
+      <div className={cn("px-3 py-2.5 border-b flex items-center justify-between border-[hsl(250_18%_90%)]", category?.bgColor ?? "bg-[hsl(250_25%_95%)]")}>
         <div>
           <div className="flex items-center gap-1.5">
             <span className="text-base">{category?.icon ?? "⬜"}</span>
@@ -223,7 +223,7 @@ export function NodeInspector({
           <div className="space-y-1">
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Input Mapping</p>
             <p className="text-[11px] text-slate-400">
-              Use <code className="bg-slate-100 px-1 rounded">{"{{variable}}"}</code> in prompts to reference outputs from previous nodes.
+              Use <code className={cn("px-1 rounded", ab.chip)}>{"{{variable}}"}</code> in prompts to reference outputs from previous nodes.
             </p>
           </div>
 
@@ -238,7 +238,7 @@ export function NodeInspector({
                 <ChevronDown className={cn("w-3 h-3 transition-transform ml-auto", showOutput && "rotate-180")} />
               </button>
               {showOutput && (
-                <pre className="text-[10px] bg-slate-50 border border-slate-200 rounded p-2 overflow-x-auto max-h-32 text-slate-600 font-mono">
+                <pre className={cn("text-[10px] rounded border p-2 overflow-x-auto max-h-32 font-mono", ab.logArea, ab.textMuted)}>
                   {JSON.stringify(runOutput, null, 2)}
                 </pre>
               )}
@@ -264,7 +264,7 @@ export function NodeInspector({
       </ScrollArea>
 
       {/* Footer actions */}
-      <div className="px-3 py-3 border-t border-slate-100 flex gap-2">
+      <div className="px-3 py-3 border-t border-[hsl(250_18%_90%)] flex gap-2">
         {onTestNode && (
           <Button
             variant="outline"

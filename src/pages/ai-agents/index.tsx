@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Bot, Play, Clock, Search, Loader2, Inbox } from "lucide-react";
+import { Bot, Play, MessageSquare, Clock, Search, Loader2, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BuilderAgentRunnerDialog } from "@/components/agents/BuilderAgentRunnerDialog";
+import { BuilderAgentChatDialog } from "@/components/agents/BuilderAgentChatDialog";
+import { getFlowCapabilities } from "@/pages/adminpanel/agent-builder/flowCapabilities";
+import type { FlowJSON } from "@/pages/adminpanel/agent-builder/types";
 
 interface WorkspaceAgent {
   id: string;
@@ -14,11 +17,15 @@ interface WorkspaceAgent {
   description: string | null;
   current_version_id: string | null;
   updated_at: string;
+  flow_json: FlowJSON | null;
 }
+
+type DialogMode = "report" | "chat" | null;
 
 export default function AIAgentsPage() {
   const [search, setSearch] = useState("");
-  const [runnerAgent, setRunnerAgent] = useState<WorkspaceAgent | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<WorkspaceAgent | null>(null);
+  const [dialogMode, setDialogMode] = useState<DialogMode>(null);
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["builder-agents", "workspace"],
@@ -28,9 +35,32 @@ export default function AIAgentsPage() {
         .select("id, name, description, current_version_id, updated_at")
         .eq("status", "published")
         .eq("visibility", "workspace")
-        .order("updated_at", { ascending: false }) as { data: WorkspaceAgent[] | null; error: unknown };
+        .order("updated_at", { ascending: false }) as { data: Omit<WorkspaceAgent, "flow_json">[] | null; error: unknown };
       if (error) throw error;
-      return data ?? [];
+
+      const rows = data ?? [];
+      const versionIds = rows
+        .map((a) => a.current_version_id)
+        .filter((id): id is string => Boolean(id));
+
+      let flowByVersion = new Map<string, FlowJSON>();
+      if (versionIds.length > 0) {
+        const { data: versions } = await supabase
+          .from("agent_versions" as never)
+          .select("id, flow_json")
+          .in("id", versionIds) as { data: { id: string; flow_json: FlowJSON }[] | null };
+
+        flowByVersion = new Map(
+          (versions ?? []).map((v) => [v.id, v.flow_json]),
+        );
+      }
+
+      return rows.map((agent) => ({
+        ...agent,
+        flow_json: agent.current_version_id
+          ? flowByVersion.get(agent.current_version_id) ?? null
+          : null,
+      }));
     },
   });
 
@@ -43,9 +73,18 @@ export default function AIAgentsPage() {
     );
   });
 
+  const openDialog = (agent: WorkspaceAgent, mode: DialogMode) => {
+    setSelectedAgent(agent);
+    setDialogMode(mode);
+  };
+
+  const closeDialog = () => {
+    setSelectedAgent(null);
+    setDialogMode(null);
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -67,7 +106,6 @@ export default function AIAgentsPage() {
         </div>
       </div>
 
-      {/* Content */}
       {isLoading ? (
         <div className="flex h-60 items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -82,7 +120,7 @@ export default function AIAgentsPage() {
             <p className="text-sm mt-1">
               {search
                 ? "Try a different search term"
-                : "Admins can publish agents for workspace users in the Agent Builder"}
+                : "Admins can publish agents with Workspace visibility in the Agent Builder"}
             </p>
           </div>
         </div>
@@ -92,18 +130,29 @@ export default function AIAgentsPage() {
             <AgentCard
               key={agent.id}
               agent={agent}
-              onRun={() => setRunnerAgent(agent)}
+              onRunReport={() => openDialog(agent, "report")}
+              onChat={() => openDialog(agent, "chat")}
             />
           ))}
         </div>
       )}
 
-      {runnerAgent && (
+      {selectedAgent && dialogMode === "report" && (
         <BuilderAgentRunnerDialog
-          agentId={runnerAgent.id}
-          agentName={runnerAgent.name}
-          versionId={runnerAgent.current_version_id}
-          onClose={() => setRunnerAgent(null)}
+          agentId={selectedAgent.id}
+          agentName={selectedAgent.name}
+          versionId={selectedAgent.current_version_id}
+          mode="report"
+          onClose={closeDialog}
+        />
+      )}
+
+      {selectedAgent && dialogMode === "chat" && (
+        <BuilderAgentChatDialog
+          agentId={selectedAgent.id}
+          agentName={selectedAgent.name}
+          versionId={selectedAgent.current_version_id}
+          onClose={closeDialog}
         />
       )}
     </div>
@@ -112,12 +161,15 @@ export default function AIAgentsPage() {
 
 function AgentCard({
   agent,
-  onRun,
+  onRunReport,
+  onChat,
 }: {
   agent: WorkspaceAgent;
-  onRun: () => void;
+  onRunReport: () => void;
+  onChat: () => void;
 }) {
   const hasVersion = Boolean(agent.current_version_id);
+  const { hasChat, hasReport } = getFlowCapabilities(agent.flow_json);
 
   return (
     <Card className="flex flex-col hover:shadow-md transition-shadow">
@@ -141,6 +193,16 @@ function AgentCard({
           <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50">
             Workspace
           </Badge>
+          {hasChat && (
+            <Badge variant="outline" className="text-xs border-violet-200 text-violet-700 bg-violet-50">
+              Chat
+            </Badge>
+          )}
+          {hasReport && (
+            <Badge variant="outline" className="text-xs border-emerald-200 text-emerald-700 bg-emerald-50">
+              Report
+            </Badge>
+          )}
           {!hasVersion && (
             <Badge variant="outline" className="text-xs border-amber-200 text-amber-700 bg-amber-50">
               No version
@@ -151,16 +213,30 @@ function AgentCard({
           <Clock className="h-3 w-3" />
           Updated {new Date(agent.updated_at).toLocaleDateString()}
         </div>
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={onRun}
-          disabled={!hasVersion}
-          title={!hasVersion ? "No compiled version available yet" : undefined}
-        >
-          <Play className="mr-1.5 h-3.5 w-3.5" />
-          Run Agent
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="flex-1"
+            onClick={onRunReport}
+            disabled={!hasVersion}
+            title={!hasVersion ? "No compiled version available yet" : undefined}
+          >
+            <Play className="mr-1.5 h-3.5 w-3.5" />
+            Run Report
+          </Button>
+          {hasChat && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              onClick={onChat}
+              disabled={!hasVersion}
+            >
+              <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+              Chat
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

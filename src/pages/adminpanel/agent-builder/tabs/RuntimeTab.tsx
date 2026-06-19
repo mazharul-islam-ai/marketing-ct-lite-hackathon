@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import type { AgentRun, RunStep } from "../types";
+import { ab } from "../agentBuilderTheme";
+import { extractRunOutput, detectSwitchRoutingStop } from "../runOutput";
 
 interface RuntimeTabProps {
   currentRun: AgentRun | null;
@@ -153,10 +155,11 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
       ? Date.now() - new Date(run.started_at).getTime()
       : null;
 
+  const routingStopped = run.status === "completed" && detectSwitchRoutingStop(runSteps);
+
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Run header */}
-      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+    <div className={cn("flex flex-col h-full", ab.canvas)}>
+      <div className={cn("px-4 py-3", ab.toolbar)}>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-slate-500 font-mono">Run #{run.id.slice(0, 8)}</p>
@@ -183,7 +186,7 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
       </div>
 
       {/* Metrics row */}
-      <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
+      <div className="grid grid-cols-3 divide-x divide-[hsl(250_18%_90%)] border-b border-[hsl(250_18%_90%)]">
         <MetricCell icon={<Clock className="w-3 h-3" />} label="Duration" value={durationMs ? `${(durationMs / 1000).toFixed(1)}s` : "—"} />
         <MetricCell icon={<Zap className="w-3 h-3" />} label="Tokens" value={run.tokens_used?.toLocaleString() ?? "0"} />
         <MetricCell icon={<DollarSign className="w-3 h-3" />} label="Cost" value={`$${(run.total_cost ?? 0).toFixed(4)}`} />
@@ -213,6 +216,12 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
             </div>
           )}
 
+          {routingStopped && (
+            <div className="mt-1 p-2.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+              Run stopped at routing — no branch matched. Try Chat mode or check switch config (input_variable should be &quot;mode&quot; with report/chat edges).
+            </div>
+          )}
+
           {runSteps.map((step, i) => (
             <StepRow key={step.id} step={step} index={i + 1} />
           ))}
@@ -233,53 +242,33 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
 
 // ── Output panel ─────────────────────────────────────────────────────────────
 
-const OUTPUT_NODE_TYPES = ["dashboard_write", "report_generate"];
-const LLM_NODE_TYPES = ["openai_llm", "gemini_llm", "anthropic_llm", "custom_llm"];
-
 function OutputPanel({ run, runSteps }: { run: AgentRun; runSteps: RunStep[] }) {
   const [collapsed, setCollapsed] = useState(false);
 
   if (run.status !== "completed") return null;
 
-  // Prefer last dashboard_write/report_generate step with saved content
-  const outputStep = [...runSteps]
-    .reverse()
-    .find((s) => OUTPUT_NODE_TYPES.includes(s.node_type) && (s.output as Record<string, unknown>)?.content);
-
-  // Fall back to last LLM step's result text
-  const llmStep = !outputStep
-    ? [...runSteps].reverse().find(
-        (s) => LLM_NODE_TYPES.includes(s.node_type) && (s.output as Record<string, unknown>)?.result,
-      )
-    : null;
-
-  const content = outputStep
-    ? String((outputStep.output as Record<string, unknown>).content)
-    : llmStep
-      ? String((llmStep.output as Record<string, unknown>).result)
-      : null;
-
-  const title = outputStep
-    ? String((outputStep.output as Record<string, unknown>).title ?? outputStep.node_label ?? "Output")
-    : llmStep
-      ? String(llmStep.node_label ?? "Output")
-      : null;
+  const { content, title } = extractRunOutput(runSteps);
 
   if (!content) {
     return (
-      <div className="border-t border-slate-100 px-4 py-3">
-        <div className="flex items-center gap-1.5 text-xs text-green-600">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span className="font-medium">Run completed successfully</span>
+      <div className={cn("border-t px-4 py-3", ab.borderSoft)}>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+            <span className="font-medium">No report generated</span>
+          </div>
+          <p className="text-[11px] text-slate-400 pl-5">
+            Check the Logs tab for step details, or re-run with mode=report if routing stopped early.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="border-t border-slate-200 flex flex-col">
+    <div className={cn("border-t flex flex-col", ab.borderSoft)}>
       <button
-        className="flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        className={cn("flex items-center justify-between px-4 py-2.5 transition-colors text-left", ab.toolbar, "hover:bg-[hsl(250_22%_93%)]")}
         onClick={() => setCollapsed((c) => !c)}
       >
         <div className="flex items-center gap-2">
@@ -315,7 +304,7 @@ function StepRow({ step, index }: { step: RunStep; index: number }) {
     <Clock className="w-3.5 h-3.5 text-slate-300" />;
 
   return (
-    <div className={cn("rounded border text-xs transition-colors", step.status === "failed" ? "border-red-200 bg-red-50" : "border-slate-100 hover:border-slate-200")}>
+    <div className={cn("rounded border text-xs transition-colors", step.status === "failed" ? "border-red-200 bg-red-50" : cn(ab.borderSoft, "hover:border-[hsl(248_35%_82%)]"))}>
       <button
         className="w-full flex items-center gap-2 px-3 py-2 text-left"
         onClick={() => step.output || step.error ? setExpanded(!expanded) : undefined}
@@ -333,7 +322,7 @@ function StepRow({ step, index }: { step: RunStep; index: number }) {
       </button>
 
       {expanded && (step.output || step.error) && (
-        <div className="px-3 pb-2 border-t border-slate-100">
+        <div className={cn("px-3 pb-2 border-t", ab.borderSoft)}>
           {step.error && <p className="text-red-600 mt-1 text-[11px]">{step.error}</p>}
           {step.output && (() => {
             const out = step.output as Record<string, unknown>;
@@ -359,7 +348,7 @@ function StepRow({ step, index }: { step: RunStep; index: number }) {
             }
             // fallback: raw JSON for everything else
             return (
-              <pre className="text-[10px] bg-white rounded border border-slate-100 p-2 mt-1 overflow-x-auto max-h-28 text-slate-600 font-mono">
+              <pre className={cn("text-[10px] rounded border p-2 mt-1 overflow-x-auto max-h-28 font-mono", ab.logArea, ab.borderSoft, ab.textMuted)}>
                 {JSON.stringify(step.output, null, 2)}
               </pre>
             );

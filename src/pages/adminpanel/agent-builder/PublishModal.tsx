@@ -3,6 +3,7 @@ import { Globe, X, Loader2, Copy, Check, Lock, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import type { Agent, AgentVisibility } from "./types";
+import { ab } from "./agentBuilderTheme";
 
 export type { AgentVisibility };
 
@@ -76,8 +78,8 @@ export function PublishModal({ agent, currentVersionId, onPublish, onClose }: Pu
   if (publicLink) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <div className="bg-white rounded-xl shadow-2xl w-[420px] border border-slate-200">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className={cn("rounded-xl shadow-2xl w-[420px] border", ab.surfaceElevated)}>
+          <div className={cn("flex items-center justify-between px-5 py-4 border-b", ab.borderSoft)}>
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-green-600" />
               <span className="font-semibold text-sm">Agent Published</span>
@@ -101,7 +103,7 @@ export function PublishModal({ agent, currentVersionId, onPublish, onClose }: Pu
                 <Input
                   value={publicLink}
                   readOnly
-                  className="h-9 text-xs font-mono bg-slate-50"
+                  className={cn("h-9 text-xs font-mono", ab.input)}
                 />
                 <Button
                   size="sm"
@@ -116,7 +118,7 @@ export function PublishModal({ agent, currentVersionId, onPublish, onClose }: Pu
             </div>
           </div>
 
-          <div className="flex justify-end px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-xl">
+          <div className={cn("flex justify-end px-5 py-4 border-t rounded-b-xl", ab.toolbar)}>
             <Button size="sm" className="text-xs" onClick={onClose}>
               Done
             </Button>
@@ -128,9 +130,9 @@ export function PublishModal({ agent, currentVersionId, onPublish, onClose }: Pu
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-[400px] border border-slate-200">
+      <div className={cn("rounded-xl shadow-2xl w-[400px] border", ab.surfaceElevated)}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className={cn("flex items-center justify-between px-5 py-4 border-b", ab.borderSoft)}>
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4 text-green-600" />
             <span className="font-semibold text-sm">Publish Agent</span>
@@ -176,7 +178,7 @@ export function PublishModal({ agent, currentVersionId, onPublish, onClose }: Pu
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-xl">
+        <div className={cn("flex items-center justify-between px-5 py-4 border-t rounded-b-xl", ab.toolbar)}>
           <Button variant="outline" size="sm" onClick={onClose} className="text-xs">
             Cancel
           </Button>
@@ -197,7 +199,7 @@ export function PublishModal({ agent, currentVersionId, onPublish, onClose }: Pu
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+    <div className={cn("flex items-center justify-between py-1.5 border-b", ab.borderSoft)}>
       <span className="text-xs text-slate-500">{label}</span>
       <span className="text-xs font-medium text-slate-700">{value}</span>
     </div>

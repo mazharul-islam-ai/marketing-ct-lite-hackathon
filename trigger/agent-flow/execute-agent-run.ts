@@ -1,6 +1,7 @@
 import { task, metadata, AbortTaskRunError, logger } from "@trigger.dev/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { executeFlowNode, type NodeExecutionPayload } from "./execute-node";
+import { ensureChatContext, LLM_NODE_TYPES } from "./chat-context";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -191,11 +192,21 @@ export const executeAgentRun = task({
 
       logger.info(`Executing node ${nodeId} (${node.type})`, { run_id });
 
+      let nodeInputData: Record<string, unknown> = { ...executionContext, ...inputData };
+
+      if (LLM_NODE_TYPES.has(node.type)) {
+        nodeInputData = await ensureChatContext(
+          nodeInputData,
+          flow_json.steps,
+          supabase,
+        );
+      }
+
       // Execute the node as a subtask
       const nodePayload: NodeExecutionPayload = {
         run_id,
         node: { id: node.id, type: node.type, label: node.label, config: node.config },
-        input_data: { ...executionContext, ...inputData },
+        input_data: nodeInputData,
         budget_remaining: budget_limit - totalCost,
       };
 
@@ -248,6 +259,7 @@ export const executeAgentRun = task({
 
       // Determine next nodes from edges
       const outgoingEdges = edgeMap.get(nodeId) ?? [];
+      let enqueuedAny = false;
 
       for (const edge of outgoingEdges) {
         // If edge has a condition, check against branch result
@@ -259,6 +271,27 @@ export const executeAgentRun = task({
 
         if (!visitedNodes.has(edge.target)) {
           executionQueue.push({ nodeId: edge.target, inputData: executionContext });
+          enqueuedAny = true;
+        }
+      }
+
+      if (!enqueuedAny && outgoingEdges.length > 0 && node.type === "switch") {
+        const defaultBranch = String(node.config.default_branch ?? "");
+        const fallbackEdge =
+          outgoingEdges.find(
+            (e) => e.condition && defaultBranch &&
+              e.condition.toUpperCase() === defaultBranch.toUpperCase(),
+          ) ??
+          outgoingEdges.find((e) => !e.condition) ??
+          outgoingEdges[0];
+
+        if (fallbackEdge && !visitedNodes.has(fallbackEdge.target)) {
+          logger.warn("Switch had no matching branch edge; using fallback", {
+            nodeId,
+            branch: nodeResult.branch,
+            fallbackTarget: fallbackEdge.target,
+          });
+          executionQueue.push({ nodeId: fallbackEdge.target, inputData: executionContext });
         }
       }
     }

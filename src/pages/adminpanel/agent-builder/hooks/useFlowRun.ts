@@ -1,11 +1,22 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { AgentRun } from "../types";
+
+const ACTIVE_RUN_STATUSES = new Set<AgentRun["status"]>(["queued", "running"]);
+
+function isActiveRunStatus(status: AgentRun["status"]): boolean {
+  return ACTIVE_RUN_STATUSES.has(status);
+}
 
 interface UseFlowRunReturn {
   currentRun: AgentRun | null;
   isTriggering: boolean;
-  triggerRun: (agentId: string, versionId?: string, triggerType?: AgentRun["trigger_type"]) => Promise<string | null>;
+  triggerRun: (
+    agentId: string,
+    versionId?: string,
+    triggerType?: AgentRun["trigger_type"],
+    inputContext?: Record<string, unknown>,
+  ) => Promise<string | null>;
   cancelRun: (runId: string) => Promise<void>;
   clearRun: () => void;
 }
@@ -14,11 +25,49 @@ export function useFlowRun(): UseFlowRunReturn {
   const [currentRun, setCurrentRun] = useState<AgentRun | null>(null);
   const [isTriggering, setIsTriggering] = useState(false);
 
+  // Keep currentRun in sync until terminal status so header Stop/Run toggles correctly
+  useEffect(() => {
+    const runId = currentRun?.id;
+    if (!runId) return;
+
+    const channel = supabase
+      .channel(`flow-run-${runId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "agent_runs", filter: `id=eq.${runId}` },
+        (payload) => setCurrentRun(payload.new as AgentRun),
+      )
+      .subscribe();
+
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    pollInterval = setInterval(async () => {
+      const { data } = await supabase
+        .from("agent_runs" as never)
+        .select("*")
+        .eq("id", runId)
+        .single() as { data: AgentRun | null };
+
+      if (data) {
+        setCurrentRun(data);
+        if (!isActiveRunStatus(data.status) && pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      }
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [currentRun?.id]);
+
   const triggerRun = useCallback(
     async (
       agentId: string,
       versionId?: string,
       triggerType: AgentRun["trigger_type"] = "manual",
+      inputContext?: Record<string, unknown>,
     ): Promise<string | null> => {
       setIsTriggering(true);
       try {
@@ -30,6 +79,10 @@ export function useFlowRun(): UseFlowRunReturn {
             agent_id: agentId,
             version_id: versionId,
             trigger_type: triggerType,
+            input_context: {
+              mode: "report",
+              ...inputContext,
+            },
             budget_limit: 5.0,
           },
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -46,7 +99,6 @@ export function useFlowRun(): UseFlowRunReturn {
 
         if (!result.success) throw new Error(result.error ?? "Failed to trigger run");
 
-        // Load the created run record
         const { data: run } = await supabase
           .from("agent_runs" as never)
           .select("*")

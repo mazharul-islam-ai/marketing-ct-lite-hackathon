@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Play, X, Loader2, CheckCircle2, XCircle, Clock,
   Zap, DollarSign, AlertCircle,
@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import type { AgentRun, RunStep } from "@/pages/adminpanel/agent-builder/types";
+import { extractRunOutput, detectSwitchRoutingStop } from "@/pages/adminpanel/agent-builder/runOutput";
 
 interface BuilderAgentRunnerDialogProps {
   agentId: string;
@@ -16,7 +19,12 @@ interface BuilderAgentRunnerDialogProps {
   versionId: string | null;
   onClose: () => void;
   /** Pass an anon-compatible trigger function for public agents */
-  triggerFn?: (agentId: string, versionId?: string) => Promise<string | null>;
+  triggerFn?: (
+    agentId: string,
+    versionId?: string,
+    inputContext?: Record<string, unknown>,
+  ) => Promise<string | null>;
+  mode?: "report" | "chat";
 }
 
 const STATUS_CONFIG = {
@@ -33,6 +41,7 @@ export function BuilderAgentRunnerDialog({
   versionId,
   onClose,
   triggerFn,
+  mode = "report",
 }: BuilderAgentRunnerDialogProps) {
   const [isTriggering, setIsTriggering] = useState(false);
   const [currentRun, setCurrentRun] = useState<AgentRun | null>(null);
@@ -68,8 +77,6 @@ export function BuilderAgentRunnerDialog({
 
     fetchSteps(currentRun.id);
 
-    // Polling fallback: re-fetch agent_runs every 5s while active.
-    // Covers cases where the Realtime publication hasn't been applied yet.
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     pollInterval = setInterval(async () => {
       const { data } = await supabase
@@ -101,9 +108,10 @@ export function BuilderAgentRunnerDialog({
 
     try {
       let runId: string | null = null;
+      const inputContext = { mode };
 
       if (triggerFn) {
-        runId = await triggerFn(agentId, versionId ?? undefined);
+        runId = await triggerFn(agentId, versionId ?? undefined, inputContext);
       } else {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
@@ -112,6 +120,7 @@ export function BuilderAgentRunnerDialog({
             agent_id: agentId,
             version_id: versionId,
             trigger_type: "manual",
+            input_context: inputContext,
             budget_limit: 5.0,
           },
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -142,15 +151,18 @@ export function BuilderAgentRunnerDialog({
   const isRunActive = currentRun?.status === "running" || currentRun?.status === "queued";
   const statusConfig = currentRun ? STATUS_CONFIG[currentRun.status] : null;
   const StatusIcon = statusConfig?.icon;
+  const { content: reportContent, title: reportTitle } = extractRunOutput(runSteps);
+  const routingStopped = currentRun?.status === "completed" && detectSwitchRoutingStop(runSteps);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-[560px] max-h-[85vh] flex flex-col border border-slate-200">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <div>
             <h2 className="font-semibold text-sm text-slate-800">{agentName}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Manual run</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {mode === "report" ? "Report run" : "Manual run"}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {currentRun && statusConfig && StatusIcon && (
@@ -165,7 +177,6 @@ export function BuilderAgentRunnerDialog({
           </div>
         </div>
 
-        {/* Run stats */}
         {currentRun && (
           <div className="flex items-center gap-4 px-5 py-2.5 border-b border-slate-100 bg-slate-50 text-xs text-slate-600 shrink-0">
             <span className="flex items-center gap-1">
@@ -178,12 +189,11 @@ export function BuilderAgentRunnerDialog({
           </div>
         )}
 
-        {/* Steps / output */}
         <ScrollArea className="flex-1 min-h-0 px-5 py-4">
           {!currentRun && !error && (
             <div className="flex flex-col items-center justify-center h-40 text-slate-400 gap-2">
               <Play className="w-8 h-8 opacity-30" />
-              <p className="text-sm">Click "Run Agent" to execute</p>
+              <p className="text-sm">Click &quot;Run Report&quot; to execute</p>
             </div>
           )}
 
@@ -191,6 +201,13 @@ export function BuilderAgentRunnerDialog({
             <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
               <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {routingStopped && (
+            <div className="mb-3 flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Run stopped at routing — no branch matched. Check switch config or try again.</span>
             </div>
           )}
 
@@ -209,10 +226,20 @@ export function BuilderAgentRunnerDialog({
             </div>
           )}
 
-          {currentRun?.status === "completed" && runSteps.length === 0 && (
-            <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              Run completed successfully
+          {currentRun?.status === "completed" && reportContent && (
+            <div className="mt-4 border border-green-100 rounded-lg overflow-hidden">
+              <div className="px-3 py-2 bg-green-50 border-b border-green-100 text-xs font-semibold text-slate-700">
+                {reportTitle ?? "Report"}
+              </div>
+              <div className="px-3 py-3 prose prose-sm max-w-none text-slate-700 text-xs [&_h1]:text-base [&_h2]:text-sm">
+                <ReactMarkdown rehypePlugins={[rehypeRaw]}>{reportContent}</ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          {currentRun?.status === "completed" && !reportContent && runSteps.length > 0 && (
+            <div className="mt-3 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2.5">
+              No report output was generated. Check step logs above.
             </div>
           )}
 
@@ -224,7 +251,6 @@ export function BuilderAgentRunnerDialog({
           )}
         </ScrollArea>
 
-        {/* Footer */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-xl shrink-0">
           <Button variant="outline" size="sm" onClick={onClose} className="text-xs">
             Close
@@ -240,7 +266,7 @@ export function BuilderAgentRunnerDialog({
             ) : (
               <Play className="w-3 h-3" />
             )}
-            {isRunActive ? "Running…" : "Run Agent"}
+            {isRunActive ? "Running…" : "Run Report"}
           </Button>
         </div>
       </div>
@@ -282,11 +308,6 @@ function StepRow({ step }: { step: RunStep }) {
       </div>
       {step.error && (
         <p className="text-red-500 mt-1 text-[11px]">{step.error}</p>
-      )}
-      {step.output && isCompleted && (
-        <pre className="text-[11px] text-slate-600 whitespace-pre-wrap mt-1 max-h-32 overflow-y-auto">
-          {JSON.stringify(step.output, null, 2)}
-        </pre>
       )}
     </div>
   );
