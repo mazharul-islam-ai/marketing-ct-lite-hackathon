@@ -159,6 +159,8 @@ List and Settings pages follow the same Breadcrumb + header pattern as AI Contro
 
 **Draft auto-save:** Canvas/JSON edits debounce-save to `agent_versions.flow_json` on the current version (requires `agent_versions_update_admin` RLS). Header shows Saving / Draft saved status.
 
+**Studio run state:** `useFlowRun` subscribes to `agent_runs` (realtime + 5s poll) so the header **Stop** button reverts to **Run** when status reaches `completed`, `failed`, or `cancelled`. Runtime tab uses the same `currentRun` prop from the hook.
+
 ## Intelligence Studio (Phase 6 — Future)
 
 Planned runtime shift from rigid node walking to **agentic reasoning**:
