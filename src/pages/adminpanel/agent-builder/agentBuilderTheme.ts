@@ -21,7 +21,7 @@ export const ab = {
   chipActive: "bg-[hsl(248_45%_94%)] text-[hsl(248_45%_42%)] border-[hsl(248_35%_88%)]",
   composer: "rounded-2xl border p-5",
   composerCompact: "rounded-2xl border p-3.5",
-  promptBar: "rounded-xl border flex items-center gap-2 p-1.5",
+  promptBar: "rounded-xl border flex items-end gap-2 p-2",
   templateStrip:
     "flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none [mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)] sm:[mask-image:none] sm:flex-wrap",
   templateChip: "text-[11px] px-2.5 py-1 rounded-lg border shrink-0 transition-all duration-150",

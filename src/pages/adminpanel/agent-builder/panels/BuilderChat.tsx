@@ -196,7 +196,8 @@ export function BuilderChat({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Describe or modify the flow…"
-            className={cn("resize-none text-xs pr-10 min-h-[68px] max-h-[120px] rounded-xl", ab.input)}
+            className={cn("resize-none text-xs pr-10 min-h-[4.5rem] max-h-36 leading-6 rounded-xl", ab.input)}
+            rows={3}
             disabled={isCompiling}
           />
           <Button

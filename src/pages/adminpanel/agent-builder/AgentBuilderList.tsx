@@ -106,8 +106,10 @@ export default function AgentBuilderList() {
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
+    const minH = 72; // 3 lines
+    const maxH = 144; // 6 lines
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+    el.style.height = `${Math.max(minH, Math.min(el.scrollHeight, maxH))}px`;
   }, [chatInput]);
 
   async function loadAgents() {
@@ -308,15 +310,15 @@ export default function AgentBuilderList() {
                 handleChatSubmit();
               }
             }}
-            rows={1}
+            rows={3}
             placeholder="Describe the agent you want to build…"
-            className="flex-1 min-h-[40px] max-h-[96px] resize-none text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-2 py-1.5"
+            className="flex-1 min-h-[4.5rem] max-h-36 resize-none text-sm leading-6 border-0 bg-transparent shadow-none focus-visible:ring-0 px-2 py-2"
           />
           <Button
             onClick={handleChatSubmit}
             disabled={!chatInput.trim()}
             aria-label={chatInput.trim() ? "Build agent from description" : "Enter a description to build"}
-            className={cn("h-9 px-4 gap-1.5 rounded-lg text-xs shrink-0", ab.accentBtn)}
+            className={cn("h-9 px-4 gap-1.5 rounded-lg text-xs shrink-0 mb-0.5", ab.accentBtn)}
           >
             <Sparkles className="w-3.5 h-3.5" />
             Build
