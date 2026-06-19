@@ -10,6 +10,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -316,27 +317,41 @@ export default function AgentBuilderStudio() {
               Stop
             </Button>
           ) : (
-            <Button
-              size="sm"
-              className={cn("h-7 px-2.5 text-[11px] gap-1", ab.accentBtn)}
-              onClick={handleRun}
-              disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId}
-            >
-              {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-              Run
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  className={cn("h-7 px-2.5 text-[11px] gap-1", ab.accentBtn)}
+                  onClick={handleRun}
+                  disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId}
+                >
+                  {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                  Run
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs max-w-[220px]">
+                Runs execute on Trigger.dev — see Runtime tab for report output (mode=report).
+              </TooltipContent>
+            </Tooltip>
           )}
 
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-7 px-2.5 text-[11px] gap-1"
-            onClick={() => setShowPublishModal(true)}
-            disabled={!currentVersionId || !liveAgentId}
-          >
-            <Globe className="w-3 h-3" />
-            Publish
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {agentStatus === "draft" && (
+              <span className={cn("text-[10px] hidden sm:inline", ab.textMuted)}>
+                Publish as Workspace to show on /ai-agents
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 px-2.5 text-[11px] gap-1"
+              onClick={() => setShowPublishModal(true)}
+              disabled={!currentVersionId || !liveAgentId}
+            >
+              <Globe className="w-3 h-3" />
+              Publish
+            </Button>
+          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -44,6 +44,22 @@ function runStepsToLogs(steps: RunStep[], run: AgentRun): LogLine[] {
         level: "INFO",
         message: `Node ${step.node_id}: ${step.node_label ?? step.node_type} completed${dms}${tok}${cost}`,
       });
+
+      const output = step.output as Record<string, unknown> | null;
+      const preview =
+        output?.content != null
+          ? String(output.content)
+          : output?.result != null
+            ? String(output.result)
+            : null;
+      if (preview) {
+        const truncated = preview.length > 200 ? `${preview.slice(0, 200)}…` : preview;
+        lines.push({
+          timestamp: step.completed_at,
+          level: "INFO",
+          message: `OUTPUT: ${truncated.replace(/\s+/g, " ").trim()}`,
+        });
+      }
     }
     if (step.status === "failed" && step.completed_at) {
       lines.push({

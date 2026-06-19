@@ -248,6 +248,7 @@ export const executeAgentRun = task({
 
       // Determine next nodes from edges
       const outgoingEdges = edgeMap.get(nodeId) ?? [];
+      let enqueuedAny = false;
 
       for (const edge of outgoingEdges) {
         // If edge has a condition, check against branch result
@@ -259,6 +260,27 @@ export const executeAgentRun = task({
 
         if (!visitedNodes.has(edge.target)) {
           executionQueue.push({ nodeId: edge.target, inputData: executionContext });
+          enqueuedAny = true;
+        }
+      }
+
+      if (!enqueuedAny && outgoingEdges.length > 0 && node.type === "switch") {
+        const defaultBranch = String(node.config.default_branch ?? "");
+        const fallbackEdge =
+          outgoingEdges.find(
+            (e) => e.condition && defaultBranch &&
+              e.condition.toUpperCase() === defaultBranch.toUpperCase(),
+          ) ??
+          outgoingEdges.find((e) => !e.condition) ??
+          outgoingEdges[0];
+
+        if (fallbackEdge && !visitedNodes.has(fallbackEdge.target)) {
+          logger.warn("Switch had no matching branch edge; using fallback", {
+            nodeId,
+            branch: nodeResult.branch,
+            fallbackTarget: fallbackEdge.target,
+          });
+          executionQueue.push({ nodeId: fallbackEdge.target, inputData: executionContext });
         }
       }
     }

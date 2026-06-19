@@ -141,9 +141,27 @@ export const executeFlowNode = task({
 
         // LOGIC: switch
         case "switch": {
-          const switchValue = input_data[String(node.config.input_variable ?? "value")];
+          const inputVar = String(node.config.input_variable ?? "mode");
+          let switchValue = input_data[inputVar];
+          if (switchValue === undefined || switchValue === null || switchValue === "") {
+            switchValue = input_data.mode;
+          }
+          if (switchValue === undefined || switchValue === null || switchValue === "") {
+            switchValue = "report";
+          }
+
           const cases = (node.config.cases as Record<string, unknown>) ?? {};
-          branch = String(cases[String(switchValue)] ?? node.config.default_branch ?? "default");
+          const switchKey = String(switchValue);
+          let resolvedBranch: string;
+          if (cases[switchKey] !== undefined) {
+            resolvedBranch = String(cases[switchKey]);
+          } else if (cases[switchKey.toLowerCase()] !== undefined) {
+            resolvedBranch = String(cases[switchKey.toLowerCase()]);
+          } else {
+            resolvedBranch = switchKey;
+          }
+
+          branch = resolvedBranch || String(node.config.default_branch ?? "default");
           output = { matched_value: switchValue, branch };
           break;
         }

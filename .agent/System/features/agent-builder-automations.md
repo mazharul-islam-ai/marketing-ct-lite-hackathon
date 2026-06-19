@@ -36,6 +36,48 @@ Before generating flows, `compile-agent-flow`:
 4. Returns `needs_clarification` if required integration is missing
 5. Streams real compile phases to Builder Chat via SSE (`stream: true`)
 
+### Data source clarifications (DB queries)
+
+Before compiling flows that query the database, the compiler:
+
+1. Loads `enabled_tables` from `organization_integrations` where `integration_type = 'agent_builder_data_sources'` (configured in Agent Builder → Settings → Data Sources)
+2. If the prompt mentions database/db/table/query without naming a specific enabled table → returns `needs_clarification` listing enabled tables
+3. If zero tables are enabled → asks user to enable data sources first
+4. Post-compile validation: every `db_query` node `config.table` must be in `enabled_tables`; invalid tables surface as clarification errors
+
+## Manual runs & switch routing
+
+Manual runs from Studio or `/ai-agents` pass `input_context: { mode: "report" }` by default via `trigger-flow-run`. Chat runs pass `mode: "chat"` plus `message`.
+
+For dual-mode report+chat agents:
+
+- Switch nodes should use `input_variable: "mode"` with `cases: { "report": "report", "chat": "chat" }`
+- Outgoing edges use `condition: "report"` or `condition: "chat"`
+- If `mode` is missing on manual runs, the runtime defaults to `"report"`
+- If no branch edge matches, `execute-agent-run` logs a warning and tries a fallback edge
+
+## Run output location
+
+| Where | What |
+|-------|------|
+| `agent_runs` + `run_steps` tables | Persistent run history |
+| Studio **Runtime** tab | Step list + **Output** panel (markdown from `report_generate` or LLM `result`) |
+| Studio **Logs** tab | Terminal lines per step; completed steps include `OUTPUT: <preview>` |
+| `agent-outputs` storage bucket | Large outputs (when used) |
+
+Runtime shows an amber banner if a run completes with &lt;3 steps and the last node is a `switch` (routing stopped early).
+
+## Workspace agents (`/ai-agents`)
+
+Published agents with `status = published` and `visibility = workspace` appear on `/ai-agents`.
+
+- **Run Report** — triggers `trigger-flow-run` with `mode: "report"`
+- **Chat** — shown when flow has a switch with a `chat` edge; opens `BuilderAgentChatDialog` which runs with `mode: "chat"` per message
+
+Studio Design chat is for **editing the flow**; workspace chat is for **end-user interaction** with published agents.
+
+Draft agents do not appear on `/ai-agents` until published with Workspace visibility.
+
 ### Compile status phases
 
 | Phase | User label |
@@ -136,6 +178,9 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | Integration mapping | `supabase/functions/_shared/agent-builder-integrations.ts` |
 | Frontend mapping | `src/pages/adminpanel/agent-builder/integrationConfig.ts` |
 | UI theme tokens | `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` |
+| Run output helpers | `src/pages/adminpanel/agent-builder/runOutput.ts` |
+| Flow capabilities | `src/pages/adminpanel/agent-builder/flowCapabilities.ts` |
+| Workspace chat UI | `src/components/agents/BuilderAgentChatDialog.tsx` |
 | Scheduler | `trigger/automation-scheduler.ts` |
 | Node execution | `trigger/agent-flow/execute-node.ts` |
 | Gmail inbox | `supabase/functions/gmail-inbox/index.ts` |

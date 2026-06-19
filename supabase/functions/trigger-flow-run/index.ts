@@ -50,9 +50,15 @@ serve(async (req) => {
       agent_id,
       version_id,
       trigger_type: bodyTriggerType,
-      input_context = {},
+      input_context: bodyInputContext = {},
+      mode,
       budget_limit = 5.00,
     } = body
+
+    const input_context = {
+      mode: mode ?? bodyInputContext.mode ?? 'report',
+      ...bodyInputContext,
+    }
 
     if (!agent_id) {
       return new Response(JSON.stringify({ error: 'agent_id is required' }), {

@@ -10,6 +10,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import type { AgentRun, RunStep } from "../types";
 import { ab } from "../agentBuilderTheme";
+import { extractRunOutput, detectSwitchRoutingStop } from "../runOutput";
 
 interface RuntimeTabProps {
   currentRun: AgentRun | null;
@@ -154,6 +155,8 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
       ? Date.now() - new Date(run.started_at).getTime()
       : null;
 
+  const routingStopped = run.status === "completed" && detectSwitchRoutingStop(runSteps);
+
   return (
     <div className={cn("flex flex-col h-full", ab.canvas)}>
       <div className={cn("px-4 py-3", ab.toolbar)}>
@@ -213,6 +216,12 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
             </div>
           )}
 
+          {routingStopped && (
+            <div className="mt-1 p-2.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+              Run stopped at routing — no branch matched. Try Chat mode or check switch config (input_variable should be &quot;mode&quot; with report/chat edges).
+            </div>
+          )}
+
           {runSteps.map((step, i) => (
             <StepRow key={step.id} step={step} index={i + 1} />
           ))}
@@ -233,44 +242,24 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
 
 // ── Output panel ─────────────────────────────────────────────────────────────
 
-const OUTPUT_NODE_TYPES = ["dashboard_write", "report_generate"];
-const LLM_NODE_TYPES = ["openai_llm", "gemini_llm", "anthropic_llm", "custom_llm"];
-
 function OutputPanel({ run, runSteps }: { run: AgentRun; runSteps: RunStep[] }) {
   const [collapsed, setCollapsed] = useState(false);
 
   if (run.status !== "completed") return null;
 
-  // Prefer last dashboard_write/report_generate step with saved content
-  const outputStep = [...runSteps]
-    .reverse()
-    .find((s) => OUTPUT_NODE_TYPES.includes(s.node_type) && (s.output as Record<string, unknown>)?.content);
-
-  // Fall back to last LLM step's result text
-  const llmStep = !outputStep
-    ? [...runSteps].reverse().find(
-        (s) => LLM_NODE_TYPES.includes(s.node_type) && (s.output as Record<string, unknown>)?.result,
-      )
-    : null;
-
-  const content = outputStep
-    ? String((outputStep.output as Record<string, unknown>).content)
-    : llmStep
-      ? String((llmStep.output as Record<string, unknown>).result)
-      : null;
-
-  const title = outputStep
-    ? String((outputStep.output as Record<string, unknown>).title ?? outputStep.node_label ?? "Output")
-    : llmStep
-      ? String(llmStep.node_label ?? "Output")
-      : null;
+  const { content, title } = extractRunOutput(runSteps);
 
   if (!content) {
     return (
       <div className={cn("border-t px-4 py-3", ab.borderSoft)}>
-        <div className="flex items-center gap-1.5 text-xs text-green-600">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span className="font-medium">Run completed successfully</span>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+            <span className="font-medium">No report generated</span>
+          </div>
+          <p className="text-[11px] text-slate-400 pl-5">
+            Check the Logs tab for step details, or re-run with mode=report if routing stopped early.
+          </p>
         </div>
       </div>
     );

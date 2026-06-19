@@ -808,6 +808,7 @@ export default function AgentBuilderSettings() {
               <p className="text-xs text-slate-500 max-w-xl">
                 Enable database tables that agents are allowed to query when running.
                 Disabled tables cannot be accessed even if an agent flow includes a DB Query node.
+                The compiler will ask which table to query if you mention a database without specifying one.
                 {isSavingData && <span className="ml-2 text-slate-400 inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Saving…</span>}
               </p>
               <div className="flex gap-2 shrink-0">

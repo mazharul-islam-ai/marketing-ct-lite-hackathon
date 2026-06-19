@@ -5,7 +5,12 @@ import type { AgentRun } from "../types";
 interface UseFlowRunReturn {
   currentRun: AgentRun | null;
   isTriggering: boolean;
-  triggerRun: (agentId: string, versionId?: string, triggerType?: AgentRun["trigger_type"]) => Promise<string | null>;
+  triggerRun: (
+    agentId: string,
+    versionId?: string,
+    triggerType?: AgentRun["trigger_type"],
+    inputContext?: Record<string, unknown>,
+  ) => Promise<string | null>;
   cancelRun: (runId: string) => Promise<void>;
   clearRun: () => void;
 }
@@ -19,6 +24,7 @@ export function useFlowRun(): UseFlowRunReturn {
       agentId: string,
       versionId?: string,
       triggerType: AgentRun["trigger_type"] = "manual",
+      inputContext?: Record<string, unknown>,
     ): Promise<string | null> => {
       setIsTriggering(true);
       try {
@@ -30,6 +36,10 @@ export function useFlowRun(): UseFlowRunReturn {
             agent_id: agentId,
             version_id: versionId,
             trigger_type: triggerType,
+            input_context: {
+              mode: "report",
+              ...inputContext,
+            },
             budget_limit: 5.0,
           },
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,

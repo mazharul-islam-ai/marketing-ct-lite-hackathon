@@ -140,6 +140,47 @@ export function checkPromptIntegrations(
   return null
 }
 
+/** All queryable tables defined in Agent Builder Settings → Data Sources */
+export const KNOWN_DATA_TABLES = [
+  'clients', 'contacts', 'deals', 'brands', 'projects',
+  'generated_posts', 'brand_generated_posts', 'seo_blog_content',
+  'brand_analytics_data', 'content_performance_metrics',
+  'knowledge_base', 'knowledge_base_files', 'brand_knowledge_files',
+  'team_members', 'employees', 'pods', 'team_eod_submissions',
+  'ai_agents', 'ai_agent_runs', 'agent_memories',
+  'activecollab_task_data', 'activecollab_sync_logs',
+] as const
+
+const DB_PROMPT_PATTERN = /\b(database|db|table|query|search my)\b/i
+
+export function checkDbSourceClarification(
+  prompt: string,
+  enabledTables: string[],
+): { question: string } | null {
+  if (!DB_PROMPT_PATTERN.test(prompt)) return null
+
+  if (enabledTables.length === 0) {
+    return {
+      question:
+        'No data tables are enabled. Go to Agent Builder → Settings → Data Sources, enable the tables you want to query, then try again.',
+    }
+  }
+
+  const promptLower = prompt.toLowerCase()
+  const tableMentioned = enabledTables.some((table) => {
+    const normalized = table.toLowerCase()
+    return promptLower.includes(normalized) || promptLower.includes(normalized.replace(/_/g, ' '))
+  })
+
+  if (!tableMentioned) {
+    return {
+      question: `Which data table should this agent query? Enabled tables: ${enabledTables.join(', ')}. Specify one in your prompt or reply with the table name.`,
+    }
+  }
+
+  return null
+}
+
 export function buildPlatformOverview(configuredTypes: Set<string>): string {
   const configured = INTEGRATION_DEFS
     .filter((d) => configuredTypes.has(d.integrationType))
