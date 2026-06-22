@@ -225,3 +225,22 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | Gmail inbox | `supabase/functions/gmail-inbox/index.ts` |
 | Automation logs UI | `src/pages/adminpanel/automations/AutomationsLogs.tsx` |
 | Agent logs UI | `src/components/ai-control/AgentRunsLogsSection.tsx` |
+
+## MCP integration (external tools)
+
+Agent Builder acts as an **MCP client**: registered servers expose tools that compile into `mcp_tool` flow nodes and execute at runtime via Trigger.dev.
+
+| Component | Path |
+|-----------|------|
+| Registry UI | Agent Builder → Settings → **MCP Servers** |
+| Edge function | `mcp-manage` (connect, sync tools, health) |
+| Tables | `mcp_servers`, `mcp_server_tools` |
+| Runtime | `trigger/agent-flow/mcp-client.ts` + `execute-node.ts` `mcp_tool` case |
+| Compiler | Loads tool catalog into system prompt; validates `server_id` + `tool_name` |
+
+**Setup:** Add server URL + optional auth → sync tools → describe automation using MCP tool names in Design chat.
+
+**Deploy:** `supabase functions deploy mcp-manage`; `npx trigger.dev@latest deploy` for runtime execution.
+
+**Node config:** `{ server_id, tool_name, arguments }` — arguments support `{{variable}}` templates from upstream steps.
+

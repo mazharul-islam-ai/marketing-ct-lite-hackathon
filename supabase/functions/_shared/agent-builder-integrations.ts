@@ -39,7 +39,7 @@ export const ALL_NODE_TYPES = [
   ...ALWAYS_AVAILABLE_NODE_TYPES,
   'openai_llm', 'gemini_llm', 'anthropic_llm',
   'api_call', 'email_send', 'slack_notify', 'crm_update',
-  'gmail_fetch_unread', 'email_output',
+  'gmail_fetch_unread', 'email_output', 'mcp_tool',
 ] as const
 
 export const COMPILE_PHASES = {
@@ -94,7 +94,7 @@ export const PROMPT_INTEGRATION_REQUIREMENTS: Array<{
   },
 ]
 
-export function getAllowedNodeTypes(configuredTypes: Set<string>): string[] {
+export function getAllowedNodeTypes(configuredTypes: Set<string>, hasMcpServers = false): string[] {
   const allowed = new Set<string>(ALWAYS_AVAILABLE_NODE_TYPES)
 
   for (const def of INTEGRATION_DEFS) {
@@ -107,6 +107,10 @@ export function getAllowedNodeTypes(configuredTypes: Set<string>): string[] {
   if (configuredTypes.has('sendgrid') || configuredTypes.has('resend')) {
     allowed.add('email_send')
     allowed.add('email_output')
+  }
+
+  if (hasMcpServers) {
+    allowed.add('mcp_tool')
   }
 
   return [...allowed]
@@ -218,4 +222,71 @@ DELIVERY OPTIONS (only if integration configured):
 - email_output / email_send → requires SendGrid or Resend
 - slack_notify → requires Slack
 - dashboard_write / db_write / report_generate → always available`
+}
+
+
+export interface McpToolCatalogEntry {
+  server_id: string
+  server_name: string
+  tool_name: string
+  description?: string
+}
+
+export function buildMcpToolsBlock(catalog: McpToolCatalogEntry[]): string {
+  if (catalog.length === 0) {
+    return 'AVAILABLE MCP TOOLS: (none — register servers in Agent Builder → Settings → MCP Servers)'
+  }
+
+  const byServer = new Map<string, { server_id: string; tools: string[] }>()
+  for (const entry of catalog) {
+    const line = entry.description
+      ? `${entry.tool_name} (${entry.description})`
+      : entry.tool_name
+    const existing = byServer.get(entry.server_name)
+    if (existing) existing.tools.push(line)
+    else byServer.set(entry.server_name, { server_id: entry.server_id, tools: [line] })
+  }
+
+  const lines = [...byServer.entries()].map(
+    ([name, { server_id, tools }]) => `- ${name} (config.server_id="${server_id}"): ${tools.join(', ')}`,
+  )
+
+  return `AVAILABLE MCP TOOLS (use mcp_tool with config.server_id, config.tool_name, config.arguments):
+${lines.join('\n')}`
+}
+
+export function validateMcpToolNodes(
+  flow: { trigger: unknown; steps: Array<{ type: string; config: Record<string, unknown> }> },
+  catalog: McpToolCatalogEntry[],
+): { valid: boolean; error?: string } {
+  const allNodes = [
+    ...(flow.trigger ? [flow.trigger as { type: string; config: Record<string, unknown> }] : []),
+    ...flow.steps,
+  ]
+  const mcpNodes = allNodes.filter((n) => n.type === 'mcp_tool')
+  if (mcpNodes.length === 0) return { valid: true }
+  if (catalog.length === 0) {
+    return {
+      valid: false,
+      error: 'mcp_tool nodes require registered MCP servers. Add servers in Agent Builder → Settings → MCP Servers.',
+    }
+  }
+
+  const catalogSet = new Set(catalog.map((c) => `${c.server_id}::${c.tool_name}`))
+
+  for (const node of mcpNodes) {
+    const serverId = String(node.config?.server_id ?? '').trim()
+    const toolName = String(node.config?.tool_name ?? '').trim()
+    if (!serverId || !toolName) {
+      return { valid: false, error: 'mcp_tool node requires config.server_id and config.tool_name' }
+    }
+    if (!catalogSet.has(`${serverId}::${toolName}`)) {
+      return {
+        valid: false,
+        error: `mcp_tool references unknown server/tool (${serverId} / ${toolName}). Sync MCP servers in Settings.`,
+      }
+    }
+  }
+
+  return { valid: true }
 }
