@@ -264,7 +264,11 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "mcp_tool", label: "MCP Tool", description: "Execute an MCP server tool", category: "tool",
-    configSchema: { tool_name: { label: "Tool Name", type: "text", required: true } },
+    configSchema: {
+      server_id: { label: "MCP Server ID", type: "text", required: true },
+      tool_name: { label: "Tool Name", type: "text", required: true },
+      arguments: { label: "Arguments (JSON)", type: "textarea", placeholder: '{"key": "{{variable}}"}' },
+    },
   },
   {
     type: "gmail_fetch_unread", label: "Gmail Unread", description: "Fetch unread emails from Gmail inbox", category: "tool",

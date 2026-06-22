@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertCircle, ExternalLink, Loader2,
   Lock, Unlock, ChevronDown, ChevronRight,
   Zap, Globe2, MessageSquare, BarChart3, FolderOpen, Users, Briefcase,
-  FileText, Save, History, CircleDot, Mail,
+  FileText, Save, History, CircleDot, Mail, Plug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import { ab } from "./agentBuilderTheme";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AgentBuilderPrompt } from "./types";
+import { McpServersPanel } from "./McpServersPanel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -240,7 +241,7 @@ const DATA_TABLE_GROUPS: { category: string; tables: DataTableDef[] }[] = [
 
 export default function AgentBuilderSettings() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"models" | "tools" | "data" | "system_prompt">("models");
+  const [activeTab, setActiveTab] = useState<"models" | "tools" | "mcp" | "data" | "system_prompt">("models");
 
   // AI provider health
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({
@@ -567,6 +568,7 @@ export default function AgentBuilderSettings() {
   const tabs = [
     { id: "models"         as const, label: "AI Models",     icon: Brain },
     { id: "tools"          as const, label: "Tools",          icon: Wrench },
+    { id: "mcp"            as const, label: "MCP Servers",    icon: Plug },
     { id: "data"           as const, label: "Data Sources",   icon: Database },
     { id: "system_prompt"  as const, label: "System Prompt",  icon: FileText },
   ];
@@ -799,6 +801,11 @@ export default function AgentBuilderSettings() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── MCP SERVERS TAB ── */}
+        {activeTab === "mcp" && (
+          <McpServersPanel />
         )}
 
         {/* ── DATA SOURCES TAB ── */}

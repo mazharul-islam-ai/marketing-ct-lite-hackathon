@@ -6,8 +6,11 @@ import {
   checkPromptIntegrations,
   checkDbSourceClarification,
   getAllowedNodeTypes,
-  COMPILE_PHASES,
+  buildMcpToolsBlock,
+  validateMcpToolNodes,
   type CompilePhase,
+  type McpToolCatalogEntry,
+  COMPILE_PHASES,
 } from '../_shared/agent-builder-integrations.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -185,6 +188,33 @@ async function loadEnabledDataTables(
   return Array.isArray(tables) ? tables : []
 }
 
+async function loadMcpToolsCatalog(
+  supabase: ReturnType<typeof createClient>,
+): Promise<McpToolCatalogEntry[]> {
+  const { data: servers } = await supabase
+    .from('mcp_servers')
+    .select('id, name')
+    .eq('is_active', true)
+    .eq('status', 'connected')
+
+  if (!servers?.length) return []
+
+  const serverIds = servers.map((s: { id: string }) => s.id)
+  const nameById = new Map(servers.map((s: { id: string; name: string }) => [s.id, s.name]))
+
+  const { data: tools } = await supabase
+    .from('mcp_server_tools')
+    .select('server_id, tool_name, description')
+    .in('server_id', serverIds)
+
+  return (tools ?? []).map((t: { server_id: string; tool_name: string; description?: string }) => ({
+    server_id: t.server_id,
+    server_name: nameById.get(t.server_id) ?? t.server_id,
+    tool_name: t.tool_name,
+    description: t.description ?? undefined,
+  }))
+}
+
 function buildFlowJsonSchema(allowedNodeTypes: string[]) {
   const nodeEnum = allowedNodeTypes.length > 0 ? allowedNodeTypes : [...VALID_NODE_TYPES]
   return {
@@ -272,6 +302,7 @@ function buildSystemPrompt(
   configuredTypes: Set<string>,
   allowedNodeTypes: string[],
   enabledTables: string[],
+  mcpToolsBlock: string,
 ): string {
   const platformBlock = buildPlatformOverview(configuredTypes)
   const allowedList = allowedNodeTypes.join(', ')
@@ -288,7 +319,7 @@ ${allowedList}
 
 RULES:
 1. NEVER invent node types outside the allowed list above.
-2. NEVER use mcp_tool unless explicitly requested and configured.
+2. Use mcp_tool ONLY when the user explicitly needs an external MCP integration AND a matching tool exists in AVAILABLE MCP TOOLS. Set config.server_id, config.tool_name, and config.arguments (JSON object, may use {{variables}}).
 3. NEVER use nodes that require integrations not in CONFIGURED INTEGRATIONS.
 4. If the user needs a missing integration, return ONLY: { "clarification_needed": true, "question": "..." } directing them to Integrations Hub.
 5. If delivery channel (email vs Slack vs dashboard) or schedule time is unspecified, ask ONE clarifying question.
@@ -315,13 +346,17 @@ COMMON PATTERNS — use these exact node types:
 - "run on a schedule / every day / every hour"        → cron_trigger
 - "run manually / on demand"                          → manual_trigger
 - "notify via Slack"                                  → slack_notify
+- "call MCP tool / external MCP server"               → mcp_tool
+
+${mcpToolsBlock}
 
 CLARIFICATION:
 If the request is genuinely ambiguous OR requires an unconfigured integration,
 return ONLY this JSON object (no flow, no explanation):
 { "clarification_needed": true, "question": "your single concise question" }`
 
-  const parts = [platformBlock, structural]
+  const structuralWithMcp = structural.replace('${mcpToolsBlock}', mcpToolsBlock)
+  const parts = [platformBlock, structuralWithMcp]
   if (customPrefix) parts.unshift(customPrefix)
   return parts.join('\n\n---\n\n')
 }
@@ -622,6 +657,7 @@ function validateFlowJSON(
   flow: unknown,
   allowedNodeTypes?: Set<string>,
   enabledTables?: string[],
+  mcpCatalog?: McpToolCatalogEntry[],
 ): { valid: boolean; error?: string } {
   if (!flow || typeof flow !== 'object') {
     return { valid: false, error: 'Flow must be an object' }
@@ -667,6 +703,11 @@ function validateFlowJSON(
   if (enabledTables) {
     const dbValidation = validateDbQueryTables(f, enabledTables)
     if (!dbValidation.valid) return dbValidation
+  }
+
+  if (mcpCatalog) {
+    const mcpValidation = validateMcpToolNodes(f, mcpCatalog)
+    if (!mcpValidation.valid) return mcpValidation
   }
 
   const chatValidation = validateChatBranch(f)
@@ -989,7 +1030,9 @@ serve(async (req) => {
     emit('loading_integrations')
     const configuredTypes = await loadConfiguredIntegrations(supabase)
     const enabledTables = await loadEnabledDataTables(supabase)
-    const allowedNodeTypes = getAllowedNodeTypes(configuredTypes)
+    const mcpCatalog = await loadMcpToolsCatalog(supabase)
+    const hasMcpServers = mcpCatalog.length > 0
+    const allowedNodeTypes = getAllowedNodeTypes(configuredTypes, hasMcpServers)
     const allowedSet = new Set(allowedNodeTypes)
     const flowSchema = buildFlowJsonSchema(allowedNodeTypes)
 
@@ -1038,7 +1081,8 @@ serve(async (req) => {
 
     const customSystemPrompt = await loadCustomSystemPrompt(supabase)
 
-    const systemPrompt = buildSystemPrompt(customSystemPrompt, configuredTypes, allowedNodeTypes, enabledTables) + (
+    const mcpToolsBlock = buildMcpToolsBlock(mcpCatalog)
+    const systemPrompt = buildSystemPrompt(customSystemPrompt, configuredTypes, allowedNodeTypes, enabledTables, mcpToolsBlock) + (
       currentFlow
         ? `\n\n---\n\nCURRENT FLOW STATE (for context):\n${JSON.stringify(currentFlow, null, 2)}`
         : ''
@@ -1086,7 +1130,7 @@ serve(async (req) => {
 
         flowJSON = normalized as FlowJSON
         emit('validating_flow')
-        const validation = validateFlowJSON(flowJSON, allowedSet, enabledTables)
+        const validation = validateFlowJSON(flowJSON, allowedSet, enabledTables, mcpCatalog)
         if (validation.valid) break
 
         lastError = validation.error ?? 'Unknown validation error'

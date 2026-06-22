@@ -8,6 +8,7 @@ import {
   CHAT_LLM_SYSTEM,
   type DbQueryNodeConfig,
 } from "./chat-context";
+import { decryptValue, executeMcpTool, type McpServerConnection } from "./mcp-client";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -338,10 +339,50 @@ export const executeFlowNode = task({
 
         // TOOL: mcp_tool
         case "mcp_tool": {
+          const serverId = String(node.config.server_id ?? "");
+          const toolName = String(node.config.tool_name ?? "");
+          if (!serverId || !toolName) {
+            throw new Error("mcp_tool: server_id and tool_name are required");
+          }
+
+          const { data: server, error: serverError } = await supabase
+            .from("mcp_servers")
+            .select("id, url, auth_type, auth_token_encrypted, auth_header_name, is_active, status")
+            .eq("id", serverId)
+            .eq("is_active", true)
+            .maybeSingle();
+
+          if (serverError || !server) {
+            throw new Error(`mcp_tool: MCP server not found or inactive (${serverId})`);
+          }
+
+          let authToken: string | undefined;
+          if (server.auth_token_encrypted) {
+            authToken = await decryptValue(server.auth_token_encrypted);
+          }
+
+          let rawArgs: unknown = node.config.arguments ?? {};
+          if (typeof rawArgs === "string") {
+            try { rawArgs = JSON.parse(rawArgs); } catch { rawArgs = {}; }
+          }
+          const argRecord = (rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs))
+            ? (rawArgs as Record<string, unknown>)
+            : {};
+          const args = interpolateObjectTemplates(argRecord, input_data) as Record<string, unknown>;
+
+          const connection: McpServerConnection = {
+            url: server.url,
+            authType: (server.auth_type as McpServerConnection["authType"]) ?? "none",
+            authToken,
+            authHeaderName: server.auth_header_name ?? "Authorization",
+          };
+
+          const result = await executeMcpTool(connection, toolName, args);
           output = {
             executed: true,
-            tool: node.config.tool_name ?? "unknown",
-            note: "MCP tool execution placeholder",
+            tool: toolName,
+            server_id: serverId,
+            result,
           };
           break;
         }
@@ -590,6 +631,27 @@ function resolveTemplateValue(key: string, data: Record<string, unknown>): unkno
   }
 
   return undefined;
+}
+
+
+function interpolateObjectTemplates(
+  value: unknown,
+  data: Record<string, unknown>,
+): unknown {
+  if (typeof value === "string") {
+    return interpolateTemplate(value, data);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => interpolateObjectTemplates(item, data));
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = interpolateObjectTemplates(v, data);
+    }
+    return out;
+  }
+  return value;
 }
 
 function interpolateTemplate(template: string, data: Record<string, unknown>): string {

@@ -56,7 +56,7 @@ export const COMPILE_PHASE_ORDER = [
   "saving_version",
 ] as const;
 
-export function getAllowedNodeTypes(configuredTypes: Set<string>): NodeType[] {
+export function getAllowedNodeTypes(configuredTypes: Set<string>, hasMcpServers = false): NodeType[] {
   const allowed = new Set<NodeType>(ALWAYS_AVAILABLE_NODE_TYPES);
 
   for (const def of INTEGRATION_DEFS) {
@@ -68,6 +68,10 @@ export function getAllowedNodeTypes(configuredTypes: Set<string>): NodeType[] {
   if (configuredTypes.has("sendgrid") || configuredTypes.has("resend")) {
     allowed.add("email_send");
     allowed.add("email_output");
+  }
+
+  if (hasMcpServers) {
+    allowed.add("mcp_tool");
   }
 
   return [...allowed];
@@ -96,6 +100,7 @@ export const FULL_PALETTE: Record<string, PaletteItem[]> = {
     { type: "api_call", label: "API Call", requiresIntegration: "n8n_analytics" },
     { type: "slack_notify", label: "Slack", requiresIntegration: "slack" },
     { type: "email_send", label: "Email", requiresIntegration: "sendgrid" },
+    { type: "mcp_tool", label: "MCP Tool" },
   ],
   "◇ Logic": [
     { type: "condition", label: "Condition" },
