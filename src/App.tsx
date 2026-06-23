@@ -71,6 +71,7 @@ import BrandPublicSEOPage from "./pages/brands/[slug]/seo";
 import BrandBlogGenerator from "./pages/brands/[slug]/build-your-ai";
 import BrandKeywordResearch from "./pages/brands/[slug]/keyword-research";
 import { GoogleDriveCallback } from "./pages/GoogleDriveCallback";
+import { SlackCallback } from "./pages/SlackCallback";
 import StreamingChatTest from "./pages/admin/StreamingChatTest";
 import NewsletterSources from "./pages/admin/NewsletterSources";
 import NewsletterGenerator from "./pages/content/NewsletterGenerator";
@@ -160,6 +161,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/google-drive-callback" element={<GoogleDriveCallback />} />
+            <Route path="/slack-oauth-callback" element={<SlackCallback />} />
             <Route path="/testimonial/submit/:token" element={<TestimonialSubmitPage />} />
             {/* Public agent runner — no auth required */}
             <Route path="/public/agents/:publicToken" element={<AgentPublicPage />} />

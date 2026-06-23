@@ -327,6 +327,33 @@ export const executeFlowNode = task({
           break;
         }
 
+        // TOOL: slack_fetch_messages
+        case "slack_fetch_messages": {
+          const channel = String(node.config.channel ?? "#general");
+          const limit = Number(node.config.limit ?? 25);
+
+          const slackResponse = await fetch(`${SUPABASE_URL}/functions/v1/slack-messages`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({ action: "fetch_history", channel, limit }),
+          });
+
+          const slackData = await slackResponse.json();
+          if (!slackResponse.ok) {
+            throw new Error(slackData.error ?? "Slack fetch failed");
+          }
+
+          output = {
+            messages: slackData.messages ?? [],
+            count: slackData.count ?? 0,
+            channel: slackData.channel ?? channel,
+          };
+          break;
+        }
+
         // TOOL: gmail_fetch_unread
         case "gmail_fetch_unread": {
           const maxResults = Number(node.config.max_results ?? 25);

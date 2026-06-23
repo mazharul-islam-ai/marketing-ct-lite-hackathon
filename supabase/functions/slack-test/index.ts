@@ -86,7 +86,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           ok: false,
-          error: "Paste a Bot User OAuth Token (xoxb-...) and save, or pass bot_token to test.",
+          error: "Slack is not connected. Connect via Integrations Hub → Add to Slack.",
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -100,6 +100,21 @@ serve(async (req) => {
       );
     }
 
+    const listResponse = await fetch("https://slack.com/api/conversations.list", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${botToken}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ types: "public_channel", limit: "1", exclude_archived: "true" }),
+    });
+    const listData = await listResponse.json() as { ok: boolean; error?: string };
+
+    const readScopesOk = listData.ok;
+    const scopeWarning = !readScopesOk && listData.error === "missing_scope"
+      ? "Read scopes missing — reinstall the Slack app after adding channels:read and channels:history."
+      : undefined;
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -107,6 +122,8 @@ serve(async (req) => {
         team_id: testData.team_id,
         user: testData.user,
         url: testData.url,
+        read_scopes_ok: readScopesOk,
+        scope_warning: scopeWarning,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

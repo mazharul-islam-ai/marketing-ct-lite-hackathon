@@ -12,7 +12,7 @@ export interface IntegrationDef {
 
 export const INTEGRATION_DEFS: IntegrationDef[] = [
   { integrationType: "gmail", label: "Gmail", nodeTypes: ["gmail_fetch_unread"] },
-  { integrationType: "slack", label: "Slack", nodeTypes: ["slack_notify"] },
+  { integrationType: "slack", label: "Slack", nodeTypes: ["slack_notify", "slack_fetch_messages"] },
   { integrationType: "sendgrid", label: "SendGrid", nodeTypes: ["email_send", "email_output"] },
   { integrationType: "resend", label: "Resend", nodeTypes: ["email_send", "email_output"] },
   { integrationType: "activecollab", label: "ActiveCollab", nodeTypes: ["db_query"] },
@@ -98,7 +98,8 @@ export const FULL_PALETTE: Record<string, PaletteItem[]> = {
     { type: "gmail_fetch_unread", label: "Gmail Unread", requiresIntegration: "gmail" },
     { type: "db_query", label: "DB Query" },
     { type: "api_call", label: "API Call", requiresIntegration: "n8n_analytics" },
-    { type: "slack_notify", label: "Slack", requiresIntegration: "slack" },
+    { type: "slack_notify", label: "Slack Send", requiresIntegration: "slack" },
+    { type: "slack_fetch_messages", label: "Slack Fetch", requiresIntegration: "slack" },
     { type: "email_send", label: "Email", requiresIntegration: "sendgrid" },
     { type: "mcp_tool", label: "MCP Tool" },
   ],

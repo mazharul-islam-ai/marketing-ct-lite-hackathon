@@ -8,7 +8,7 @@ export type NodeType =
   // AI
   | "openai_llm" | "gemini_llm" | "anthropic_llm" | "custom_llm"
   // Tool
-  | "db_query" | "api_call" | "email_send" | "slack_notify" | "crm_update" | "mcp_tool" | "gmail_fetch_unread"
+  | "db_query" | "api_call" | "email_send" | "slack_notify" | "slack_fetch_messages" | "crm_update" | "mcp_tool" | "gmail_fetch_unread"
   // Output
   | "dashboard_write" | "email_output" | "db_write" | "report_generate";
 
@@ -245,6 +245,13 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
       to: { label: "To", type: "text", required: true },
       subject: { label: "Subject", type: "text", required: true },
       body: { label: "Body", type: "textarea", required: true },
+    },
+  },
+  {
+    type: "slack_fetch_messages", label: "Slack Messages", description: "Fetch recent messages from a Slack channel", category: "tool",
+    configSchema: {
+      channel: { label: "Channel", type: "text", required: true, placeholder: "#general", defaultValue: "#general" },
+      limit: { label: "Max Messages", type: "number", defaultValue: 25 },
     },
   },
   {

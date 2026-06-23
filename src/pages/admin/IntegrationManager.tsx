@@ -53,6 +53,7 @@ import { mockBrands } from "@/data/mockData";
 import { supabase as _supabase } from "@/integrations/supabase/client";
 const supabase = _supabase as any;
 import { useToast } from "@/hooks/use-toast";
+import { useSlackAuth } from "@/hooks/useSlackAuth";
 
 // Union type for different integration config structures
 type IntegrationConfig =
@@ -187,6 +188,8 @@ const IntegrationManager = () => {
     new Set(["ai", "meetings", "storage", "crm", "email", "analytics", "project-management"]),
   );
   const [slackConfig, setSlackConfig] = useState<{ team_name: string; team_id: string; scope: string } | null>(null);
+
+  const { isAuthenticating: isSlackAuthenticating, initiateAuth: initiateSlackAuth } = useSlackAuth();
 
   // Load integrations on mount
   useEffect(() => {
@@ -1398,22 +1401,8 @@ const IntegrationManager = () => {
 
     if (integration.id === "slack") {
       try {
-        let botToken = configData.apiKey?.trim() || "";
-        if (!botToken) {
-          const saved = await getLatestOrganizationIntegrationConfig("slack");
-          botToken = String(saved?.bot_token ?? "").trim();
-        }
-        if (!botToken) {
-          toast({
-            title: "Missing Bot Token",
-            description: "Enter your Slack Bot User OAuth Token (xoxb-...) before testing.",
-            variant: "destructive",
-          });
-          return;
-        }
-
         const { data, error } = await supabase.functions.invoke("slack-test", {
-          body: { action: "test", bot_token: botToken },
+          body: { action: "test" },
         });
         if (error || !data?.ok) {
           throw error || new Error(data?.error || "Slack connection test failed");
@@ -1422,12 +1411,12 @@ const IntegrationManager = () => {
           title: "Slack Connection Successful",
           description: data?.team
             ? `Connected to ${data.team} (${data.url ?? "workspace"})`
-            : "Slack bot token is valid.",
+            : "Slack workspace is connected.",
         });
       } catch (err: any) {
         toast({
           title: "Slack Connection Failed",
-          description: err?.message ?? "Unable to connect to Slack. Check your bot token.",
+          description: err?.message ?? "Unable to connect to Slack. Use Add to Slack first.",
           variant: "destructive",
         });
       }
@@ -1688,71 +1677,6 @@ const IntegrationManager = () => {
         toast({
           title: "Save failed",
           description: e?.message ?? "Unable to save Gmail integration.",
-          variant: "destructive",
-        });
-      }
-      return;
-    }
-
-    if (integration.id === "slack") {
-      const botToken = configData.apiKey?.trim() || "";
-      if (!botToken) {
-        toast({
-          title: "Missing Bot Token",
-          description: "Enter your Slack Bot User OAuth Token (xoxb-...).",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (!botToken.startsWith("xoxb-")) {
-        toast({
-          title: "Invalid Bot Token",
-          description: "Slack Bot User OAuth Tokens start with xoxb-.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase.functions.invoke("slack-test", {
-          body: { action: "test", bot_token: botToken },
-        });
-        if (error || !data?.ok) {
-          throw error || new Error(data?.error || "Slack token validation failed");
-        }
-
-        await upsertOrganizationIntegrationConfig("slack", {
-          bot_token: botToken,
-          team_id: data.team_id ?? "",
-          team_name: data.team ?? "",
-          connected_at: new Date().toISOString(),
-        });
-
-        toast({
-          title: "Slack settings saved",
-          description: data.team
-            ? `Connected to ${data.team}. Agent flows can use chat.postMessage.`
-            : "Slack bot token stored successfully.",
-        });
-        setIsConfigDialogOpen(false);
-        setConfigData({
-          apiKey: "",
-          baseUrl: "",
-          locationId: "",
-          projectId: "",
-          collectionName: "",
-          clientId: "",
-          clientSecret: "",
-          refreshToken: "",
-          folderId: "",
-        });
-        setSlackConfig(null);
-        await loadIntegrations();
-        await loadSlackConfigFromDb();
-      } catch (e: any) {
-        toast({
-          title: "Save failed",
-          description: e?.message ?? "Unable to save Slack integration.",
           variant: "destructive",
         });
       }
@@ -2045,9 +1969,7 @@ const IntegrationManager = () => {
         if (config) {
           setConfigData((prev) => ({
             ...prev,
-            apiKey: integration.id === "slack"
-              ? (config.bot_token ?? "")
-              : (config.api_key ?? config.apiKey ?? ""),
+            apiKey: config.api_key ?? config.apiKey ?? "",
             baseUrl: config.base_url ?? config.baseUrl ?? "",
             locationId: config.location_id ?? config.locationId ?? "",
             clientId: config.clientId ?? "",
@@ -2820,7 +2742,7 @@ const IntegrationManager = () => {
           ) : selectedIntegration?.id === "slack" ? (
             <>
               <div className="grid gap-4 py-4">
-                {slackConfig && (
+                {slackConfig ? (
                   <div className="rounded-lg border border-border/70 bg-muted/30 p-4 space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <CheckCircle className="h-4 w-4 text-emerald-500" />
@@ -2832,22 +2754,21 @@ const IntegrationManager = () => {
                         {slackConfig.team_name || slackConfig.team_id}
                       </span>
                     </p>
+                    {slackConfig.scope && (
+                      <p className="text-xs text-muted-foreground">Scopes: {slackConfig.scope}</p>
+                    )}
                   </div>
+                ) : (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>Connect via OAuth</AlertTitle>
+                    <AlertDescription>
+                      Install the Slack app to your workspace. Agent flows can send via{" "}
+                      <code className="text-xs">chat.postMessage</code> and fetch messages via{" "}
+                      <code className="text-xs">conversations.history</code>.
+                    </AlertDescription>
+                  </Alert>
                 )}
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="slack-bot-token" className="text-right">
-                    Bot Token *
-                  </Label>
-                  <Input
-                    id="slack-bot-token"
-                    type="password"
-                    placeholder="xoxb-..."
-                    className="col-span-3"
-                    value={configData.apiKey}
-                    onChange={(e) => setConfigData((prev) => ({ ...prev, apiKey: e.target.value }))}
-                  />
-                </div>
 
                 <div className="rounded-lg border border-dashed border-border/70 bg-muted/30 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -2866,24 +2787,50 @@ const IntegrationManager = () => {
                         api.slack.com/apps
                       </a>
                     </li>
-                    <li>OAuth &amp; Permissions → Bot Token Scopes: chat:write, chat:write.public</li>
-                    <li>Install the app to your workspace</li>
-                    <li>Copy the Bot User OAuth Token (starts with xoxb-)</li>
-                    <li>Paste above, then Save Configuration and Test Connection</li>
+                    <li>
+                      OAuth &amp; Permissions → Redirect URL:{" "}
+                      <code className="text-xs">{`${window.location.origin}/slack-oauth-callback`}</code>
+                    </li>
+                    <li>
+                      Bot scopes: chat:write, chat:write.public, channels:read, channels:history,
+                      groups:history, im:history
+                    </li>
+                    <li>Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET in Supabase secrets</li>
+                    <li>Click Add to Slack below to install to your workspace</li>
                   </ul>
                 </div>
               </div>
               <DialogFooter className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsConfigDialogOpen(false)}>
-                  Cancel
+                  Close
                 </Button>
-                <Button variant="destructive" onClick={() => removeConfiguration(selectedIntegration)}>
-                  Remove Credentials
+                {slackConfig && (
+                  <>
+                    <Button variant="destructive" onClick={() => removeConfiguration(selectedIntegration)}>
+                      Disconnect
+                    </Button>
+                    <Button variant="outline" onClick={() => testConnection(selectedIntegration)}>
+                      Test Connection
+                    </Button>
+                  </>
+                )}
+                <Button
+                  onClick={async () => {
+                    const connected = await initiateSlackAuth();
+                    if (connected) {
+                      await loadIntegrations();
+                      await loadSlackConfigFromDb();
+                    }
+                  }}
+                  disabled={isSlackAuthenticating}
+                >
+                  {isSlackAuthenticating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                  )}
+                  {slackConfig ? "Reconnect Slack" : "Add to Slack"}
                 </Button>
-                <Button variant="outline" onClick={() => testConnection(selectedIntegration)}>
-                  Test Connection
-                </Button>
-                <Button onClick={() => saveConfiguration(selectedIntegration)}>Save Configuration</Button>
               </DialogFooter>
             </>
           ) : (

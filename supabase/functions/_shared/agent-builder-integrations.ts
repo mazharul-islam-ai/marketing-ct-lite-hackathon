@@ -11,7 +11,7 @@ export interface IntegrationDef {
 
 export const INTEGRATION_DEFS: IntegrationDef[] = [
   { integrationType: 'gmail', label: 'Gmail', nodeTypes: ['gmail_fetch_unread'] },
-  { integrationType: 'slack', label: 'Slack', nodeTypes: ['slack_notify'] },
+  { integrationType: 'slack', label: 'Slack', nodeTypes: ['slack_notify', 'slack_fetch_messages'] },
   { integrationType: 'sendgrid', label: 'SendGrid', nodeTypes: ['email_send', 'email_output'] },
   { integrationType: 'resend', label: 'Resend', nodeTypes: ['email_send', 'email_output'] },
   { integrationType: 'activecollab', label: 'ActiveCollab', nodeTypes: ['db_query'] },
@@ -38,7 +38,7 @@ export const ALWAYS_AVAILABLE_NODE_TYPES = [
 export const ALL_NODE_TYPES = [
   ...ALWAYS_AVAILABLE_NODE_TYPES,
   'openai_llm', 'gemini_llm', 'anthropic_llm',
-  'api_call', 'email_send', 'slack_notify', 'crm_update',
+  'api_call', 'email_send', 'slack_notify', 'slack_fetch_messages', 'crm_update',
   'gmail_fetch_unread', 'email_output', 'mcp_tool',
 ] as const
 
@@ -69,7 +69,7 @@ export const PROMPT_INTEGRATION_REQUIREMENTS: Array<{
     configurePath: '/adminpanel/integrations',
   },
   {
-    patterns: /\b(slack|post\s+to\s+slack|notify\s+.*slack)\b/i,
+    patterns: /\b(slack|post\s+to\s+slack|notify\s+.*slack|read\s+slack|fetch\s+slack|slack\s+messages?|slack\s+channel)\b/i,
     integrationType: 'slack',
     label: 'Slack',
     configurePath: '/adminpanel/integrations',
@@ -220,7 +220,8 @@ ${notConfigured || '(all platform integrations are configured)'}
 
 DELIVERY OPTIONS (only if integration configured):
 - email_output / email_send → requires SendGrid or Resend
-- slack_notify → requires Slack
+- slack_notify → requires Slack (send via chat.postMessage)
+- slack_fetch_messages → requires Slack (read via conversations.history)
 - dashboard_write / db_write / report_generate → always available`
 }
 

@@ -18,7 +18,14 @@ function getSlackCredentials(): { clientId: string; clientSecret: string } {
   return { clientId, clientSecret };
 }
 
-const SLACK_BOT_SCOPES = ["chat:write", "chat:write.public"].join(",");
+const SLACK_BOT_SCOPES = [
+  "chat:write",
+  "chat:write.public",
+  "channels:read",
+  "channels:history",
+  "groups:history",
+  "im:history",
+].join(",");
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
