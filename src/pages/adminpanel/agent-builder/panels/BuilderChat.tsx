@@ -1,18 +1,18 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, Loader2, Sparkles, Zap, Wrench, Bot, CheckCircle2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Loader2, Sparkles, Zap, Wrench, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import type { ChatMessage, NodeType } from "../types";
+import type { ChatMessage } from "../types";
 import {
   COMPILE_PHASE_LABELS,
   COMPILE_PHASE_ORDER,
-  filterPalette,
 } from "../integrationConfig";
 import type { CompileStatus } from "../hooks/useBuilderSession";
 import { ab } from "../agentBuilderTheme";
+import { I420 } from "../i420Brand";
+import { CompileSceneLayer } from "../three/CompileSceneLayer";
 
 interface BuilderChatProps {
   chatHistory: ChatMessage[];
@@ -21,7 +21,6 @@ interface BuilderChatProps {
   error?: string | null;
   onClearError?: () => void;
   onSendPrompt: (prompt: string, action?: "generate" | "improve" | "add_tool") => void;
-  onDragNodeStart?: (type: NodeType) => void;
   agentName?: string;
 }
 
@@ -70,27 +69,11 @@ export function BuilderChat({
   error,
   onClearError,
   onSendPrompt,
-  onDragNodeStart,
   agentName,
 }: BuilderChatProps) {
   const [input, setInput] = useState("");
-  const [expandedPalette, setExpandedPalette] = useState<string | null>(null);
-  const [connectedTools, setConnectedTools] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    async function loadTools() {
-      const { data } = await supabase
-        .from("organization_integrations" as never)
-        .select("integration_type")
-        .eq("is_active" as never, true) as { data: { integration_type: string }[] | null };
-      setConnectedTools(new Set((data ?? []).map((r) => r.integration_type)));
-    }
-    loadTools();
-  }, []);
-
-  const paletteItems = useMemo(() => filterPalette(connectedTools), [connectedTools]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -116,9 +99,9 @@ export function BuilderChat({
           <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0", ab.accentBtn)}>
             <Sparkles className="w-3.5 h-3.5 text-white" />
           </div>
-          <div className="min-w-0">
-            <p className={cn("text-[11px] font-semibold uppercase tracking-wide leading-none", ab.textMuted)}>AI Builder</p>
-            {agentName && (
+          <div className="min-w-0 flex-1">
+            <p className={cn(ab.i420Wordmark, "text-sm leading-none")}>{I420.name}</p>
+            {agentName && agentName !== I420.newWorkflowLabel && (
               <p className={cn("text-xs font-medium truncate mt-0.5", ab.textForeground)}>{agentName}</p>
             )}
           </div>
@@ -127,13 +110,10 @@ export function BuilderChat({
 
       <ScrollArea className="flex-1 px-3 py-3">
         {chatHistory.length === 0 && !isCompiling && (
-          <div className="py-8 text-center">
-            <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 border", ab.accentSoft)}>
-              <Bot className={cn("w-6 h-6", ab.accentText)} />
-            </div>
-            <p className={cn("text-xs font-medium", ab.textForeground)}>Describe what you want to build</p>
-            <p className={cn("text-[11px] mt-1.5 leading-relaxed px-2", ab.textMuted)}>
-              e.g. "Daily unread email summary delivered to Slack at 8am"
+          <div className="py-6 text-center">
+            <p className={cn("text-xs font-medium", ab.textForeground)}>Describe your workflow</p>
+            <p className={cn("text-[11px] mt-1", ab.textMuted)}>
+              See the canvas for examples and hints
             </p>
           </div>
         )}
@@ -172,7 +152,13 @@ export function BuilderChat({
               <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2", ab.accentBtn)}>
                 <Sparkles className="w-2.5 h-2.5 text-white" />
               </div>
-              <CompileStatusPanel status={compileStatus} />
+              <div className="space-y-2 max-w-[220px]">
+                <CompileSceneLayer
+                  phase={compileStatus.phase}
+                  completedPhases={compileStatus.completedPhases}
+                />
+                <CompileStatusPanel status={compileStatus} />
+              </div>
             </div>
           )}
 
@@ -259,44 +245,6 @@ export function BuilderChat({
             <Wrench className="w-3 h-3" />
             Add Tool
           </Button>
-        </div>
-      </div>
-
-      <div className={cn("border-t", ab.borderSoft)}>
-        <p className={cn("px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide", ab.textMuted)}>
-          Node Palette (configured tools)
-        </p>
-        <div className="pb-2 space-y-0.5">
-          {Object.entries(paletteItems).map(([category, items]) => (
-            <div key={category}>
-              <button
-                className={cn("w-full flex items-center justify-between px-3 py-1 text-[11px] transition-colors hover:bg-[hsl(250_25%_94%)]", ab.textMuted)}
-                onClick={() => setExpandedPalette(expandedPalette === category ? null : category)}
-              >
-                <span>{category}</span>
-                <span className="text-[hsl(240_8%_55%)]">{expandedPalette === category ? "▴" : "▾"}</span>
-              </button>
-
-              {expandedPalette === category && (
-                <div className="px-3 pb-1 flex flex-wrap gap-1">
-                  {items.map((item) => (
-                    <div
-                      key={item.type}
-                      draggable
-                      onDragStart={() => onDragNodeStart?.(item.type)}
-                      className={cn(
-                        "cursor-grab active:cursor-grabbing px-2 py-0.5 rounded-md text-[10px] border transition-colors select-none",
-                        ab.chip,
-                        "hover:bg-[hsl(248_40%_96%)]",
-                      )}
-                    >
-                      {item.label}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       </div>
     </div>
