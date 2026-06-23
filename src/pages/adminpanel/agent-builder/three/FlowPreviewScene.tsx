@@ -34,23 +34,31 @@ function FlowPreviewSceneContent({
     return nodes.map((_, i) => [start + i * SPACING, 0, 0] as [number, number, number]);
   }, [nodes.length]);
 
-  useFrame(({ clock }) => {
+  const IDLE_TILT = 0.25; // radians — slight perspective angle at rest
+
+  useFrame(() => {
     if (!groupRef.current) return;
     if (isRunActive) {
-      groupRef.current.rotation.y = Math.sin(clock.getElapsedTime() * 0.8) * 0.08;
+      // Slow continuous spin while running
+      groupRef.current.rotation.y += 0.003;
+    } else {
+      // Lerp back to a designed idle tilt — stable, intentionally angled
+      groupRef.current.rotation.y += (IDLE_TILT - groupRef.current.rotation.y) * 0.05;
     }
   });
 
   const nodeColor = isAutomation ? i4203d.teal : i4203d.indigo;
   const emissiveColor = isAutomation ? i4203d.emerald : i4203d.violet;
+  // Fixed emissive intensity — no per-frame animation on nodes
+  const emissiveIntensity = isRunActive ? 0.5 : 0.3;
 
   if (nodes.length === 0) {
     return (
       <>
         <ambientLight intensity={0.5} />
         <mesh>
-          <sphereGeometry args={[0.15, 16, 16]} />
-          <meshStandardMaterial color={i4203d.grid} opacity={0.5} transparent />
+          <boxGeometry args={[0.12, 0.12, 0.04]} />
+          <meshStandardMaterial color={i4203d.grid} opacity={0.4} transparent />
         </mesh>
       </>
     );
@@ -67,16 +75,16 @@ function FlowPreviewSceneContent({
         {positions.map((pos, i) => (
           <group key={nodes[i]?.id ?? i} position={pos}>
             {isAutomation && i === 0 && flowJson?.trigger?.type === "cron_trigger" && (
-              <Torus args={[0.22, 0.025, 8, 24]} rotation={[Math.PI / 2, 0, 0]}>
+              <Torus args={[0.18, 0.02, 6, 20]} rotation={[Math.PI / 2, 0, 0]}>
                 <meshStandardMaterial color={i4203d.emerald} emissive={i4203d.teal} emissiveIntensity={0.4} />
               </Torus>
             )}
             <mesh>
-              <sphereGeometry args={[0.14, 20, 20]} />
+              <boxGeometry args={[0.12, 0.12, 0.04]} />
               <meshStandardMaterial
                 color={nodeColor}
                 emissive={emissiveColor}
-                emissiveIntensity={isRunActive ? 0.5 : 0.25}
+                emissiveIntensity={emissiveIntensity}
                 metalness={0.35}
                 roughness={0.4}
               />

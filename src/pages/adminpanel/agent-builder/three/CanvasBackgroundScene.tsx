@@ -25,12 +25,8 @@ function Particles({ count, running = false }: ParticlesProps) {
   useFrame(({ clock }) => {
     if (!ref.current) return;
     const speed = running ? 0.4 : 0.12;
+    // Whole cloud rotates slowly as one unit — no per-particle jitter
     ref.current.rotation.y = clock.getElapsedTime() * speed * 0.05;
-    const pos = ref.current.geometry.attributes.position.array as Float32Array;
-    for (let i = 0; i < count; i++) {
-      pos[i * 3 + 1] += Math.sin(clock.getElapsedTime() * speed + i) * 0.0008;
-    }
-    ref.current.geometry.attributes.position.needsUpdate = true;
   });
 
   return (
@@ -39,7 +35,7 @@ function Particles({ count, running = false }: ParticlesProps) {
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={running ? 0.06 : 0.04}
+        size={running ? 0.055 : 0.04}
         color={running ? i4203d.teal : i4203d.particle}
         transparent
         opacity={0.55}

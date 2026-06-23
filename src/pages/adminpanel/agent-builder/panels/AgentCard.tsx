@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ab } from "../agentBuilderTheme";
 import { I420 } from "../i420Brand";
-import { FlowPreviewSceneLayer } from "../three/FlowPreviewSceneLayer";
 import type { FlowJSON, AgentRun } from "../types";
 import { formatDistanceToNow } from "date-fns";
 
@@ -121,13 +120,7 @@ export function AgentCard({
 
         {/* Body */}
         <div className="px-5 py-4 space-y-4">
-          {allNodes.length > 0 ? (
-            <FlowPreviewSceneLayer
-              flowJson={flowJson}
-              variant="agent"
-              isRunActive={isRunActive}
-            />
-          ) : (
+          {allNodes.length === 0 && (
             <p className="text-xs text-slate-400 italic">No nodes yet — describe your agent in the chat</p>
           )}
 
@@ -162,9 +155,14 @@ export function AgentCard({
         {/* Footer actions */}
         <div className="px-5 py-3 border-t border-[hsl(250_18%_92%)] flex items-center justify-between bg-[hsl(250_25%_98%)]">
           <Button
-            variant="outline"
+            variant={isEditOpen ? "default" : "outline"}
             size="sm"
-            className="h-8 px-3 text-xs gap-1.5 border-[hsl(250_18%_88%)] hover:border-[hsl(248_35%_75%)] hover:text-[hsl(248_45%_42%)]"
+            className={cn(
+              "h-8 px-3 text-xs gap-1.5",
+              isEditOpen
+                ? "bg-[hsl(248_50%_62%)] hover:bg-[hsl(248_50%_58%)] text-white border-0"
+                : "border-[hsl(250_18%_88%)] hover:border-[hsl(248_35%_75%)] hover:text-[hsl(248_45%_42%)]",
+            )}
             onClick={onEditToggle}
           >
             <Pencil className="w-3 h-3" />

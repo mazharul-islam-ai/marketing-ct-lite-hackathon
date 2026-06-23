@@ -16,7 +16,7 @@ export const i4203d = {
 export type CanvasBackgroundVariant = "studio" | "list" | "welcome";
 
 export const PARTICLE_COUNTS: Record<CanvasBackgroundVariant, number> = {
-  studio: 48,
-  list: 24,
-  welcome: 64,
+  studio: 32,
+  list: 16,
+  welcome: 48,
 };

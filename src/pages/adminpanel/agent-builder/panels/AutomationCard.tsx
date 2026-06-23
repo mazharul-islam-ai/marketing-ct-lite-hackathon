@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ab } from "../agentBuilderTheme";
 import { I420 } from "../i420Brand";
-import { FlowPreviewSceneLayer } from "../three/FlowPreviewSceneLayer";
 import type { FlowJSON, AgentRun } from "../types";
 import { formatDistanceToNow } from "date-fns";
 import { computeNextRunAt, extractCronFromFlow } from "@/lib/automationSchedule";
@@ -96,20 +95,18 @@ export function AutomationCard({
     : null;
 
   return (
-    <div className={cn("flex flex-col items-center gap-3 w-full max-w-[520px]", ab.cardHoverTilt)}>
+    <div className="flex flex-col items-center gap-3 w-full max-w-[520px] transition-shadow duration-200">
       {/* ── Main card ──────────────────────────────────────────────────────── */}
       <div
         className={cn(
           ab.cardShell,
-          ab.cardShell3d,
           "w-full overflow-hidden transition-all duration-300",
-          isRunActive && ab.cardRunningGlowAuto,
+          isRunActive && "border-l-2 border-[hsl(160_55%_42%)]",
         )}
       >
         {/* Header — teal/emerald gradient */}
-        <div className={cn(ab.automationCardHeader, "px-5 pt-5 pb-4 relative overflow-hidden")}>
-          <div className="absolute -top-5 -right-5 w-20 h-20 rounded-full bg-white/10" />
-          <div className="absolute -bottom-3 right-8 w-12 h-12 rounded-full bg-white/8" />
+        <div className={cn(ab.automationCardHeader, "px-5 pt-5 pb-4 relative")}>
+          {/* decorative circles removed */}
 
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
@@ -197,14 +194,7 @@ export function AutomationCard({
             </div>
           )}
 
-          {/* 3D flow preview */}
-          {allNodes.length > 0 ? (
-            <FlowPreviewSceneLayer
-              flowJson={flowJson}
-              variant="automation"
-              isRunActive={isRunActive}
-            />
-          ) : (
+          {allNodes.length === 0 && (
             <p className="text-xs text-slate-400 italic">No nodes yet</p>
           )}
 
@@ -225,9 +215,14 @@ export function AutomationCard({
         {/* Footer */}
         <div className="px-5 py-3 border-t border-[hsl(250_18%_92%)] flex items-center justify-between bg-[hsl(160_20%_98%)]">
           <Button
-            variant="outline"
+            variant={isEditOpen ? "default" : "outline"}
             size="sm"
-            className="h-8 px-3 text-xs gap-1.5 border-[hsl(160_18%_85%)] hover:border-[hsl(160_35%_65%)] hover:text-[hsl(160_45%_38%)]"
+            className={cn(
+              "h-8 px-3 text-xs gap-1.5",
+              isEditOpen
+                ? "bg-[hsl(248_50%_62%)] hover:bg-[hsl(248_50%_58%)] text-white border-0"
+                : "border-[hsl(160_18%_85%)] hover:border-[hsl(160_35%_65%)] hover:text-[hsl(160_45%_38%)]",
+            )}
             onClick={onEditToggle}
           >
             <Pencil className="w-3 h-3" />

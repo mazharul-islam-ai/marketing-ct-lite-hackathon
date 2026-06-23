@@ -15,6 +15,7 @@ import type { FlowJSON, FlowNode, AgentRun } from "../types";
 import { ab } from "../agentBuilderTheme";
 import { I420 } from "../i420Brand";
 import { CanvasBackground } from "../three/CanvasBackground";
+import { FlowPreviewSceneLayer } from "../three/FlowPreviewSceneLayer";
 import { extractCronFromFlow } from "@/lib/automationSchedule";
 
 interface DesignTabProps {
@@ -310,6 +311,21 @@ export function DesignTab({
                           onStop={handleStop}
                           versionNumber={versionNumber}
                         />
+                      )}
+
+                      {/* Workflow 3D preview — below card with visual separation */}
+                      {flowJson && (flowJson.trigger || flowJson.steps.length > 0) && (
+                        <div className="mt-5 w-full max-w-[520px] space-y-1.5">
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest text-center select-none">
+                            Workflow
+                          </p>
+                          <FlowPreviewSceneLayer
+                            flowJson={flowJson}
+                            variant={isAutomation ? "automation" : "agent"}
+                            isRunActive={isRunActive}
+                            className="h-24"
+                          />
+                        </div>
                       )}
                     </div>
                   )}

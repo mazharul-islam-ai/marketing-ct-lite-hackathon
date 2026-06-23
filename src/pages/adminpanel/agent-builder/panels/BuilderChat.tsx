@@ -12,7 +12,6 @@ import {
 import type { CompileStatus } from "../hooks/useBuilderSession";
 import { ab } from "../agentBuilderTheme";
 import { I420 } from "../i420Brand";
-import { CompileSceneLayer } from "../three/CompileSceneLayer";
 
 interface BuilderChatProps {
   chatHistory: ChatMessage[];
@@ -24,40 +23,46 @@ interface BuilderChatProps {
   agentName?: string;
 }
 
-function CompileStatusPanel({ status }: { status: CompileStatus }) {
-  const ordered = COMPILE_PHASE_ORDER.filter(
-    (p) => p === status.phase || status.completedPhases.includes(p),
+/** Compact inline 5-dot progress row shown in the chat message stream during compile. */
+function CompileInlineProgress({ status }: { status: CompileStatus }) {
+  const total = COMPILE_PHASE_ORDER.length;
+  const activeIndex = COMPILE_PHASE_ORDER.indexOf(
+    status.phase as (typeof COMPILE_PHASE_ORDER)[number],
   );
-  const visiblePhases = ordered.length > 0 ? ordered : [status.phase];
+  // Map 8 phases → 5 visual dots
+  const DOT_COUNT = 5;
+  const activeDot = activeIndex < 0 ? 0 : Math.min(DOT_COUNT - 1, Math.floor((activeIndex / total) * DOT_COUNT));
+  const doneDotCount = Math.min(DOT_COUNT - 1, Math.floor(
+    (status.completedPhases.length / total) * DOT_COUNT,
+  ));
+  const allDone = status.completedPhases.includes("saving_version");
+
+  const currentLabel = COMPILE_PHASE_LABELS[status.phase as keyof typeof COMPILE_PHASE_LABELS] ?? status.phase;
 
   return (
-    <div className={cn("rounded-xl px-3 py-2.5 space-y-1.5 min-w-[200px] border", ab.accentSoft)}>
-      {COMPILE_PHASE_ORDER.map((phase) => {
-        const isDone = status.completedPhases.includes(phase);
-        const isCurrent = status.phase === phase;
-        if (!isDone && !isCurrent && !visiblePhases.includes(phase)) return null;
-
-        return (
-          <div
-            key={phase}
-            className={cn(
-              "flex items-center gap-2 text-[11px]",
-              isDone && ab.textMuted,
-              isCurrent && ab.accentText,
-              !isDone && !isCurrent && "text-[hsl(240_8%_55%)]",
-            )}
-          >
-            {isDone ? (
-              <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-            ) : isCurrent ? (
-              <Loader2 className={cn("w-3 h-3 animate-spin shrink-0", ab.accentText)} />
-            ) : (
-              <span className="w-3 h-3 rounded-full border border-[hsl(250_18%_88%)] shrink-0" />
-            )}
-            <span>{COMPILE_PHASE_LABELS[phase] ?? phase}</span>
-          </div>
-        );
-      })}
+    <div className={cn("rounded-xl px-3 py-2.5 border min-w-[180px] max-w-[220px]", ab.accentSoft)}>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        {Array.from({ length: DOT_COUNT }, (_, i) => {
+          const isDone = allDone || i < doneDotCount;
+          const isActive = !allDone && i === activeDot;
+          return (
+            <span
+              key={i}
+              className={cn(
+                "w-1.5 h-1.5 rounded-full transition-colors duration-300",
+                isDone
+                  ? "bg-emerald-500"
+                  : isActive
+                  ? "bg-[hsl(248_55%_58%)] animate-pulse"
+                  : "bg-slate-200",
+              )}
+            />
+          );
+        })}
+      </div>
+      <p className={cn("text-[11px] leading-tight truncate", ab.accentText)}>
+        {allDone ? "Done" : currentLabel}
+      </p>
     </div>
   );
 }
@@ -152,13 +157,7 @@ export function BuilderChat({
               <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2", ab.accentBtn)}>
                 <Sparkles className="w-2.5 h-2.5 text-white" />
               </div>
-              <div className="space-y-2 max-w-[220px]">
-                <CompileSceneLayer
-                  phase={compileStatus.phase}
-                  completedPhases={compileStatus.completedPhases}
-                />
-                <CompileStatusPanel status={compileStatus} />
-              </div>
+              <CompileInlineProgress status={compileStatus} />
             </div>
           )}
 
