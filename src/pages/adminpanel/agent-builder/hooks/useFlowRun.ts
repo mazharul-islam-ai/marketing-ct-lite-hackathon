@@ -8,6 +8,11 @@ function isActiveRunStatus(status: AgentRun["status"]): boolean {
   return ACTIVE_RUN_STATUSES.has(status);
 }
 
+interface TriggerRunResult {
+  runId: string | null;
+  error?: string;
+}
+
 interface UseFlowRunReturn {
   currentRun: AgentRun | null;
   isTriggering: boolean;
@@ -16,7 +21,7 @@ interface UseFlowRunReturn {
     versionId?: string,
     triggerType?: AgentRun["trigger_type"],
     inputContext?: Record<string, unknown>,
-  ) => Promise<string | null>;
+  ) => Promise<TriggerRunResult>;
   cancelRun: (runId: string) => Promise<void>;
   clearRun: () => void;
 }
@@ -68,7 +73,7 @@ export function useFlowRun(): UseFlowRunReturn {
       versionId?: string,
       triggerType: AgentRun["trigger_type"] = "manual",
       inputContext?: Record<string, unknown>,
-    ): Promise<string | null> => {
+    ): Promise<TriggerRunResult> => {
       setIsTriggering(true);
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -88,7 +93,16 @@ export function useFlowRun(): UseFlowRunReturn {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
 
-        if (response.error) throw new Error(response.error.message);
+        if (response.error) {
+          // Try to extract the actual error message from the edge-function response body
+          let errorMessage = response.error.message;
+          try {
+            // FunctionsFetchError exposes the raw Response on .context
+            const body = await (response.error as { context?: Response }).context?.json?.();
+            if (body?.error) errorMessage = body.error;
+          } catch { /* ignore parse failures */ }
+          return { runId: null, error: errorMessage };
+        }
 
         const result = response.data as {
           success: boolean;
@@ -97,7 +111,9 @@ export function useFlowRun(): UseFlowRunReturn {
           error?: string;
         };
 
-        if (!result.success) throw new Error(result.error ?? "Failed to trigger run");
+        if (!result.success) {
+          return { runId: null, error: result.error ?? "Failed to trigger run" };
+        }
 
         const { data: run } = await supabase
           .from("agent_runs" as never)
@@ -107,10 +123,11 @@ export function useFlowRun(): UseFlowRunReturn {
 
         if (run) setCurrentRun(run);
 
-        return result.run_id;
+        return { runId: result.run_id };
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
         console.error("triggerRun error:", err);
-        return null;
+        return { runId: null, error: errorMessage };
       } finally {
         setIsTriggering(false);
       }

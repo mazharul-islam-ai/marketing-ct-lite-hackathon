@@ -48,6 +48,7 @@ export default function AgentBuilderStudio() {
   const [nodeRunStatuses] = useState<Record<string, { status: string; cost?: number; tokens?: number }>>({});
   const [currentNodeId] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
+  const [currentVersionNumber, setCurrentVersionNumber] = useState<number | null>(null);
 
   const { currentRun, isTriggering, triggerRun, cancelRun, clearRun } = useFlowRun();
 
@@ -113,12 +114,14 @@ export default function AgentBuilderStudio() {
     setPendingInitialPrompt(null);
   }, []);
 
-  const handleCompileComplete = useCallback((versionId: string) => {
+  const handleCompileComplete = useCallback((versionId: string, version: number) => {
     setCurrentVersionId(versionId);
+    setCurrentVersionNumber(version);
   }, []);
 
-  const handleVersionUpdated = useCallback((versionId: string) => {
+  const handleVersionUpdated = useCallback((versionId: string, version: number) => {
     setCurrentVersionId(versionId);
+    setCurrentVersionNumber(version);
   }, []);
 
   const { saveStatus: draftSaveStatus } = useAutoSaveDraft(
@@ -148,8 +151,8 @@ export default function AgentBuilderStudio() {
   const handleRun = useCallback(async () => {
     if (!liveAgentId) return;
     clearRun();
-    const runId = await triggerRun(liveAgentId, currentVersionId ?? undefined, "manual");
-    if (!runId) toast.error("Failed to start run");
+    const { runId, error } = await triggerRun(liveAgentId, currentVersionId ?? undefined, "manual");
+    if (!runId) toast.error(error ?? "Failed to start run");
   }, [liveAgentId, currentVersionId, triggerRun, clearRun]);
 
   const handlePublish = useCallback(async (visibility: AgentVisibility) => {
@@ -238,6 +241,14 @@ export default function AgentBuilderStudio() {
   const isAutomationType =
     hasFlow &&
     (currentFlow?.trigger?.type === "cron_trigger" || !!extractCronFromFlow(currentFlow));
+
+  const runDisabledReason = isCompiling
+    ? "Compilation in progress…"
+    : !currentVersionId
+    ? "No compiled flow yet — describe your automation in the chat first."
+    : !hasFlow
+    ? "Add nodes to your flow before running."
+    : null;
 
   const displayName = (() => {
     if (!liveAgentId) return I420.newWorkflowLabel;
@@ -359,8 +370,8 @@ export default function AgentBuilderStudio() {
                   Run
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs max-w-[220px]">
-                Runs execute on Trigger.dev — see Runtime tab for report output (mode=report).
+              <TooltipContent side="bottom" className="text-xs max-w-[240px]">
+                {runDisabledReason ?? "Run this automation manually — output appears in the Runtime tab."}
               </TooltipContent>
             </Tooltip>
           )}
@@ -441,8 +452,10 @@ export default function AgentBuilderStudio() {
             currentRun={currentRun}
             isRunActive={isRunActive}
             isTriggering={isTriggering}
+            canRun={!isCompiling && !!currentVersionId && !!liveAgentId && hasFlow}
             onRun={handleRun}
             onStop={() => currentRun && cancelRun(currentRun.id)}
+            versionNumber={currentVersionNumber ?? undefined}
           />
         </TabsContent>
         <TabsContent value="runtime" className="flex-1 min-h-0 h-full overflow-hidden m-0 mt-0">

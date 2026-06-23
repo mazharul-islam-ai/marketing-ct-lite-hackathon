@@ -37,6 +37,7 @@ interface DesignTabProps {
   currentRun?: AgentRun | null;
   isRunActive?: boolean;
   isTriggering?: boolean;
+  canRun?: boolean;
   onRun?: () => void;
   onStop?: () => void;
   versionNumber?: number;
@@ -60,6 +61,7 @@ export function DesignTab({
   currentRun = null,
   isRunActive = false,
   isTriggering = false,
+  canRun = false,
   onRun,
   onStop,
   versionNumber,
@@ -290,6 +292,7 @@ export function DesignTab({
                           currentRun={currentRun}
                           isRunActive={isRunActive}
                           isTriggering={isTriggering}
+                          canRun={canRun}
                           isEditOpen={cardEditOpen}
                           onEditToggle={handleCardEditToggle}
                           onRun={handleRun}
@@ -305,6 +308,7 @@ export function DesignTab({
                           currentRun={currentRun}
                           isRunActive={isRunActive}
                           isTriggering={isTriggering}
+                          canRun={canRun}
                           isEditOpen={cardEditOpen}
                           onEditToggle={handleCardEditToggle}
                           onRun={handleRun}

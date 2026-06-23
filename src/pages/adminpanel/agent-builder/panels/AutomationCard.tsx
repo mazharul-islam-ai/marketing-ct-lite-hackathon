@@ -15,6 +15,7 @@ interface AutomationCardProps {
   currentRun: AgentRun | null;
   isRunActive: boolean;
   isTriggering: boolean;
+  canRun?: boolean;
   isEditOpen?: boolean;
   onEditToggle?: () => void;
   onRun: () => void;
@@ -66,6 +67,7 @@ export function AutomationCard({
   currentRun,
   isRunActive,
   isTriggering,
+  canRun = true,
   isEditOpen = false,
   onEditToggle,
   onRun,
@@ -244,7 +246,7 @@ export function AutomationCard({
               size="sm"
               className="h-8 px-4 text-xs gap-1.5 bg-[hsl(160_55%_42%)] hover:bg-[hsl(160_55%_38%)] text-white border-0"
               onClick={onRun}
-              disabled={isTriggering || allNodes.length === 0}
+              disabled={isTriggering || allNodes.length === 0 || !canRun}
             >
               {isTriggering ? (
                 <Loader2 className="w-3 h-3 animate-spin" />

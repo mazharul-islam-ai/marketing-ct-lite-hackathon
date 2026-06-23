@@ -14,6 +14,7 @@ interface AgentCardProps {
   currentRun: AgentRun | null;
   isRunActive: boolean;
   isTriggering: boolean;
+  canRun?: boolean;
   isEditOpen?: boolean;
   onEditToggle?: () => void;
   onRun: () => void;
@@ -40,6 +41,7 @@ export function AgentCard({
   currentRun,
   isRunActive,
   isTriggering,
+  canRun = true,
   isEditOpen = false,
   onEditToggle,
   onRun,
@@ -184,7 +186,7 @@ export function AgentCard({
               size="sm"
               className={cn("h-8 px-4 text-xs gap-1.5", ab.accentBtn)}
               onClick={onRun}
-              disabled={isTriggering || allNodes.length === 0}
+              disabled={isTriggering || allNodes.length === 0 || !canRun}
             >
               {isTriggering ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
