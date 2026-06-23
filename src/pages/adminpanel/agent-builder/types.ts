@@ -250,7 +250,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   {
     type: "slack_notify", label: "Slack", description: "Post to Slack channel", category: "tool",
     configSchema: {
-      webhook_url: { label: "Webhook URL", type: "text" },
+      webhook_url: { label: "Webhook URL (optional)", type: "text", placeholder: "Leave empty to use workspace Slack connection" },
       channel: { label: "Channel", type: "text", placeholder: "#general" },
       message: { label: "Message", type: "textarea", required: true, placeholder: "Use {{variable}} for dynamic values" },
     },

@@ -186,6 +186,7 @@ const IntegrationManager = () => {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(["ai", "meetings", "storage", "crm", "email", "analytics", "project-management"]),
   );
+  const [slackConfig, setSlackConfig] = useState<{ team_name: string; team_id: string; scope: string } | null>(null);
 
   // Load integrations on mount
   useEffect(() => {
@@ -231,6 +232,23 @@ const IntegrationManager = () => {
       is_active: true,
     });
     if (insertError) throw insertError;
+  };
+
+  const loadSlackConfigFromDb = async () => {
+    try {
+      const config = await getLatestOrganizationIntegrationConfig("slack");
+      if (config?.bot_token) {
+        setSlackConfig({
+          team_name: String(config.team_name ?? ""),
+          team_id: String(config.team_id ?? ""),
+          scope: String(config.scope ?? ""),
+        });
+      } else {
+        setSlackConfig(null);
+      }
+    } catch {
+      setSlackConfig(null);
+    }
   };
 
   const loadIntegrations = async () => {
@@ -358,6 +376,18 @@ const IntegrationManager = () => {
         is_enabled: false,
         setup_complexity: "complex",
         required_fields: ["client_id", "client_secret"],
+      },
+      {
+        id: "slack",
+        name: "Slack",
+        type: "slack",
+        description: "Connect Slack with a Bot User OAuth Token for agent notifications via chat.postMessage.",
+        icon: "💬",
+        category: "meetings",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "medium",
+        required_fields: [],
       },
       // CRM additions
       {
@@ -564,7 +594,7 @@ const IntegrationManager = () => {
     }
 
     // Check all integrations in parallel
-    const [openaiStatus, perplexityStatus, anthropicStatus, geminiStatus, googleDriveStatus] = await Promise.all([
+    const [openaiStatus, perplexityStatus, anthropicStatus, geminiStatus, googleDriveStatus, slackStatus] = await Promise.all([
       checkIntegrationStatus("openai", "openai-test", "POST", {
         action: "status",
         apiKey: savedOpenAIApiKey || undefined,
@@ -582,6 +612,7 @@ const IntegrationManager = () => {
         apiKey: savedGeminiApiKey || undefined,
       }),
       checkIntegrationStatus("google-drive", "test-google-drive", "POST", { action: "status" }),
+      checkIntegrationStatus("slack", "slack-test", "POST", { action: "status" }),
     ]);
 
     // Update integrations with status
@@ -598,6 +629,7 @@ const IntegrationManager = () => {
     updateGlobalStatus("anthropic", anthropicStatus);
     updateGlobalStatus("google-gemini", geminiStatus);
     updateGlobalStatus("google-drive", googleDriveStatus, true);
+    updateGlobalStatus("slack", slackStatus, true);
 
     try {
       const { data: ghlConfig } = await supabase.functions.invoke("gohighlevel-manage", { method: "GET" });
@@ -1364,6 +1396,44 @@ const IntegrationManager = () => {
       return;
     }
 
+    if (integration.id === "slack") {
+      try {
+        let botToken = configData.apiKey?.trim() || "";
+        if (!botToken) {
+          const saved = await getLatestOrganizationIntegrationConfig("slack");
+          botToken = String(saved?.bot_token ?? "").trim();
+        }
+        if (!botToken) {
+          toast({
+            title: "Missing Bot Token",
+            description: "Enter your Slack Bot User OAuth Token (xoxb-...) before testing.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const { data, error } = await supabase.functions.invoke("slack-test", {
+          body: { action: "test", bot_token: botToken },
+        });
+        if (error || !data?.ok) {
+          throw error || new Error(data?.error || "Slack connection test failed");
+        }
+        toast({
+          title: "Slack Connection Successful",
+          description: data?.team
+            ? `Connected to ${data.team} (${data.url ?? "workspace"})`
+            : "Slack bot token is valid.",
+        });
+      } catch (err: any) {
+        toast({
+          title: "Slack Connection Failed",
+          description: err?.message ?? "Unable to connect to Slack. Check your bot token.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     if (integration.id === "n8n-analytics") {
       await handleTestAnalytics();
       return;
@@ -1624,6 +1694,71 @@ const IntegrationManager = () => {
       return;
     }
 
+    if (integration.id === "slack") {
+      const botToken = configData.apiKey?.trim() || "";
+      if (!botToken) {
+        toast({
+          title: "Missing Bot Token",
+          description: "Enter your Slack Bot User OAuth Token (xoxb-...).",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!botToken.startsWith("xoxb-")) {
+        toast({
+          title: "Invalid Bot Token",
+          description: "Slack Bot User OAuth Tokens start with xoxb-.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke("slack-test", {
+          body: { action: "test", bot_token: botToken },
+        });
+        if (error || !data?.ok) {
+          throw error || new Error(data?.error || "Slack token validation failed");
+        }
+
+        await upsertOrganizationIntegrationConfig("slack", {
+          bot_token: botToken,
+          team_id: data.team_id ?? "",
+          team_name: data.team ?? "",
+          connected_at: new Date().toISOString(),
+        });
+
+        toast({
+          title: "Slack settings saved",
+          description: data.team
+            ? `Connected to ${data.team}. Agent flows can use chat.postMessage.`
+            : "Slack bot token stored successfully.",
+        });
+        setIsConfigDialogOpen(false);
+        setConfigData({
+          apiKey: "",
+          baseUrl: "",
+          locationId: "",
+          projectId: "",
+          collectionName: "",
+          clientId: "",
+          clientSecret: "",
+          refreshToken: "",
+          folderId: "",
+        });
+        setSlackConfig(null);
+        await loadIntegrations();
+        await loadSlackConfigFromDb();
+      } catch (e: any) {
+        toast({
+          title: "Save failed",
+          description: e?.message ?? "Unable to save Slack integration.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     if (integration.id === "gohighlevel") {
       if (!configData.apiKey?.trim()) {
         toast({ title: "Missing API Key", description: "API key is required.", variant: "destructive" });
@@ -1793,6 +1928,7 @@ const IntegrationManager = () => {
     const removableIntegrationIds = [
       "google-drive",
       "gmail",
+      "slack",
       "openai",
       "anthropic",
       "google-gemini",
@@ -1842,6 +1978,7 @@ const IntegrationManager = () => {
         refreshToken: "",
         folderId: "",
       });
+      setSlackConfig(null);
       await loadIntegrations();
     } catch (e: any) {
       toast({
@@ -1908,7 +2045,9 @@ const IntegrationManager = () => {
         if (config) {
           setConfigData((prev) => ({
             ...prev,
-            apiKey: config.api_key ?? config.apiKey ?? "",
+            apiKey: integration.id === "slack"
+              ? (config.bot_token ?? "")
+              : (config.api_key ?? config.apiKey ?? ""),
             baseUrl: config.base_url ?? config.baseUrl ?? "",
             locationId: config.location_id ?? config.locationId ?? "",
             clientId: config.clientId ?? "",
@@ -1916,6 +2055,12 @@ const IntegrationManager = () => {
             refreshToken: config.refreshToken ?? "",
             folderId: config.folderId ?? "",
           }));
+        }
+
+        if (integration.id === "slack") {
+          await loadSlackConfigFromDb();
+        } else {
+          setSlackConfig(null);
         }
       } catch (error) {
         console.error(`Failed to load ${integration.name} configuration`, error);
@@ -2672,6 +2817,75 @@ const IntegrationManager = () => {
                 </Button>
               </DialogFooter>
             </div>
+          ) : selectedIntegration?.id === "slack" ? (
+            <>
+              <div className="grid gap-4 py-4">
+                {slackConfig && (
+                  <div className="rounded-lg border border-border/70 bg-muted/30 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <CheckCircle className="h-4 w-4 text-emerald-500" />
+                      Connected to Slack
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Workspace:{" "}
+                      <span className="font-medium text-foreground">
+                        {slackConfig.team_name || slackConfig.team_id}
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="slack-bot-token" className="text-right">
+                    Bot Token *
+                  </Label>
+                  <Input
+                    id="slack-bot-token"
+                    type="password"
+                    placeholder="xoxb-..."
+                    className="col-span-3"
+                    value={configData.apiKey}
+                    onChange={(e) => setConfigData((prev) => ({ ...prev, apiKey: e.target.value }))}
+                  />
+                </div>
+
+                <div className="rounded-lg border border-dashed border-border/70 bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Info className="h-4 w-4" />
+                    Setup steps
+                  </div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    <li>
+                      Create a Slack app at{" "}
+                      <a
+                        href="https://api.slack.com/apps"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        api.slack.com/apps
+                      </a>
+                    </li>
+                    <li>OAuth &amp; Permissions → Bot Token Scopes: chat:write, chat:write.public</li>
+                    <li>Install the app to your workspace</li>
+                    <li>Copy the Bot User OAuth Token (starts with xoxb-)</li>
+                    <li>Paste above, then Save Configuration and Test Connection</li>
+                  </ul>
+                </div>
+              </div>
+              <DialogFooter className="flex flex-wrap justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsConfigDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={() => removeConfiguration(selectedIntegration)}>
+                  Remove Credentials
+                </Button>
+                <Button variant="outline" onClick={() => testConnection(selectedIntegration)}>
+                  Test Connection
+                </Button>
+                <Button onClick={() => saveConfiguration(selectedIntegration)}>Save Configuration</Button>
+              </DialogFooter>
+            </>
           ) : (
             <>
               <div className="grid gap-4 py-4">

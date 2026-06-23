@@ -161,6 +161,16 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via Agent Bu
 - Config stored in `organization_integrations` (`integration_type: gmail`)
 - Configure at `/adminpanel/integrations` (Client ID, Secret, Refresh Token)
 
+## Slack Integration
+
+- Edge function: `slack-test` (validates token via Slack REST `auth.test`)
+- Config stored in `organization_integrations` (`integration_type: slack`, field `config.bot_token`)
+- Configure at `/adminpanel/integrations` → **Meeting & Collaboration** → Slack
+- Paste **Bot User OAuth Token** (`xoxb-...`) from your Slack app → Save → Test Connection
+- Bot Token Scopes: `chat:write`, `chat:write.public`
+- Runtime: `slack_notify` nodes call Slack REST `chat.postMessage` using org bot token (per-node webhook URL still supported as fallback)
+- No OAuth redirect URL or Supabase OAuth secrets required for Hub connect
+
 ## Scheduling
 
 - **Publish** with `cron_trigger` in flow → upserts `automations` row
