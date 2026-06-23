@@ -1,22 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-
-function getSlackCredentials(): { clientId: string; clientSecret: string } {
-  const credentialsJson = Deno.env.get("SLACK_OAUTH_CREDENTIALS");
-  if (credentialsJson) {
-    const credentials = JSON.parse(credentialsJson);
-    const clientId = credentials.client_id ?? credentials.clientId;
-    const clientSecret = credentials.client_secret ?? credentials.clientSecret;
-    if (clientId && clientSecret) return { clientId, clientSecret };
-  }
-
-  const clientId = Deno.env.get("SLACK_CLIENT_ID") ?? "";
-  const clientSecret = Deno.env.get("SLACK_CLIENT_SECRET") ?? "";
-  if (!clientId || !clientSecret) {
-    throw new Error("Slack OAuth credentials not configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET)");
-  }
-  return { clientId, clientSecret };
-}
+import { resolveSlackOAuthCredentials } from "../_shared/slack-credentials.ts";
 
 const SLACK_BOT_SCOPES = [
   "chat:write",
@@ -33,7 +18,12 @@ serve(async (req) => {
   }
 
   try {
-    const { clientId } = getSlackCredentials();
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    const { clientId } = await resolveSlackOAuthCredentials(supabase);
     const { redirectUri } = await req.json().catch(() => ({}));
 
     if (!redirectUri || typeof redirectUri !== "string") {

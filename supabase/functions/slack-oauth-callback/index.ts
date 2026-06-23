@@ -1,23 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-
-function getSlackCredentials(): { clientId: string; clientSecret: string } {
-  const credentialsJson = Deno.env.get("SLACK_OAUTH_CREDENTIALS");
-  if (credentialsJson) {
-    const credentials = JSON.parse(credentialsJson);
-    const clientId = credentials.client_id ?? credentials.clientId;
-    const clientSecret = credentials.client_secret ?? credentials.clientSecret;
-    if (clientId && clientSecret) return { clientId, clientSecret };
-  }
-
-  const clientId = Deno.env.get("SLACK_CLIENT_ID") ?? "";
-  const clientSecret = Deno.env.get("SLACK_CLIENT_SECRET") ?? "";
-  if (!clientId || !clientSecret) {
-    throw new Error("Slack OAuth credentials not configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET)");
-  }
-  return { clientId, clientSecret };
-}
+import { resolveSlackOAuthCredentials } from "../_shared/slack-credentials.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -51,7 +35,7 @@ serve(async (req) => {
     if (!code) throw new Error("Authorization code is required");
     if (!redirectUri) throw new Error("redirectUri is required");
 
-    const { clientId, clientSecret } = getSlackCredentials();
+    const { clientId, clientSecret } = await resolveSlackOAuthCredentials(supabase);
 
     const tokenResponse = await fetch("https://slack.com/api/oauth.v2.access", {
       method: "POST",
@@ -72,7 +56,17 @@ serve(async (req) => {
     const botToken = tokenData.access_token as string;
     if (!botToken) throw new Error("No bot access token returned from Slack");
 
+    const { data: existing } = await supabase
+      .from("organization_integrations")
+      .select("id, config")
+      .eq("integration_type", "slack")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const existingConfig = (existing?.config ?? {}) as Record<string, unknown>;
     const config = {
+      ...existingConfig,
       bot_token: botToken,
       team_id: tokenData.team?.id ?? "",
       team_name: tokenData.team?.name ?? "",
@@ -82,14 +76,6 @@ serve(async (req) => {
       connected_by: user.id,
       connected_at: new Date().toISOString(),
     };
-
-    const { data: existing } = await supabase
-      .from("organization_integrations")
-      .select("id")
-      .eq("integration_type", "slack")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
 
     if (existing?.id) {
       const { error: updateError } = await supabase

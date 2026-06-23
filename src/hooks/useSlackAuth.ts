@@ -16,7 +16,16 @@ export const useSlackAuth = (onConnected?: () => void) => {
       });
 
       if (error) throw error;
-      if (!data?.authUrl) throw new Error("No Slack authorization URL returned");
+      if (data?.error) {
+        throw new Error(
+          data.error.includes("Integrations Hub")
+            ? data.error
+            : data.error,
+        );
+      }
+      if (!data?.authUrl) {
+        throw new Error("Configure Client ID and Client Secret in Integrations Hub first.");
+      }
 
       const popup = window.open(data.authUrl, "SlackAuth", "width=600,height=700");
 
