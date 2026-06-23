@@ -23,6 +23,7 @@ import { useFlowRun } from "./hooks/useFlowRun";
 import { useAutoSaveDraft } from "./hooks/useAutoSaveDraft";
 import { PublishModal } from "./PublishModal";
 import { ab } from "./agentBuilderTheme";
+import { I420, flowHasContent } from "./i420Brand";
 import type { AgentVisibility } from "./types";
 import type { Agent, AgentVersion, FlowJSON } from "./types";
 import { extractCronFromFlow, computeNextRunAt } from "@/lib/automationSchedule";
@@ -47,6 +48,7 @@ export default function AgentBuilderStudio() {
   const [nodeRunStatuses] = useState<Record<string, { status: string; cost?: number; tokens?: number }>>({});
   const [currentNodeId] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
+  const [currentVersionNumber, setCurrentVersionNumber] = useState<number | null>(null);
 
   const { currentRun, isTriggering, triggerRun, cancelRun, clearRun } = useFlowRun();
 
@@ -112,12 +114,14 @@ export default function AgentBuilderStudio() {
     setPendingInitialPrompt(null);
   }, []);
 
-  const handleCompileComplete = useCallback((versionId: string) => {
+  const handleCompileComplete = useCallback((versionId: string, version: number) => {
     setCurrentVersionId(versionId);
+    setCurrentVersionNumber(version);
   }, []);
 
-  const handleVersionUpdated = useCallback((versionId: string) => {
+  const handleVersionUpdated = useCallback((versionId: string, version: number) => {
     setCurrentVersionId(versionId);
+    setCurrentVersionNumber(version);
   }, []);
 
   const { saveStatus: draftSaveStatus } = useAutoSaveDraft(
@@ -147,8 +151,8 @@ export default function AgentBuilderStudio() {
   const handleRun = useCallback(async () => {
     if (!liveAgentId) return;
     clearRun();
-    const runId = await triggerRun(liveAgentId, currentVersionId ?? undefined, "manual");
-    if (!runId) toast.error("Failed to start run");
+    const { runId, error } = await triggerRun(liveAgentId, currentVersionId ?? undefined, "manual");
+    if (!runId) toast.error(error ?? "Failed to start run");
   }, [liveAgentId, currentVersionId, triggerRun, clearRun]);
 
   const handlePublish = useCallback(async (visibility: AgentVisibility) => {
@@ -233,6 +237,25 @@ export default function AgentBuilderStudio() {
   const isRunActive = currentRun?.status === "running" || currentRun?.status === "queued";
   const agentStatus = agent?.status ?? "draft";
 
+  const hasFlow = flowHasContent(currentFlow);
+  const isAutomationType =
+    hasFlow &&
+    (currentFlow?.trigger?.type === "cron_trigger" || !!extractCronFromFlow(currentFlow));
+
+  const runDisabledReason = isCompiling
+    ? "Compilation in progress…"
+    : !currentVersionId
+    ? "No compiled flow yet — describe your automation in the chat first."
+    : !hasFlow
+    ? "Add nodes to your flow before running."
+    : null;
+
+  const displayName = (() => {
+    if (!liveAgentId) return I420.newWorkflowLabel;
+    if (!hasFlow) return agentName.trim() || I420.newWorkflowLabel;
+    return agentName.trim() || I420.newWorkflowLabel;
+  })();
+
   const statusColors = {
     published: "bg-emerald-50 text-emerald-700 border-emerald-200",
     draft: "bg-amber-50 text-amber-700 border-amber-200",
@@ -250,9 +273,9 @@ export default function AgentBuilderStudio() {
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button
             onClick={() => navigate("/adminpanel/agent-builder")}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap shrink-0"
+            className={cn(ab.i420Badge, "hover:opacity-90 transition-opacity shrink-0 cursor-pointer border-0")}
           >
-            Agents
+            {I420.name}
           </button>
           <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
           {isEditingName ? (
@@ -263,25 +286,43 @@ export default function AgentBuilderStudio() {
               onBlur={handleSave}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setIsEditingName(false); }}
               className={cn("text-xs font-semibold rounded px-2 py-0.5 outline-none max-w-56 min-w-20", ab.input, ab.textForeground)}
-              placeholder="Untitled Agent"
+              placeholder="Name your workflow"
             />
           ) : (
             <button
-              onClick={() => setIsEditingName(true)}
-              className={cn("text-xs font-semibold truncate max-w-56 text-left rounded px-1.5 py-0.5 transition-colors hover:bg-[hsl(250_25%_94%)]", ab.textForeground)}
-              title="Click to rename"
+              onClick={() => liveAgentId && setIsEditingName(true)}
+              className={cn(
+                "text-xs font-semibold truncate max-w-56 text-left rounded px-1.5 py-0.5 transition-colors",
+                liveAgentId && "hover:bg-[hsl(250_25%_94%)]",
+                ab.textForeground,
+              )}
+              title={liveAgentId ? "Click to rename" : undefined}
+              disabled={!liveAgentId}
             >
-              {agentName || "Untitled Agent"}
+              {displayName}
             </button>
           )}
 
-          <span className={cn(
-            "inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border shrink-0",
-            statusColors[agentStatus as keyof typeof statusColors] ?? statusColors.draft,
-          )}>
-            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusDot[agentStatus as keyof typeof statusDot] ?? statusDot.draft)} />
-            {agentStatus}
-          </span>
+          {hasFlow && (
+            <span className={cn(
+              "inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border shrink-0",
+              isAutomationType
+                ? "bg-teal-50 text-teal-700 border-teal-200"
+                : "bg-indigo-50 text-indigo-700 border-indigo-200",
+            )}>
+              {isAutomationType ? "Automation" : "Agent"}
+            </span>
+          )}
+
+          {liveAgentId && (
+            <span className={cn(
+              "inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border shrink-0",
+              statusColors[agentStatus as keyof typeof statusColors] ?? statusColors.draft,
+            )}>
+              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusDot[agentStatus as keyof typeof statusDot] ?? statusDot.draft)} />
+              {agentStatus}
+            </span>
+          )}
 
           {draftSaveStatus === "saving" && (
             <span className={cn("text-[10px] px-1.5 py-0.5 rounded", ab.textMuted)}>Saving draft…</span>
@@ -323,20 +364,20 @@ export default function AgentBuilderStudio() {
                   size="sm"
                   className={cn("h-7 px-2.5 text-[11px] gap-1", ab.accentBtn)}
                   onClick={handleRun}
-                  disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId}
+                  disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId || !hasFlow}
                 >
                   {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                   Run
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs max-w-[220px]">
-                Runs execute on Trigger.dev — see Runtime tab for report output (mode=report).
+              <TooltipContent side="bottom" className="text-xs max-w-[240px]">
+                {runDisabledReason ?? "Run this automation manually — output appears in the Runtime tab."}
               </TooltipContent>
             </Tooltip>
           )}
 
           <div className="flex items-center gap-1.5">
-            {agentStatus === "draft" && (
+            {agentStatus === "draft" && hasFlow && (
               <span className={cn("text-[10px] hidden sm:inline", ab.textMuted)}>
                 Publish as Workspace to show on /ai-agents
               </span>
@@ -346,7 +387,7 @@ export default function AgentBuilderStudio() {
               variant="secondary"
               className="h-7 px-2.5 text-[11px] gap-1"
               onClick={() => setShowPublishModal(true)}
-              disabled={!currentVersionId || !liveAgentId}
+              disabled={!currentVersionId || !liveAgentId || !hasFlow}
             >
               <Globe className="w-3 h-3" />
               Publish
@@ -372,7 +413,7 @@ export default function AgentBuilderStudio() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StudioTab)} className="flex flex-col flex-1 overflow-hidden">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StudioTab)} className="flex flex-col flex-1 min-h-0 h-full overflow-hidden">
         <div className={ab.studioTabs}>
           <TabsList className="h-9 bg-transparent p-0 gap-1 overflow-x-auto">
             <TabsTrigger value="design" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>Design</TabsTrigger>
@@ -391,11 +432,13 @@ export default function AgentBuilderStudio() {
         <TabsContent
           value="design"
           forceMount
-          className={cn("flex-1 overflow-hidden m-0 mt-0", activeTab !== "design" && "hidden")}
+          className={cn("flex-1 min-h-0 h-full overflow-hidden m-0 mt-0", activeTab !== "design" && "hidden")}
         >
           <DesignTab
             agentId={liveAgentId}
-            agentName={agentName || "Untitled Agent"}
+            agentName={displayName}
+            agentDescription={agent?.description}
+            agentStatus={agentStatus as "draft" | "published" | "archived"}
             initialFlowJson={currentFlow}
             onFlowChange={setCurrentFlow}
             nodeRunStatuses={nodeRunStatuses}
@@ -406,18 +449,25 @@ export default function AgentBuilderStudio() {
             onCompilingChange={setIsCompiling}
             initialPrompt={pendingInitialPrompt ?? undefined}
             onInitialPromptConsumed={handleInitialPromptConsumed}
+            currentRun={currentRun}
+            isRunActive={isRunActive}
+            isTriggering={isTriggering}
+            canRun={!isCompiling && !!currentVersionId && !!liveAgentId && hasFlow}
+            onRun={handleRun}
+            onStop={() => currentRun && cancelRun(currentRun.id)}
+            versionNumber={currentVersionNumber ?? undefined}
           />
         </TabsContent>
-        <TabsContent value="runtime" className="flex-1 overflow-hidden m-0 mt-0">
+        <TabsContent value="runtime" className="flex-1 min-h-0 h-full overflow-hidden m-0 mt-0">
           <RuntimeTab
             currentRun={currentRun}
             onCancelRun={currentRun ? () => cancelRun(currentRun.id) : undefined}
           />
         </TabsContent>
-        <TabsContent value="json" className="flex-1 overflow-hidden m-0 mt-0">
+        <TabsContent value="json" className="flex-1 min-h-0 h-full overflow-hidden m-0 mt-0">
           <JsonTab flowJson={currentFlow} onApply={handleJsonApply} />
         </TabsContent>
-        <TabsContent value="logs" className="flex-1 overflow-hidden m-0 mt-0">
+        <TabsContent value="logs" className="flex-1 min-h-0 h-full overflow-hidden m-0 mt-0">
           {liveAgentId ? (
             <LogsTab agentId={liveAgentId} currentRunId={currentRun?.id} />
           ) : (
@@ -426,7 +476,7 @@ export default function AgentBuilderStudio() {
             </div>
           )}
         </TabsContent>
-        <TabsContent value="versions" className="flex-1 overflow-hidden m-0 mt-0">
+        <TabsContent value="versions" className="flex-1 min-h-0 h-full overflow-hidden m-0 mt-0">
           {liveAgentId ? (
             <VersionsTab
               agentId={liveAgentId}

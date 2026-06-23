@@ -11,15 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
-  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage,
-} from "@/components/ui/breadcrumb";
-import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ab } from "./agentBuilderTheme";
+import { I420 } from "./i420Brand";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AgentBuilderPrompt } from "./types";
@@ -574,21 +572,7 @@ export default function AgentBuilderSettings() {
   ];
 
   return (
-    <div className={cn(ab.page, ab.canvas, "min-h-0")}>
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/adminpanel">Admin Panel</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/adminpanel/agent-builder">Agent Builder</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbItem>
-            <BreadcrumbPage>Settings</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
+    <div className={cn(ab.page, ab.canvas, "min-h-0 p-4 lg:p-6")}>
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -603,8 +587,10 @@ export default function AgentBuilderSettings() {
             <Settings2 className={cn("w-4 h-4", ab.accentText)} />
           </div>
           <div>
-            <h1 className="text-base font-semibold text-foreground">Agent Builder Settings</h1>
-            <p className="text-xs text-muted-foreground">Configure models, tools, and data sources available to your agents</p>
+            <h1 className="text-base font-semibold text-foreground">{I420.name} Settings</h1>
+            <p className="text-xs text-muted-foreground">
+              Configure models, tools, and data sources for i420 workflows
+            </p>
           </div>
         </div>
       </div>
@@ -917,7 +903,7 @@ export default function AgentBuilderSettings() {
         {activeTab === "system_prompt" && (
           <div className="max-w-3xl space-y-6">
             <p className="text-xs text-slate-500">
-              Define the global system prompt used by the Agent Builder. Saving creates a new
+              Define the global system prompt used by i420. Saving creates a new
               immutable version; activate any past version to make it live.
             </p>
 
@@ -942,7 +928,7 @@ export default function AgentBuilderSettings() {
                   <Textarea
                     value={promptText}
                     onChange={(e) => setPromptText(e.target.value)}
-                    placeholder="Enter the system prompt for the Agent Builder…"
+                    placeholder="Enter the system prompt for i420…"
                     className="min-h-[280px] text-xs font-mono resize-y leading-relaxed"
                     spellCheck={false}
                   />

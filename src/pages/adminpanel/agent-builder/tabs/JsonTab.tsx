@@ -10,7 +10,7 @@ const VALID_NODE_TYPES = [
   "cron_trigger", "webhook_trigger", "manual_trigger", "db_trigger", "crm_event_trigger",
   "condition", "switch", "loop", "delay",
   "openai_llm", "gemini_llm", "anthropic_llm", "custom_llm",
-  "db_query", "api_call", "email_send", "slack_notify", "crm_update", "mcp_tool", "gmail_fetch_unread",
+  "db_query", "api_call", "email_send", "slack_notify", "slack_fetch_messages", "crm_update", "mcp_tool", "gmail_fetch_unread",
   "dashboard_write", "email_output", "db_write", "report_generate",
 ];
 

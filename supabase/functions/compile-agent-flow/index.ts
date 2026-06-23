@@ -25,7 +25,7 @@ const VALID_NODE_TYPES = [
   // AI nodes
   'openai_llm', 'gemini_llm', 'anthropic_llm', 'custom_llm',
   // Tool nodes
-  'db_query', 'api_call', 'email_send', 'slack_notify', 'crm_update', 'mcp_tool', 'gmail_fetch_unread',
+  'db_query', 'api_call', 'email_send', 'slack_notify', 'slack_fetch_messages', 'crm_update', 'mcp_tool', 'gmail_fetch_unread',
   // Output nodes
   'dashboard_write', 'email_output', 'db_write', 'report_generate',
 ] as const
@@ -61,6 +61,9 @@ const TYPE_ALIASES: Record<string, string> = {
   api_request: 'api_call', web_request: 'api_call',
   // slack_notify
   slack_message: 'slack_notify', slack_alert: 'slack_notify', send_slack: 'slack_notify',
+  // slack_fetch_messages
+  slack_fetch: 'slack_fetch_messages', fetch_slack_messages: 'slack_fetch_messages',
+  read_slack: 'slack_fetch_messages', get_slack_messages: 'slack_fetch_messages',
   // email_send
   send_email: 'email_send', email: 'email_send',
   // gmail_fetch_unread
@@ -346,6 +349,7 @@ COMMON PATTERNS — use these exact node types:
 - "run on a schedule / every day / every hour"        → cron_trigger
 - "run manually / on demand"                          → manual_trigger
 - "notify via Slack"                                  → slack_notify
+- "read / fetch Slack messages / channel history"     → slack_fetch_messages
 - "call MCP tool / external MCP server"               → mcp_tool
 
 ${mcpToolsBlock}

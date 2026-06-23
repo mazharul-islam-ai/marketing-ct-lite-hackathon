@@ -25,12 +25,16 @@ import {
   ImageIcon,
   Workflow,
   Zap,
+  PanelLeftOpen,
+  PanelLeftClose,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo-sji.png";
 import { useAuth } from "@/hooks/useAuth";
+import { AdminSidebarProvider, useAdminSidebar } from "@/contexts/AdminSidebarContext";
 
 type UserRole = "super_admin" | "manager" | "pm" | "content_creator" | "marketing" | "user";
 
@@ -103,8 +107,9 @@ const baseNavigation: Array<{ section: string; items: NavigationItem[] }> = [
   },
 ];
 
-const AdminLayout = () => {
+const AdminLayoutContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isCollapsed, toggle, collapse } = useAdminSidebar();
   const location = useLocation();
   const { user, logout } = useAuth();
 
@@ -164,24 +169,34 @@ const AdminLayout = () => {
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 transform bg-card border-r border-border transition-transform duration-300 ease-in-out lg:translate-x-0",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        "fixed inset-y-0 left-0 z-50 w-64 transform bg-card border-r border-border transition-transform duration-300 ease-in-out",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        !isCollapsed && "lg:translate-x-0",
+        isCollapsed && "lg:-translate-x-full",
       )}>
         <div className="flex h-full flex-col">
-          {/* Logo */}
-          <div className="flex h-auto items-center justify-between px-6 py-4 border-b border-border">
-            <div className="flex flex-col items-center flex-1 gap-1">
-              <img src={logo} alt="SJ Innovation" className="h-20 w-auto" />
-              <p className="text-[18px] font-bold text-foreground tracking-tight">Marketing Hub</p>
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-sm font-bold text-foreground">Admin Panel</span>
-                <span className="text-xs text-muted-foreground">{formatRoleLabel(currentRole)}</span>
-              </div>
+          {/* Logo — compact header */}
+          <div className="relative flex h-auto items-center gap-3 px-4 py-3 border-b border-border">
+            <img src={logo} alt="SJ Innovation" className="h-10 w-auto shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground leading-tight truncate">Marketing Hub</p>
+              <p className="text-xs text-muted-foreground leading-tight">
+                Admin Panel · {formatRoleLabel(currentRole)}
+              </p>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden absolute top-4 right-4"
+              className="hidden lg:inline-flex h-8 w-8 shrink-0"
+              onClick={collapse}
+              title="Hide navigation"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden absolute top-3 right-3 h-8 w-8"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="h-5 w-5" />
@@ -273,27 +288,45 @@ const AdminLayout = () => {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className={cn("lg:pl-64 transition-[padding] duration-300", isCollapsed && "lg:pl-0")}>
         {/* Top bar */}
         <div className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex items-center gap-4">
-            <div className="hidden lg:block">
-              <h1 className="text-xl font-semibold text-foreground">
-                Marketing Intelligence Dashboard - Administration
-              </h1>
-            </div>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden shrink-0"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden lg:inline-flex h-8 w-8 shrink-0"
+                  onClick={toggle}
+                >
+                  {isCollapsed ? (
+                    <PanelLeftOpen className="h-4 w-4" />
+                  ) : (
+                    <PanelLeftClose className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                {isCollapsed ? "Show navigation" : "Hide navigation"}
+              </TooltipContent>
+            </Tooltip>
+
+            <h1 className="text-xl font-semibold text-foreground truncate hidden lg:block">
+              Marketing Intelligence Dashboard - Administration
+            </h1>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button variant="outline" size="sm" asChild>
               <NavLink to="/" className="flex items-center gap-2">
                 <Home className="h-4 w-4" />
@@ -314,5 +347,11 @@ const AdminLayout = () => {
     </div>
   );
 };
+
+const AdminLayout = () => (
+  <AdminSidebarProvider>
+    <AdminLayoutContent />
+  </AdminSidebarProvider>
+);
 
 export default AdminLayout;

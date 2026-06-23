@@ -25,6 +25,7 @@ interface AgentFlowCanvasProps {
   onNodeSelect: (node: FlowNode | null) => void;
   nodeRunStatuses?: Record<string, { status: string; cost?: number; tokens?: number; duration_ms?: number }>;
   currentNodeId?: string | null;
+  isRunActive?: boolean;
 }
 
 // Convert FlowJSON → ReactFlow nodes+edges
@@ -100,6 +101,7 @@ export function AgentFlowCanvas({
   onNodeSelect,
   nodeRunStatuses,
   currentNodeId,
+  isRunActive,
 }: AgentFlowCanvasProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => flowJsonToRF(flowJson, nodeRunStatuses),
@@ -182,7 +184,14 @@ export function AgentFlowCanvas({
   }
 
   return (
-    <div className="flex-1 h-full">
+    <div className="flex-1 h-full relative">
+      {/* Running shimmer overlay */}
+      {isRunActive && (
+        <>
+          <div className="absolute inset-0 pointer-events-none z-10 bg-[hsl(248_60%_62%/0.03)] animate-pulse" />
+          <div className="absolute top-0 inset-x-0 h-0.5 pointer-events-none z-10 bg-gradient-to-r from-transparent via-[hsl(248_60%_62%/0.6)] to-transparent animate-[shimmer_2s_ease-in-out_infinite]" />
+        </>
+      )}
       <ReactFlow
         nodes={nodes}
         edges={edges}

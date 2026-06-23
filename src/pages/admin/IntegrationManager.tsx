@@ -53,6 +53,7 @@ import { mockBrands } from "@/data/mockData";
 import { supabase as _supabase } from "@/integrations/supabase/client";
 const supabase = _supabase as any;
 import { useToast } from "@/hooks/use-toast";
+import { useSlackAuth } from "@/hooks/useSlackAuth";
 
 // Union type for different integration config structures
 type IntegrationConfig =
@@ -186,6 +187,10 @@ const IntegrationManager = () => {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(["ai", "meetings", "storage", "crm", "email", "analytics", "project-management"]),
   );
+  const [slackConfig, setSlackConfig] = useState<{ team_name: string; team_id: string; scope: string } | null>(null);
+  const [slackCredentialsSaved, setSlackCredentialsSaved] = useState(false);
+
+  const { isAuthenticating: isSlackAuthenticating, initiateAuth: initiateSlackAuth } = useSlackAuth();
 
   // Load integrations on mount
   useEffect(() => {
@@ -231,6 +236,34 @@ const IntegrationManager = () => {
       is_active: true,
     });
     if (insertError) throw insertError;
+  };
+
+  const loadSlackConfigFromDb = async () => {
+    try {
+      const config = await getLatestOrganizationIntegrationConfig("slack");
+      if (!config) {
+        setSlackConfig(null);
+        setSlackCredentialsSaved(false);
+        return;
+      }
+
+      const clientId = String(config.client_id ?? config.clientId ?? "").trim();
+      const clientSecret = String(config.client_secret ?? config.clientSecret ?? "").trim();
+      setSlackCredentialsSaved(!!clientId && !!clientSecret);
+
+      if (config?.bot_token) {
+        setSlackConfig({
+          team_name: String(config.team_name ?? ""),
+          team_id: String(config.team_id ?? ""),
+          scope: String(config.scope ?? ""),
+        });
+      } else {
+        setSlackConfig(null);
+      }
+    } catch {
+      setSlackConfig(null);
+      setSlackCredentialsSaved(false);
+    }
   };
 
   const loadIntegrations = async () => {
@@ -357,6 +390,18 @@ const IntegrationManager = () => {
         is_available: true,
         is_enabled: false,
         setup_complexity: "complex",
+        required_fields: ["client_id", "client_secret"],
+      },
+      {
+        id: "slack",
+        name: "Slack",
+        type: "slack",
+        description: "Connect Slack via OAuth for agent send (chat.postMessage) and fetch (conversations.history).",
+        icon: "💬",
+        category: "meetings",
+        is_available: true,
+        is_enabled: false,
+        setup_complexity: "medium",
         required_fields: ["client_id", "client_secret"],
       },
       // CRM additions
@@ -564,7 +609,7 @@ const IntegrationManager = () => {
     }
 
     // Check all integrations in parallel
-    const [openaiStatus, perplexityStatus, anthropicStatus, geminiStatus, googleDriveStatus] = await Promise.all([
+    const [openaiStatus, perplexityStatus, anthropicStatus, geminiStatus, googleDriveStatus, slackStatus] = await Promise.all([
       checkIntegrationStatus("openai", "openai-test", "POST", {
         action: "status",
         apiKey: savedOpenAIApiKey || undefined,
@@ -582,6 +627,7 @@ const IntegrationManager = () => {
         apiKey: savedGeminiApiKey || undefined,
       }),
       checkIntegrationStatus("google-drive", "test-google-drive", "POST", { action: "status" }),
+      checkIntegrationStatus("slack", "slack-test", "POST", { action: "status" }),
     ]);
 
     // Update integrations with status
@@ -598,6 +644,7 @@ const IntegrationManager = () => {
     updateGlobalStatus("anthropic", anthropicStatus);
     updateGlobalStatus("google-gemini", geminiStatus);
     updateGlobalStatus("google-drive", googleDriveStatus, true);
+    updateGlobalStatus("slack", slackStatus, true);
 
     try {
       const { data: ghlConfig } = await supabase.functions.invoke("gohighlevel-manage", { method: "GET" });
@@ -1364,6 +1411,30 @@ const IntegrationManager = () => {
       return;
     }
 
+    if (integration.id === "slack") {
+      try {
+        const { data, error } = await supabase.functions.invoke("slack-test", {
+          body: { action: "test" },
+        });
+        if (error || !data?.ok) {
+          throw error || new Error(data?.error || "Slack connection test failed");
+        }
+        toast({
+          title: "Slack Connection Successful",
+          description: data?.team
+            ? `Connected to ${data.team} (${data.url ?? "workspace"})`
+            : "Slack workspace is connected.",
+        });
+      } catch (err: any) {
+        toast({
+          title: "Slack Connection Failed",
+          description: err?.message ?? "Unable to connect to Slack. Use Add to Slack first.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     if (integration.id === "n8n-analytics") {
       await handleTestAnalytics();
       return;
@@ -1528,6 +1599,44 @@ const IntegrationManager = () => {
         toast({
           title: "Save failed",
           description: e?.message ?? "Unable to save integration.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    if (integration.id === "slack") {
+      if (!configData.clientId?.trim() || !configData.clientSecret?.trim()) {
+        toast({
+          title: "Missing configuration",
+          description: "Client ID and Client Secret are required for Slack OAuth.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const existing = await getLatestOrganizationIntegrationConfig("slack");
+        const configPayload = {
+          ...(existing ?? {}),
+          client_id: configData.clientId.trim(),
+          client_secret: configData.clientSecret.trim(),
+          clientId: configData.clientId.trim(),
+          clientSecret: configData.clientSecret.trim(),
+        };
+
+        await upsertOrganizationIntegrationConfig("slack", configPayload);
+        setSlackCredentialsSaved(true);
+
+        toast({
+          title: "Slack app credentials saved",
+          description: "You can now click Add to Slack to install to your workspace.",
+        });
+        await loadIntegrations();
+      } catch (e: any) {
+        toast({
+          title: "Save failed",
+          description: e?.message ?? "Unable to save Slack credentials.",
           variant: "destructive",
         });
       }
@@ -1793,6 +1902,7 @@ const IntegrationManager = () => {
     const removableIntegrationIds = [
       "google-drive",
       "gmail",
+      "slack",
       "openai",
       "anthropic",
       "google-gemini",
@@ -1842,6 +1952,7 @@ const IntegrationManager = () => {
         refreshToken: "",
         folderId: "",
       });
+      setSlackConfig(null);
       await loadIntegrations();
     } catch (e: any) {
       toast({
@@ -1911,11 +2022,18 @@ const IntegrationManager = () => {
             apiKey: config.api_key ?? config.apiKey ?? "",
             baseUrl: config.base_url ?? config.baseUrl ?? "",
             locationId: config.location_id ?? config.locationId ?? "",
-            clientId: config.clientId ?? "",
-            clientSecret: config.clientSecret ?? "",
-            refreshToken: config.refreshToken ?? "",
+            clientId: config.client_id ?? config.clientId ?? "",
+            clientSecret: config.client_secret ?? config.clientSecret ?? "",
+            refreshToken: config.refreshToken ?? config.refresh_token ?? "",
             folderId: config.folderId ?? "",
           }));
+        }
+
+        if (integration.id === "slack") {
+          await loadSlackConfigFromDb();
+        } else {
+          setSlackConfig(null);
+          setSlackCredentialsSaved(false);
         }
       } catch (error) {
         console.error(`Failed to load ${integration.name} configuration`, error);
@@ -2672,6 +2790,151 @@ const IntegrationManager = () => {
                 </Button>
               </DialogFooter>
             </div>
+          ) : selectedIntegration?.id === "slack" ? (
+            <>
+              <div className="grid gap-4 py-4">
+                {slackConfig ? (
+                  <div className="rounded-lg border border-border/70 bg-muted/30 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <CheckCircle className="h-4 w-4 text-emerald-500" />
+                      Connected to Slack
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Workspace:{" "}
+                      <span className="font-medium text-foreground">
+                        {slackConfig.team_name || slackConfig.team_id}
+                      </span>
+                    </p>
+                    {slackConfig.scope && (
+                      <p className="text-xs text-muted-foreground">Scopes: {slackConfig.scope}</p>
+                    )}
+                  </div>
+                ) : (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>Connect via OAuth</AlertTitle>
+                    <AlertDescription>
+                      Enter your Slack app credentials below, save them, then install the app to your workspace.
+                      Agent flows can send via{" "}
+                      <code className="text-xs">chat.postMessage</code> and fetch messages via{" "}
+                      <code className="text-xs">conversations.history</code>.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-4">
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor="slack-client-id">Client ID *</Label>
+                    <Input
+                      id="slack-client-id"
+                      placeholder="2277699050.11425960996866"
+                      value={configData.clientId}
+                      onChange={(e) => {
+                        setConfigData((prev) => ({ ...prev, clientId: e.target.value }));
+                        setSlackCredentialsSaved(false);
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      From Slack app → Basic Information → App Credentials
+                    </p>
+                  </div>
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor="slack-client-secret">Client Secret *</Label>
+                    <Input
+                      id="slack-client-secret"
+                      type="password"
+                      placeholder="Your Slack app Client Secret"
+                      value={configData.clientSecret}
+                      onChange={(e) => {
+                        setConfigData((prev) => ({ ...prev, clientSecret: e.target.value }));
+                        setSlackCredentialsSaved(false);
+                      }}
+                    />
+                  </div>
+                  {slackCredentialsSaved && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                      App credentials saved. You can proceed with Add to Slack.
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-dashed border-border/70 bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Info className="h-4 w-4" />
+                    Setup steps
+                  </div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    <li>
+                      Create a Slack app at{" "}
+                      <a
+                        href="https://api.slack.com/apps"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        api.slack.com/apps
+                      </a>
+                    </li>
+                    <li>
+                      OAuth &amp; Permissions → Redirect URL:{" "}
+                      <code className="text-xs">{`${window.location.origin}/slack-oauth-callback`}</code>
+                    </li>
+                    <li>
+                      Bot scopes: chat:write, chat:write.public, channels:read, channels:history,
+                      groups:history, im:history
+                    </li>
+                    <li>
+                      Enter your Slack app Client ID and Client Secret below, click{" "}
+                      <strong>Save Credentials</strong>, then <strong>Add to Slack</strong>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <DialogFooter className="flex flex-wrap justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsConfigDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => saveConfiguration(selectedIntegration)}
+                  disabled={!configData.clientId?.trim() || !configData.clientSecret?.trim()}
+                >
+                  Save Credentials
+                </Button>
+                {slackConfig && (
+                  <>
+                    <Button variant="destructive" onClick={() => removeConfiguration(selectedIntegration)}>
+                      Disconnect
+                    </Button>
+                    <Button variant="outline" onClick={() => testConnection(selectedIntegration)}>
+                      Test Connection
+                    </Button>
+                  </>
+                )}
+                <Button
+                  onClick={async () => {
+                    const connected = await initiateSlackAuth();
+                    if (connected) {
+                      await loadIntegrations();
+                      await loadSlackConfigFromDb();
+                    }
+                  }}
+                  disabled={isSlackAuthenticating || !slackCredentialsSaved}
+                  title={
+                    !slackCredentialsSaved
+                      ? "Save Client ID and Client Secret before connecting"
+                      : undefined
+                  }
+                >
+                  {isSlackAuthenticating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                  )}
+                  {slackConfig ? "Reconnect Slack" : "Add to Slack"}
+                </Button>
+              </DialogFooter>
+            </>
           ) : (
             <>
               <div className="grid gap-4 py-4">

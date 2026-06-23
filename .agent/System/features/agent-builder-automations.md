@@ -1,6 +1,6 @@
 # Agent Builder & Automations
 
-Last updated: 2026-06-18
+Last updated: 2026-06-23
 
 ## Overview
 
@@ -132,7 +132,7 @@ Draft agents do not appear on `/ai-agents` until published with Workspace visibi
 | Integration | Node types |
 |-------------|------------|
 | `gmail` | `gmail_fetch_unread` |
-| `slack` | `slack_notify` |
+| `slack` | `slack_notify`, `slack_fetch_messages` |
 | `sendgrid` / `resend` | `email_send`, `email_output` |
 | `openai` | `openai_llm` |
 | `google_gemini` | `gemini_llm` |
@@ -160,6 +160,22 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via Agent Bu
 - Edge functions: `gmail-oauth-init`, `gmail-oauth-callback`, `gmail-inbox`
 - Config stored in `organization_integrations` (`integration_type: gmail`)
 - Configure at `/adminpanel/integrations` (Client ID, Secret, Refresh Token)
+
+## Slack Integration
+
+- Edge functions: `slack-oauth-init`, `slack-oauth-callback`, `slack-test`, `slack-messages`
+- Config stored in `organization_integrations` (`integration_type: slack`): `client_id`, `client_secret`, and after OAuth `bot_token`
+- Configure at `/adminpanel/integrations` → **Meeting & Collaboration** → Slack:
+  1. Enter **Client ID** and **Client Secret** from your Slack app (Basic Information)
+  2. Click **Save Credentials**
+  3. Click **Add to Slack** to complete OAuth v2 install
+- OAuth redirect URL: `https://{domain}/slack-oauth-callback` (local dev: `http://localhost:8080/slack-oauth-callback`)
+- Optional ops fallback: Supabase secrets `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` (used only if UI credentials are not saved)
+- Bot scopes: `chat:write`, `chat:write.public`, `channels:read`, `channels:history`, `groups:history`, `im:history`
+- After scope changes, **Reinstall App** in the Slack app dashboard to grant new permissions
+- **Send:** `slack_notify` nodes call Slack REST `chat.postMessage` using org bot token (per-node webhook URL still supported as fallback)
+- **Receive (pull):** `slack_fetch_messages` nodes call `slack-messages` edge function → `conversations.history` (not Events API)
+- Example flow: `cron_trigger → slack_fetch_messages(#general) → openai_llm → slack_notify`
 
 ## Scheduling
 
@@ -223,6 +239,7 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | Scheduler | `trigger/automation-scheduler.ts` |
 | Node execution | `trigger/agent-flow/execute-node.ts` |
 | Gmail inbox | `supabase/functions/gmail-inbox/index.ts` |
+| Slack messages | `supabase/functions/slack-messages/index.ts` |
 | Automation logs UI | `src/pages/adminpanel/automations/AutomationsLogs.tsx` |
 | Agent logs UI | `src/components/ai-control/AgentRunsLogsSection.tsx` |
 

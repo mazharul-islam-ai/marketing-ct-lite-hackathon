@@ -254,18 +254,51 @@ export const executeFlowNode = task({
 
         // TOOL: slack_notify
         case "slack_notify": {
-          const webhookUrl = String(node.config.webhook_url ?? "");
+          const webhookUrl = String(node.config.webhook_url ?? "").trim();
           const channel = String(node.config.channel ?? "#general");
           const messageTemplate = String(node.config.message ?? "Agent notification");
-
           const message = interpolateTemplate(messageTemplate, input_data);
 
           if (webhookUrl) {
-            await fetch(webhookUrl, {
+            const webhookResponse = await fetch(webhookUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ text: message, channel }),
             });
+            if (!webhookResponse.ok) {
+              throw new Error(`Slack webhook failed (${webhookResponse.status})`);
+            }
+          } else {
+            const { data: slackRow } = await supabase
+              .from("organization_integrations")
+              .select("config")
+              .eq("integration_type", "slack")
+              .eq("is_active", true)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            const slackCfg = slackRow?.config as Record<string, string> | null;
+            const botToken = (slackCfg?.bot_token ?? "").trim();
+            if (!botToken) {
+              throw new Error(
+                "Slack is not connected. Connect Slack in Admin → Integrations or set webhook_url on this node.",
+              );
+            }
+
+            const slackResponse = await fetch("https://slack.com/api/chat.postMessage", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${botToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ channel, text: message }),
+            });
+
+            const slackData = await slackResponse.json() as { ok: boolean; error?: string };
+            if (!slackData.ok) {
+              throw new Error(slackData.error ?? "Slack chat.postMessage failed");
+            }
           }
 
           output = { sent: true, channel, message };
@@ -291,6 +324,33 @@ export const executeFlowNode = task({
           });
 
           output = { sent: emailResponse.ok, to, subject };
+          break;
+        }
+
+        // TOOL: slack_fetch_messages
+        case "slack_fetch_messages": {
+          const channel = String(node.config.channel ?? "#general");
+          const limit = Number(node.config.limit ?? 25);
+
+          const slackResponse = await fetch(`${SUPABASE_URL}/functions/v1/slack-messages`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({ action: "fetch_history", channel, limit }),
+          });
+
+          const slackData = await slackResponse.json();
+          if (!slackResponse.ok) {
+            throw new Error(slackData.error ?? "Slack fetch failed");
+          }
+
+          output = {
+            messages: slackData.messages ?? [],
+            count: slackData.count ?? 0,
+            channel: slackData.channel ?? channel,
+          };
           break;
         }
 

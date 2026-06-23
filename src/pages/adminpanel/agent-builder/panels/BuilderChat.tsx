@@ -1,18 +1,17 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, Loader2, Sparkles, Zap, Wrench, Bot, CheckCircle2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Loader2, Sparkles, Zap, Wrench, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import type { ChatMessage, NodeType } from "../types";
+import type { ChatMessage } from "../types";
 import {
   COMPILE_PHASE_LABELS,
   COMPILE_PHASE_ORDER,
-  filterPalette,
 } from "../integrationConfig";
 import type { CompileStatus } from "../hooks/useBuilderSession";
 import { ab } from "../agentBuilderTheme";
+import { I420 } from "../i420Brand";
 
 interface BuilderChatProps {
   chatHistory: ChatMessage[];
@@ -21,44 +20,49 @@ interface BuilderChatProps {
   error?: string | null;
   onClearError?: () => void;
   onSendPrompt: (prompt: string, action?: "generate" | "improve" | "add_tool") => void;
-  onDragNodeStart?: (type: NodeType) => void;
   agentName?: string;
 }
 
-function CompileStatusPanel({ status }: { status: CompileStatus }) {
-  const ordered = COMPILE_PHASE_ORDER.filter(
-    (p) => p === status.phase || status.completedPhases.includes(p),
+/** Compact inline 5-dot progress row shown in the chat message stream during compile. */
+function CompileInlineProgress({ status }: { status: CompileStatus }) {
+  const total = COMPILE_PHASE_ORDER.length;
+  const activeIndex = COMPILE_PHASE_ORDER.indexOf(
+    status.phase as (typeof COMPILE_PHASE_ORDER)[number],
   );
-  const visiblePhases = ordered.length > 0 ? ordered : [status.phase];
+  // Map 8 phases → 5 visual dots
+  const DOT_COUNT = 5;
+  const activeDot = activeIndex < 0 ? 0 : Math.min(DOT_COUNT - 1, Math.floor((activeIndex / total) * DOT_COUNT));
+  const doneDotCount = Math.min(DOT_COUNT - 1, Math.floor(
+    (status.completedPhases.length / total) * DOT_COUNT,
+  ));
+  const allDone = status.completedPhases.includes("saving_version");
+
+  const currentLabel = COMPILE_PHASE_LABELS[status.phase as keyof typeof COMPILE_PHASE_LABELS] ?? status.phase;
 
   return (
-    <div className={cn("rounded-xl px-3 py-2.5 space-y-1.5 min-w-[200px] border", ab.accentSoft)}>
-      {COMPILE_PHASE_ORDER.map((phase) => {
-        const isDone = status.completedPhases.includes(phase);
-        const isCurrent = status.phase === phase;
-        if (!isDone && !isCurrent && !visiblePhases.includes(phase)) return null;
-
-        return (
-          <div
-            key={phase}
-            className={cn(
-              "flex items-center gap-2 text-[11px]",
-              isDone && ab.textMuted,
-              isCurrent && ab.accentText,
-              !isDone && !isCurrent && "text-[hsl(240_8%_55%)]",
-            )}
-          >
-            {isDone ? (
-              <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-            ) : isCurrent ? (
-              <Loader2 className={cn("w-3 h-3 animate-spin shrink-0", ab.accentText)} />
-            ) : (
-              <span className="w-3 h-3 rounded-full border border-[hsl(250_18%_88%)] shrink-0" />
-            )}
-            <span>{COMPILE_PHASE_LABELS[phase] ?? phase}</span>
-          </div>
-        );
-      })}
+    <div className={cn("rounded-xl px-3 py-2.5 border min-w-[180px] max-w-[220px]", ab.accentSoft)}>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        {Array.from({ length: DOT_COUNT }, (_, i) => {
+          const isDone = allDone || i < doneDotCount;
+          const isActive = !allDone && i === activeDot;
+          return (
+            <span
+              key={i}
+              className={cn(
+                "w-1.5 h-1.5 rounded-full transition-colors duration-300",
+                isDone
+                  ? "bg-emerald-500"
+                  : isActive
+                  ? "bg-[hsl(248_55%_58%)] animate-pulse"
+                  : "bg-slate-200",
+              )}
+            />
+          );
+        })}
+      </div>
+      <p className={cn("text-[11px] leading-tight truncate", ab.accentText)}>
+        {allDone ? "Done" : currentLabel}
+      </p>
     </div>
   );
 }
@@ -70,27 +74,11 @@ export function BuilderChat({
   error,
   onClearError,
   onSendPrompt,
-  onDragNodeStart,
   agentName,
 }: BuilderChatProps) {
   const [input, setInput] = useState("");
-  const [expandedPalette, setExpandedPalette] = useState<string | null>(null);
-  const [connectedTools, setConnectedTools] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    async function loadTools() {
-      const { data } = await supabase
-        .from("organization_integrations" as never)
-        .select("integration_type")
-        .eq("is_active" as never, true) as { data: { integration_type: string }[] | null };
-      setConnectedTools(new Set((data ?? []).map((r) => r.integration_type)));
-    }
-    loadTools();
-  }, []);
-
-  const paletteItems = useMemo(() => filterPalette(connectedTools), [connectedTools]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -116,9 +104,9 @@ export function BuilderChat({
           <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0", ab.accentBtn)}>
             <Sparkles className="w-3.5 h-3.5 text-white" />
           </div>
-          <div className="min-w-0">
-            <p className={cn("text-[11px] font-semibold uppercase tracking-wide leading-none", ab.textMuted)}>AI Builder</p>
-            {agentName && (
+          <div className="min-w-0 flex-1">
+            <p className={cn(ab.i420Wordmark, "text-sm leading-none")}>{I420.name}</p>
+            {agentName && agentName !== I420.newWorkflowLabel && (
               <p className={cn("text-xs font-medium truncate mt-0.5", ab.textForeground)}>{agentName}</p>
             )}
           </div>
@@ -127,13 +115,10 @@ export function BuilderChat({
 
       <ScrollArea className="flex-1 px-3 py-3">
         {chatHistory.length === 0 && !isCompiling && (
-          <div className="py-8 text-center">
-            <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 border", ab.accentSoft)}>
-              <Bot className={cn("w-6 h-6", ab.accentText)} />
-            </div>
-            <p className={cn("text-xs font-medium", ab.textForeground)}>Describe what you want to build</p>
-            <p className={cn("text-[11px] mt-1.5 leading-relaxed px-2", ab.textMuted)}>
-              e.g. "Daily unread email summary delivered to Slack at 8am"
+          <div className="py-6 text-center">
+            <p className={cn("text-xs font-medium", ab.textForeground)}>Describe your workflow</p>
+            <p className={cn("text-[11px] mt-1", ab.textMuted)}>
+              See the canvas for examples and hints
             </p>
           </div>
         )}
@@ -172,7 +157,7 @@ export function BuilderChat({
               <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2", ab.accentBtn)}>
                 <Sparkles className="w-2.5 h-2.5 text-white" />
               </div>
-              <CompileStatusPanel status={compileStatus} />
+              <CompileInlineProgress status={compileStatus} />
             </div>
           )}
 
@@ -259,44 +244,6 @@ export function BuilderChat({
             <Wrench className="w-3 h-3" />
             Add Tool
           </Button>
-        </div>
-      </div>
-
-      <div className={cn("border-t", ab.borderSoft)}>
-        <p className={cn("px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide", ab.textMuted)}>
-          Node Palette (configured tools)
-        </p>
-        <div className="pb-2 space-y-0.5">
-          {Object.entries(paletteItems).map(([category, items]) => (
-            <div key={category}>
-              <button
-                className={cn("w-full flex items-center justify-between px-3 py-1 text-[11px] transition-colors hover:bg-[hsl(250_25%_94%)]", ab.textMuted)}
-                onClick={() => setExpandedPalette(expandedPalette === category ? null : category)}
-              >
-                <span>{category}</span>
-                <span className="text-[hsl(240_8%_55%)]">{expandedPalette === category ? "▴" : "▾"}</span>
-              </button>
-
-              {expandedPalette === category && (
-                <div className="px-3 pb-1 flex flex-wrap gap-1">
-                  {items.map((item) => (
-                    <div
-                      key={item.type}
-                      draggable
-                      onDragStart={() => onDragNodeStart?.(item.type)}
-                      className={cn(
-                        "cursor-grab active:cursor-grabbing px-2 py-0.5 rounded-md text-[10px] border transition-colors select-none",
-                        ab.chip,
-                        "hover:bg-[hsl(248_40%_96%)]",
-                      )}
-                    >
-                      {item.label}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       </div>
     </div>

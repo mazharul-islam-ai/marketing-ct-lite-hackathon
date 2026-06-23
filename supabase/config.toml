@@ -2,3 +2,15 @@ project_id = "ckaaawiiczphdssrtymc"
 
 [functions.trigger-public-agent-run]
 verify_jwt = false
+
+[functions.slack-oauth-init]
+verify_jwt = false
+
+[functions.slack-oauth-callback]
+verify_jwt = true
+
+[functions.slack-test]
+verify_jwt = true
+
+[functions.slack-messages]
+verify_jwt = false

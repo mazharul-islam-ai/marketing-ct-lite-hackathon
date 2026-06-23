@@ -44,10 +44,12 @@ export const FlowNodeComponent = memo(({ data, selected }: NodeProps<FlowNodeDat
   return (
     <div
       className={cn(
-        "relative min-w-[140px] max-w-[180px] rounded-lg border-2 px-3 py-2 shadow-sm cursor-pointer transition-all",
+        "relative min-w-[140px] max-w-[180px] rounded-lg border-2 px-3 py-2 cursor-pointer transition-all duration-200",
         bgColor,
         statusRing,
-        selected && "border-primary shadow-md",
+        selected && "border-primary -translate-y-px shadow-[0_8px_24px_hsl(248_50%_40%/0.15),0_2px_8px_hsl(250_30%_50%/0.1)]",
+        !selected && "shadow-[0_2px_8px_hsl(250_30%_50%/0.08)]",
+        data.runStatus === "running" && "ring-2 ring-[hsl(248_60%_62%)] ring-offset-1",
       )}
     >
       {/* Incoming handle — not for trigger nodes */}
@@ -117,6 +119,7 @@ export const nodeTypes = {
   api_call:          FlowNodeComponent,
   email_send:        FlowNodeComponent,
   slack_notify:      FlowNodeComponent,
+  slack_fetch_messages: FlowNodeComponent,
   crm_update:        FlowNodeComponent,
   mcp_tool:          FlowNodeComponent,
   gmail_fetch_unread: FlowNodeComponent,

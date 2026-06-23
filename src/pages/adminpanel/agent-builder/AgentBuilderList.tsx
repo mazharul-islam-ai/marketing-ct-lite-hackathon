@@ -31,6 +31,8 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ab } from "./agentBuilderTheme";
+import { I420 } from "./i420Brand";
+import { CanvasBackground } from "./three/CanvasBackground";
 import type { LucideIcon } from "lucide-react";
 import type { Agent, AgentRun } from "./types";
 
@@ -258,14 +260,15 @@ export default function AgentBuilderList() {
   });
 
   return (
-    <div className={cn(ab.page, ab.canvas, "rounded-xl p-1 -m-1")}>
+    <div className={cn(ab.page, ab.canvas, "rounded-xl p-1 -m-1 relative overflow-hidden")}>
+      <CanvasBackground variant="list" className="absolute inset-0 -z-10 opacity-40" />
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink href="/adminpanel">Admin Panel</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbItem>
-            <BreadcrumbPage>Agent Builder</BreadcrumbPage>
+            <BreadcrumbPage>{I420.studioLabel}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -274,10 +277,8 @@ export default function AgentBuilderList() {
         <div className="flex items-center gap-2.5">
           <Bot className={cn("h-7 w-7", ab.accentText)} />
           <div>
-            <h1 className={cn("text-2xl font-bold tracking-tight", ab.textForeground)}>Agent Builder</h1>
-            <p className={cn("text-xs", ab.textMuted)}>
-              Build AI automations from a plain-language description
-            </p>
+            <h1 className={cn("text-2xl font-bold tracking-tight", ab.textForeground)}>{I420.studioLabel}</h1>
+            <p className={cn("text-xs", ab.textMuted)}>{I420.tagline}</p>
           </div>
         </div>
         <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate("/adminpanel/agent-builder/settings")}>
@@ -288,7 +289,7 @@ export default function AgentBuilderList() {
 
       <div className={cn(ab.composerCompact, ab.surfaceElevated, "space-y-3")}>
         <div className="flex items-center justify-between gap-3">
-          <h2 className={cn("text-sm font-semibold", ab.textForeground)}>Create a new agent</h2>
+          <h2 className={cn("text-sm font-semibold", ab.textForeground)}>Create a new workflow</h2>
           <button
             type="button"
             onClick={() => navigate("/adminpanel/agent-builder/new")}
@@ -360,7 +361,7 @@ export default function AgentBuilderList() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <h2 className={cn("text-base font-semibold", ab.textForeground)}>Your Agents</h2>
+            <h2 className={cn("text-base font-semibold", ab.textForeground)}>Your workflows</h2>
             {!isLoading && (
               <Badge variant="secondary" className={cn("text-xs", ab.accentMuted, ab.accentText)}>
                 {filtered.length}
@@ -494,7 +495,11 @@ function AgentCard({
   const lastRunTime = lastRun ? formatRelativeTime(lastRun.created_at) : null;
 
   return (
-    <div className={cn("group relative rounded-2xl border transition-all duration-200 overflow-hidden", ab.agentCard)}>
+    <div className={cn(
+      "group relative rounded-2xl border transition-all duration-200 overflow-hidden",
+      ab.agentCard,
+      ab.listCard3d,
+    )}>
       {/* Top gradient bar per status */}
       <div
         className={cn(
