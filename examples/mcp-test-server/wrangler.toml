@@ -1,0 +1,7 @@
+name = "i420-mcp-test-server"
+main = "src/index.ts"
+compatibility_date = "2025-02-04"
+account_id = "8aa1619a19d29312b99aa3fd6dccfda3"
+
+[vars]
+SERVER_NAME = "i420-mcp-test-server"

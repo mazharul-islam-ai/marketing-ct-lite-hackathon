@@ -12,14 +12,14 @@ export default function I420StudioLayout() {
 
   if (isEditor) {
     return (
-      <div className="min-h-screen bg-[hsl(250_33%_98%)]">
+      <div className={cn("min-h-screen i420-studio", ab.pageBg, ab.fontBody)}>
         <Outlet />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(250_33%_98%)] flex flex-col">
+    <div className={cn("min-h-screen flex flex-col i420-studio", ab.pageBg, ab.fontBody)}>
       <header className={cn(ab.studioHeader, "justify-between gap-4")}>
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs shrink-0" asChild>
@@ -32,7 +32,7 @@ export default function I420StudioLayout() {
             <Sparkles className="h-3 w-3" />
             {I420.name}
           </span>
-          <span className={cn("text-sm font-semibold truncate", ab.textForeground)}>
+          <span className={cn("text-sm font-semibold truncate", ab.fontHeading, ab.textForeground)}>
             {I420.studioLabel}
           </span>
         </div>
@@ -41,7 +41,7 @@ export default function I420StudioLayout() {
           <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5" asChild>
             <NavLink
               to={I420_ROUTES.automations}
-              className={({ isActive }) => cn(isActive && "bg-[hsl(248_40%_96%)] text-[hsl(248_45%_42%)]")}
+              className={({ isActive }) => cn(isActive && ab.navActive)}
             >
               <Workflow className="h-3.5 w-3.5" />
               Automations
@@ -50,7 +50,7 @@ export default function I420StudioLayout() {
           <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5" asChild>
             <NavLink
               to={I420_ROUTES.settings}
-              className={({ isActive }) => cn(isActive && "bg-[hsl(248_40%_96%)] text-[hsl(248_45%_42%)]")}
+              className={({ isActive }) => cn(isActive && ab.navActive)}
             >
               <Settings2 className="h-3.5 w-3.5" />
               Settings

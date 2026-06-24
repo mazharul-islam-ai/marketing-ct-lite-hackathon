@@ -294,7 +294,7 @@ export default function AgentBuilderStudio() {
               onClick={() => liveAgentId && setIsEditingName(true)}
               className={cn(
                 "text-xs font-semibold truncate max-w-56 text-left rounded px-1.5 py-0.5 transition-colors",
-                liveAgentId && "hover:bg-[hsl(250_25%_94%)]",
+                liveAgentId && "hover:bg-[hsl(40_20%_96%)]",
                 ab.textForeground,
               )}
               title={liveAgentId ? "Click to rename" : undefined}
@@ -308,8 +308,8 @@ export default function AgentBuilderStudio() {
             <span className={cn(
               "inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border shrink-0",
               isAutomationType
-                ? "bg-teal-50 text-teal-700 border-teal-200"
-                : "bg-indigo-50 text-indigo-700 border-indigo-200",
+                ? cn(ab.accentSoft)
+                : cn(ab.accentSoft),
             )}>
               {isAutomationType ? "Automation" : "Agent"}
             </span>
@@ -417,16 +417,16 @@ export default function AgentBuilderStudio() {
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StudioTab)} className="flex flex-col flex-1 min-h-0 h-full overflow-hidden">
         <div className={ab.studioTabs}>
           <TabsList className="h-9 bg-transparent p-0 gap-1 overflow-x-auto">
-            <TabsTrigger value="design" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>Design</TabsTrigger>
-            <TabsTrigger value="runtime" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>
+            <TabsTrigger value="design" className={cn("text-xs data-[state=active]:bg-[hsl(18_35%_95%)] data-[state=active]:text-[hsl(18_45%_38%)]", ab.textMuted)}>Design</TabsTrigger>
+            <TabsTrigger value="runtime" className={cn("text-xs data-[state=active]:bg-[hsl(18_35%_95%)] data-[state=active]:text-[hsl(18_45%_38%)]", ab.textMuted)}>
               Runtime
               {isRunActive && (
-                <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-[hsl(248_50%_62%)] inline-block align-middle animate-pulse" />
+                <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-[hsl(18_52%_52%)] inline-block align-middle animate-pulse" />
               )}
             </TabsTrigger>
-            <TabsTrigger value="json" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>JSON</TabsTrigger>
-            <TabsTrigger value="logs" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>Logs</TabsTrigger>
-            <TabsTrigger value="versions" className={cn("text-xs data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)]", ab.textMuted)}>Versions</TabsTrigger>
+            <TabsTrigger value="json" className={cn("text-xs data-[state=active]:bg-[hsl(18_35%_95%)] data-[state=active]:text-[hsl(18_45%_38%)]", ab.textMuted)}>JSON</TabsTrigger>
+            <TabsTrigger value="logs" className={cn("text-xs data-[state=active]:bg-[hsl(18_35%_95%)] data-[state=active]:text-[hsl(18_45%_38%)]", ab.textMuted)}>Logs</TabsTrigger>
+            <TabsTrigger value="versions" className={cn("text-xs data-[state=active]:bg-[hsl(18_35%_95%)] data-[state=active]:text-[hsl(18_45%_38%)]", ab.textMuted)}>Versions</TabsTrigger>
           </TabsList>
         </div>
 

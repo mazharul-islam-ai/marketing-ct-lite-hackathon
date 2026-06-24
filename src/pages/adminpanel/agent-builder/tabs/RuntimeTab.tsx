@@ -186,7 +186,7 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
       </div>
 
       {/* Metrics row */}
-      <div className="grid grid-cols-3 divide-x divide-[hsl(250_18%_90%)] border-b border-[hsl(250_18%_90%)]">
+      <div className="grid grid-cols-3 divide-x divide-[hsl(35_15%_88%)] border-b border-[hsl(35_15%_88%)]">
         <MetricCell icon={<Clock className="w-3 h-3" />} label="Duration" value={durationMs ? `${(durationMs / 1000).toFixed(1)}s` : "—"} />
         <MetricCell icon={<Zap className="w-3 h-3" />} label="Tokens" value={run.tokens_used?.toLocaleString() ?? "0"} />
         <MetricCell icon={<DollarSign className="w-3 h-3" />} label="Cost" value={`$${(run.total_cost ?? 0).toFixed(4)}`} />
@@ -268,7 +268,7 @@ function OutputPanel({ run, runSteps }: { run: AgentRun; runSteps: RunStep[] }) 
   return (
     <div className={cn("border-t flex flex-col", ab.borderSoft)}>
       <button
-        className={cn("flex items-center justify-between px-4 py-2.5 transition-colors text-left", ab.toolbar, "hover:bg-[hsl(250_22%_93%)]")}
+        className={cn("flex items-center justify-between px-4 py-2.5 transition-colors text-left", ab.toolbar, "hover:bg-[hsl(40_20%_96%)]")}
         onClick={() => setCollapsed((c) => !c)}
       >
         <div className="flex items-center gap-2">
@@ -304,7 +304,7 @@ function StepRow({ step, index }: { step: RunStep; index: number }) {
     <Clock className="w-3.5 h-3.5 text-slate-300" />;
 
   return (
-    <div className={cn("rounded border text-xs transition-colors", step.status === "failed" ? "border-red-200 bg-red-50" : cn(ab.borderSoft, "hover:border-[hsl(248_35%_82%)]"))}>
+    <div className={cn("rounded border text-xs transition-colors", step.status === "failed" ? "border-red-200 bg-red-50" : cn(ab.borderSoft, "hover:border-[hsl(18_30%_80%)]"))}>
       <button
         className="w-full flex items-center gap-2 px-3 py-2 text-left"
         onClick={() => step.output || step.error ? setExpanded(!expanded) : undefined}

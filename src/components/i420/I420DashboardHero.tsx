@@ -4,7 +4,9 @@ import { Sparkles, Workflow, Bot, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { I420 } from "@/pages/adminpanel/agent-builder/i420Brand";
+import { ab } from "@/pages/adminpanel/agent-builder/agentBuilderTheme";
 import { I420_ROUTES } from "@/lib/i420Routes";
+import { cn } from "@/lib/utils";
 
 export function I420DashboardHero() {
   const navigate = useNavigate();
@@ -30,37 +32,44 @@ export function I420DashboardHero() {
   });
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-[hsl(248_35%_82%)] bg-gradient-to-br from-[hsl(248_45%_97%)] via-[hsl(250_33%_98%)] to-[hsl(270_40%_97%)] p-6">
-      <div className="absolute top-0 right-0 h-48 w-48 rounded-full bg-[hsl(248_50%_62%/0.15)] blur-3xl -translate-y-1/2 translate-x-1/4" />
+    <div className={cn("relative overflow-hidden rounded-xl border p-6", ab.border, ab.pageBg)}>
+      <div className="absolute top-0 right-0 h-48 w-48 rounded-full bg-[hsl(18_52%_52%/0.08)] blur-3xl -translate-y-1/2 translate-x-1/4" />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-md bg-[hsl(248_50%_62%)] px-2 py-0.5 text-[11px] font-bold tracking-tight text-white">
+            <span className={cn(ab.i420Badge, "gap-1")}>
               <Sparkles className="h-3 w-3" />
               {I420.name}
             </span>
-            <h2 className="text-xl font-bold tracking-tight">{I420.studioLabel}</h2>
+            <h2 className={cn("text-xl font-bold tracking-tight", ab.fontHeading, ab.textForeground)}>
+              {I420.studioLabel}
+            </h2>
           </div>
-          <p className="max-w-xl text-sm text-muted-foreground">{I420.tagline}</p>
+          <p className={cn("max-w-xl text-sm", ab.textMuted)}>{I420.tagline}</p>
           {stats && (
-            <p className="text-xs text-muted-foreground">
+            <p className={cn("text-xs", ab.textMuted)}>
               {stats.agents} agents · {stats.automations} active automations · {stats.published} published to workspace
             </p>
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            className="gap-2 bg-[hsl(248_50%_62%)] hover:bg-[hsl(248_50%_58%)]"
-            onClick={() => navigate(I420_ROUTES.root)}
-          >
+          <Button className={cn("gap-2", ab.accentBtn)} onClick={() => navigate(I420_ROUTES.root)}>
             Open Studio
             <ArrowRight className="h-4 w-4" />
           </Button>
-          <Button variant="outline" className="gap-2" onClick={() => navigate(I420_ROUTES.automations)}>
+          <Button
+            variant="outline"
+            className={cn("gap-2", ab.border, "hover:bg-[hsl(40_20%_96%)]")}
+            onClick={() => navigate(I420_ROUTES.automations)}
+          >
             <Workflow className="h-4 w-4" />
             Automations
           </Button>
-          <Button variant="outline" className="gap-2" onClick={() => navigate("/ai-agents")}>
+          <Button
+            variant="outline"
+            className={cn("gap-2", ab.border, "hover:bg-[hsl(40_20%_96%)]")}
+            onClick={() => navigate("/ai-agents")}
+          >
             <Bot className="h-4 w-4" />
             Published Agents
           </Button>

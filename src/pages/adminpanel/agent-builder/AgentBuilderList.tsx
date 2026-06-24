@@ -278,7 +278,7 @@ export default function AgentBuilderList() {
         <div className="flex items-center gap-2.5">
           <Bot className={cn("h-7 w-7", ab.accentText)} />
           <div>
-            <h1 className={cn("text-2xl font-bold tracking-tight", ab.textForeground)}>{I420.studioLabel}</h1>
+            <h1 className={cn("text-2xl font-bold tracking-tight", ab.fontHeading, ab.textForeground)}>{I420.studioLabel}</h1>
             <p className={cn("text-xs", ab.textMuted)}>{I420.tagline}</p>
           </div>
         </div>
@@ -362,7 +362,7 @@ export default function AgentBuilderList() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <h2 className={cn("text-base font-semibold", ab.textForeground)}>Your workflows</h2>
+            <h2 className={cn("text-base font-semibold", ab.fontHeading, ab.textForeground)}>Your workflows</h2>
             {!isLoading && (
               <Badge variant="secondary" className={cn("text-xs", ab.accentMuted, ab.accentText)}>
                 {filtered.length}
@@ -403,7 +403,7 @@ export default function AgentBuilderList() {
           </div>
         ) : filtered.length === 0 ? (
           <div className={cn("flex flex-col items-center justify-center py-20", ab.emptyState)}>
-            <div className="w-16 h-16 rounded-2xl bg-[hsl(248_45%_94%)] flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-[hsl(18_40%_94%)] flex items-center justify-center mb-4">
               <Bot className={cn("w-8 h-8", ab.accentText)} />
             </div>
             <p className="text-sm font-medium text-foreground">
@@ -505,8 +505,8 @@ function AgentCard({
       <div
         className={cn(
           "h-1 w-full",
-          agent.status === "published" && "bg-gradient-to-r from-emerald-400 to-teal-400",
-          agent.status === "draft" && "bg-gradient-to-r from-amber-400 to-orange-400",
+          agent.status === "published" && "bg-[hsl(18_52%_52%)]",
+          agent.status === "draft" && "bg-[hsl(35_25%_75%)]",
           agent.status === "archived" && "bg-slate-200",
         )}
       />
@@ -515,7 +515,7 @@ function AgentCard({
         {/* Header row */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <button className="text-left flex-1 min-w-0" onClick={onOpen}>
-            <p className={cn("text-sm font-semibold group-hover:text-[hsl(248_45%_42%)] transition-colors truncate", ab.textForeground)}>
+            <p className={cn("text-sm font-semibold group-hover:text-[hsl(18_45%_38%)] transition-colors truncate", ab.textForeground)}>
               {agent.name}
             </p>
             {agent.description && (
@@ -541,11 +541,11 @@ function AgentCard({
         </div>
 
         {/* Action row */}
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[hsl(250_18%_90%)]">
+        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[hsl(35_15%_88%)]">
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 h-7 text-xs gap-1 hover:bg-[hsl(248_40%_96%)] hover:border-[hsl(248_35%_82%)] hover:text-[hsl(248_45%_42%)]"
+            className="flex-1 h-7 text-xs gap-1 hover:bg-[hsl(18_35%_95%)] hover:border-[hsl(18_30%_80%)] hover:text-[hsl(18_45%_38%)]"
             onClick={onOpen}
           >
             <Edit2 className="w-3 h-3" />

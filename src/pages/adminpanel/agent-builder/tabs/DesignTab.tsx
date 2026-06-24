@@ -210,7 +210,7 @@ export function DesignTab({
           {leftCollapsed ? (
             <div
               className={cn(
-                "flex-1 flex flex-col items-center gap-3 py-4 border-r cursor-pointer transition-colors bg-[hsl(250_28%_96%)] border-[hsl(250_18%_90%)] hover:bg-[hsl(250_25%_94%)]",
+                "flex-1 flex flex-col items-center gap-3 py-4 border-r cursor-pointer transition-colors bg-[hsl(40_25%_99%)] border-[hsl(35_15%_88%)] hover:bg-[hsl(40_20%_96%)]",
                 ab.borderSoft,
               )}
               onClick={toggleLeft}
@@ -242,7 +242,7 @@ export function DesignTab({
                 onClick={toggleLeft}
                 className={cn(
                   "absolute top-1/2 -translate-y-1/2 right-0 z-10 w-5 h-10 flex items-center justify-center rounded-r transition-colors shadow-sm border",
-                  ab.surfaceElevated, ab.textMuted, "hover:text-[hsl(248_45%_42%)]",
+                  ab.surfaceElevated, ab.textMuted, "hover:text-[hsl(18_45%_38%)]",
                 )}
                 title="Collapse chat panel"
               >
@@ -252,8 +252,8 @@ export function DesignTab({
           )}
         </Panel>
 
-        <PanelResizeHandle className="relative w-1 bg-transparent hover:bg-[hsl(248_45%_70%/0.15)] active:bg-[hsl(248_45%_70%/0.25)] transition-colors cursor-col-resize group">
-          <div className="absolute inset-y-0 left-0 w-px bg-[hsl(250_18%_90%)] group-hover:bg-[hsl(248_45%_70%/0.5)] transition-colors" />
+        <PanelResizeHandle className="relative w-1 bg-transparent hover:bg-[hsl(18_52%_52%/0.12)] active:bg-[hsl(18_52%_52%/0.2)] transition-colors cursor-col-resize group">
+          <div className="absolute inset-y-0 left-0 w-px bg-[hsl(35_15%_88%)] group-hover:bg-[hsl(18_52%_52%/0.4)] transition-colors" />
         </PanelResizeHandle>
 
         {/* ── Right: Canvas ───────────────────────────────────────────────── */}
@@ -276,7 +276,7 @@ export function DesignTab({
               /* ── Card view ───────────────────────────────────────────── */
               <div className="absolute inset-0 overflow-auto h-full z-[1]">
                 {isRunActive && (
-                  <div className="absolute inset-0 pointer-events-none bg-[hsl(248_60%_62%/0.02)] animate-pulse" />
+                  <div className="absolute inset-0 pointer-events-none bg-[hsl(18_52%_52%/0.02)] animate-pulse" />
                 )}
                 <div className="h-full min-h-0 flex flex-col">
                   {isEmptyStudio ? (

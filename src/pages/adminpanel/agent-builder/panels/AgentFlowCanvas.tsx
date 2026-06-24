@@ -188,8 +188,8 @@ export function AgentFlowCanvas({
       {/* Running shimmer overlay */}
       {isRunActive && (
         <>
-          <div className="absolute inset-0 pointer-events-none z-10 bg-[hsl(248_60%_62%/0.03)] animate-pulse" />
-          <div className="absolute top-0 inset-x-0 h-0.5 pointer-events-none z-10 bg-gradient-to-r from-transparent via-[hsl(248_60%_62%/0.6)] to-transparent animate-[shimmer_2s_ease-in-out_infinite]" />
+          <div className="absolute inset-0 pointer-events-none z-10 bg-[hsl(18_52%_52%/0.03)] animate-pulse" />
+          <div className="absolute top-0 inset-x-0 h-0.5 pointer-events-none z-10 bg-gradient-to-r from-transparent via-[hsl(18_52%_52%/0.5)] to-transparent animate-[shimmer_2s_ease-in-out_infinite]" />
         </>
       )}
       <ReactFlow
@@ -207,21 +207,21 @@ export function AgentFlowCanvas({
         minZoom={0.3}
         maxZoom={2}
         deleteKeyCode="Delete"
-        className="bg-[hsl(250_33%_98%)]"
+        className="bg-[hsl(40_33%_97%)]"
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
-        <Controls className="bg-[hsl(250_32%_97.5%)] border border-[hsl(250_18%_90%)] rounded-lg shadow-sm" />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="hsl(35, 15%, 82%)" />
+        <Controls className="bg-[hsl(40_25%_99%)] border border-[hsl(35_15%_88%)] rounded-lg shadow-sm" />
         <MiniMap
           nodeColor={(n) => {
             const type = n.data?.type as string;
-            if (type?.includes("trigger")) return "#fbbf24";
-            if (type?.includes("llm") || type?.includes("ai")) return "#60a5fa";
-            if (type === "condition" || type === "switch") return "#a78bfa";
-            if (type?.includes("slack") || type?.includes("email") || type?.includes("notify")) return "#34d399";
-            return "#94a3b8";
+            if (type?.includes("trigger")) return "#d4a574";
+            if (type?.includes("llm") || type?.includes("ai")) return "#c96442";
+            if (type === "condition" || type === "switch") return "#9a8b7a";
+            if (type?.includes("slack") || type?.includes("email") || type?.includes("notify")) return "#7a8f7a";
+            return "#a89f94";
           }}
-          className="bg-[hsl(250_32%_97.5%)] border border-[hsl(250_18%_90%)] rounded-lg"
-          maskColor="rgba(248,250,252,0.7)"
+          className="bg-[hsl(40_25%_99%)] border border-[hsl(35_15%_88%)] rounded-lg"
+          maskColor="rgba(250, 249, 246, 0.7)"
         />
       </ReactFlow>
     </div>

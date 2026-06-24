@@ -192,7 +192,7 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via i420 Stu
 | `/i420` | Agent list + prompt composer + 3D canvas |
 | `/i420/new` | Studio editor (new workflow) |
 | `/i420/:agentId` | Studio editor |
-| `/i420/settings` | Data sources, MCP, integrations |
+| `/i420/settings` | Models, tools, MCP, data sources, system prompt, **platform costs** |
 | `/i420/automations` | All published scheduled automations |
 | `/i420/automations/logs` | Scheduled automation run logs (`trigger_type = cron` only) |
 | `/adminpanel/ai-control?tab=agents-logs` | Combined i420 Studio + legacy AI agent run history |
@@ -203,14 +203,15 @@ Super admins also reach i420 Studio from the root sidebar (**i420 Studio** butto
 
 ## UI Conventions
 
-i420 Studio uses a **scoped soft Lovable-inspired palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). Brand copy lives in `i420Brand.ts`; route constants in `src/lib/i420Routes.ts`. Layout chrome is `src/layouts/I420StudioLayout.tsx` (standalone, not AdminLayout).
+i420 Studio uses a **Claude-inspired warm cream + terracotta palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). Brand copy lives in `i420Brand.ts`; route constants in `src/lib/i420Routes.ts`. Layout chrome is `src/layouts/I420StudioLayout.tsx` (standalone, not AdminLayout). Headings use **Source Serif 4** scoped to the i420 layout; body text uses Inter.
 
 **Palette traits:**
-- Page canvas: warm blue-gray (`ab.canvas`), not pure white
-- Cards/composer: elevated lavender-gray surfaces (`ab.surface`, `ab.surfaceElevated`) with soft shadow
-- Inputs: filled soft gray-lavender (`ab.input`), not white boxes on white
-- Accent: muted periwinkle (`ab.accentText`, `ab.accentBtn`, `ab.chipActive`) — not saturated platform primary
-- Chat: soft panel (`ab.chatPanel`), periwinkle user bubbles (`ab.userBubble`), tinted assistant bubbles (`ab.assistantBubble`)
+- Page canvas: warm cream (`ab.pageBg` / `ab.canvas`, ~`hsl(40 33% 97%)`), not cold lavender-gray
+- Cards/composer: warm white surfaces (`ab.surface`, `ab.surfaceElevated`) with soft stone borders and neutral shadows
+- Inputs: white fill with stone border (`ab.input`) and terracotta focus ring
+- Accent: terracotta (`ab.accentText`, `ab.accentBtn`, `ab.chipActive`, ~`hsl(18 52% 52%)`) — minimal gradients
+- Chat: warm panel (`ab.chatPanel`), tan user bubbles (`ab.userBubble`), white assistant cards (`ab.assistantBubble`)
+- 3D/canvas: aligned via `three/i4203dTheme.ts` and warm React Flow node colors in `AgentFlowCanvas.tsx`
 
 List and Settings pages use breadcrumb + header inside `I420StudioLayout`. The studio editor (`/i420/new`, `/i420/:agentId`) renders full-screen without layout chrome. Do not change global `index.css` tokens when styling i420 Studio — extend `agentBuilderTheme.ts` instead.
 
@@ -269,4 +270,17 @@ i420 Studio acts as an **MCP client**: registered servers expose tools that comp
 **Deploy:** `supabase functions deploy mcp-manage`; `npx trigger.dev@latest deploy` for runtime execution.
 
 **Node config:** `{ server_id, tool_name, arguments }` — arguments support `{{variable}}` templates from upstream steps.
+
+**Test server:** Free Cloudflare Worker at `examples/mcp-test-server/` (authless, tools `echo` + `get_client_sample`). Deploy with `npm run deploy` in that folder, then use **Test connection** in MCP Servers settings before **Connect & sync tools**.
+
+## Platform costs vs execution costs
+
+Two separate cost surfaces:
+
+| Cost type | What it tracks | Where to view |
+|-----------|----------------|---------------|
+| **Platform** | Design chat / `compile-agent-flow` LLM usage (+ future Settings AI) | `/i420/settings` → **Costs** tab |
+| **Execution** | Agent runs and cron automations (`agent_runs`, `run_steps`) | Agent list badges, Runtime, Logs, Automations logs |
+
+Platform usage is stored in `i420_platform_usage` (logged by `compile-agent-flow` using `cost-calculator.ts`). Execution costs are **not** duplicated on the Costs tab.
 

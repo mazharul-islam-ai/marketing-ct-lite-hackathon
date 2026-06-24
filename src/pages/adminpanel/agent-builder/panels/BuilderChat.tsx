@@ -53,7 +53,7 @@ function CompileInlineProgress({ status }: { status: CompileStatus }) {
                 isDone
                   ? "bg-emerald-500"
                   : isActive
-                  ? "bg-[hsl(248_55%_58%)] animate-pulse"
+                  ? "bg-[hsl(18_52%_52%)] animate-pulse"
                   : "bg-slate-200",
               )}
             />
@@ -217,7 +217,7 @@ export function BuilderChat({
           <Button
             size="sm"
             variant="ghost"
-            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(248_40%_96%)]", ab.textMuted)}
+            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(18_35%_95%)]", ab.textMuted)}
             onClick={() => handleSend("generate")}
             disabled={!input.trim() || isCompiling}
           >
@@ -227,7 +227,7 @@ export function BuilderChat({
           <Button
             size="sm"
             variant="ghost"
-            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(248_40%_96%)]", ab.textMuted)}
+            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(18_35%_95%)]", ab.textMuted)}
             onClick={() => handleSend("improve")}
             disabled={!input.trim() || isCompiling}
           >
@@ -237,7 +237,7 @@ export function BuilderChat({
           <Button
             size="sm"
             variant="ghost"
-            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(248_40%_96%)]", ab.textMuted)}
+            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(18_35%_95%)]", ab.textMuted)}
             onClick={() => handleSend("add_tool")}
             disabled={!input.trim() || isCompiling}
           >
