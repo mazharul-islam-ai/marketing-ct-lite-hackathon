@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { I420_ROUTES } from "@/lib/i420Routes";
 import type { Agent, AgentRun } from "../agent-builder/types";
+import { I420 } from "../agent-builder/i420Brand";
 
 interface AutomationRow {
   agent: Agent;
@@ -98,7 +100,7 @@ export default function AutomationsList() {
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link to="/adminpanel/automations/logs">View Logs</Link>
+          <Link to={I420_ROUTES.automationLogs}>View Logs</Link>
         </Button>
       </div>
 
@@ -112,7 +114,7 @@ export default function AutomationsList() {
           <p className="text-sm font-medium text-slate-600">No scheduled automations yet</p>
           <p className="text-xs text-slate-400 mt-1">
             Publish an agent with a Schedule trigger in{" "}
-            <Link to="/adminpanel/agent-builder" className="text-violet-600 hover:underline">Agent Builder</Link>
+            <Link to={I420_ROUTES.root} className="text-violet-600 hover:underline">{I420.studioLabel}</Link>
           </p>
         </div>
       ) : (
@@ -129,7 +131,7 @@ export default function AutomationsList() {
               <div className="flex-1 min-w-0">
                 <button
                   className="text-sm font-semibold text-slate-900 hover:text-violet-600 truncate block text-left"
-                  onClick={() => navigate(`/adminpanel/agent-builder/${agent.id}`)}
+                  onClick={() => navigate(I420_ROUTES.agent(agent.id))}
                 >
                   {agent.name}
                 </button>
@@ -182,7 +184,7 @@ export default function AutomationsList() {
                   size="sm"
                   variant="ghost"
                   className="h-7 w-7 p-0"
-                  onClick={() => navigate(`/adminpanel/agent-builder/${agent.id}`)}
+                  onClick={() => navigate(I420_ROUTES.agent(agent.id))}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>

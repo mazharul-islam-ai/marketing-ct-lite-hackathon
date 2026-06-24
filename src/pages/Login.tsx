@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
-import { Loader2, Mail, Lock } from "lucide-react";
+import { Loader2, Mail, Lock, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { I420 } from "@/pages/adminpanel/agent-builder/i420Brand";
 import logo from "@/assets/logo-sji-login.png";
 
 // Demo credentials (for development/demo purposes)
@@ -179,6 +180,13 @@ export default function Login() {
           <div className="inline-flex flex-col items-center justify-center mb-4">
             <img src={logo} alt="SJ Innovation" className="h-20 w-auto mb-3" />
             <p className="text-white/90 text-sm">Intelligence Dashboard + AI Task Hub</p>
+          </div>
+          <div className="inline-flex flex-col items-center gap-1 rounded-xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white">
+              <Sparkles className="h-3.5 w-3.5" />
+              {I420.poweredByLabel}
+            </span>
+            <p className="text-[11px] text-white/80">{I420.loginSubtitle}</p>
           </div>
         </div>
 

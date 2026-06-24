@@ -106,12 +106,14 @@ import ActiveCollabSyncDashboard from "./pages/adminpanel/data-sync/ActiveCollab
 // Quote Builder Module
 import ServiceCatalogPage from "./pages/adminpanel/quotes/ServiceCatalogPage";
 
-// Agent Builder Module
+// i420 Studio (Agent Builder)
 import AgentBuilderList from "./pages/adminpanel/agent-builder/AgentBuilderList";
 import AgentBuilderStudio from "./pages/adminpanel/agent-builder/AgentBuilderStudio";
 import AgentBuilderSettings from "./pages/adminpanel/agent-builder/AgentBuilderSettings";
 import AutomationsList from "./pages/adminpanel/automations/AutomationsList";
 import AutomationsLogs from "./pages/adminpanel/automations/AutomationsLogs";
+import I420StudioLayout from "./layouts/I420StudioLayout";
+import { LegacyAgentBuilderRedirect, LegacyAutomationsRedirect } from "./components/routing/LegacyI420Redirects";
 
 // AI Agents (Workspace + Public)
 import AIAgentsPage from "./pages/ai-agents";
@@ -168,6 +170,27 @@ const App = () => (
             
             {/* Redirect /dashboard to appropriate location */}
             <Route path="/dashboard" element={<DashboardRedirect />} />
+
+            {/* i420 Studio — standalone layout, super_admin only */}
+            <Route
+              path="/i420"
+              element={
+                <ProtectedRoute requiredRole="super_admin">
+                  <I420StudioLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<AgentBuilderList />} />
+              <Route path="new" element={<AgentBuilderStudio />} />
+              <Route path="settings" element={<AgentBuilderSettings />} />
+              <Route path="automations" element={<AutomationsList />} />
+              <Route path="automations/logs" element={<AutomationsLogs />} />
+              <Route path=":agentId" element={<AgentBuilderStudio />} />
+            </Route>
+
+            {/* Legacy adminpanel paths → i420 */}
+            <Route path="/adminpanel/agent-builder/*" element={<LegacyAgentBuilderRedirect />} />
+            <Route path="/adminpanel/automations/*" element={<LegacyAutomationsRedirect />} />
             
             {/* Authenticated User Routes (Base: /) */}
             <Route path="/" element={
@@ -548,57 +571,6 @@ const App = () => (
                 }
               />
 
-              {/* Agent Builder Routes */}
-              <Route
-                path="agent-builder"
-                element={
-                  <ProtectedRoute requiredRole="super_admin">
-                    <AgentBuilderList />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="agent-builder/new"
-                element={
-                  <ProtectedRoute requiredRole="super_admin">
-                    <AgentBuilderStudio />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="agent-builder/settings"
-                element={
-                  <ProtectedRoute requiredRole="super_admin">
-                    <AgentBuilderSettings />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="agent-builder/:agentId"
-                element={
-                  <ProtectedRoute requiredRole="super_admin">
-                    <AgentBuilderStudio />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Automations */}
-              <Route
-                path="automations"
-                element={
-                  <ProtectedRoute requiredRole="super_admin">
-                    <AutomationsList />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="automations/logs"
-                element={
-                  <ProtectedRoute requiredRole="super_admin">
-                    <AutomationsLogs />
-                  </ProtectedRoute>
-                }
-              />
             </Route>
 
             {/* Catch-all route */}

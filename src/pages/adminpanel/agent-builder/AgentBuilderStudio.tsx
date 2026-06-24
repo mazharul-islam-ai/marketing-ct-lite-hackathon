@@ -26,6 +26,7 @@ import { ab } from "./agentBuilderTheme";
 import { I420, flowHasContent } from "./i420Brand";
 import type { AgentVisibility } from "./types";
 import type { Agent, AgentVersion, FlowJSON } from "./types";
+import { I420_ROUTES } from "@/lib/i420Routes";
 import { extractCronFromFlow, computeNextRunAt } from "@/lib/automationSchedule";
 
 type StudioTab = "design" | "runtime" | "json" | "logs" | "versions";
@@ -74,7 +75,7 @@ export default function AgentBuilderStudio() {
 
       if (!agentData) {
         toast.error("Agent not found");
-        navigate("/adminpanel/agent-builder");
+        navigate(I420_ROUTES.root);
         return;
       }
 
@@ -106,7 +107,7 @@ export default function AgentBuilderStudio() {
   const handleAgentCreated = useCallback((newAgentId: string, name: string) => {
     setLiveAgentId(newAgentId);
     setAgentName(name);
-    navigate(`/adminpanel/agent-builder/${newAgentId}`, { replace: true });
+    navigate(I420_ROUTES.agent(newAgentId), { replace: true });
   }, [navigate]);
 
   const handleInitialPromptConsumed = useCallback(() => {
@@ -220,7 +221,7 @@ export default function AgentBuilderStudio() {
       .update({ is_active: false })
       .eq("agent_id", liveAgentId);
     toast.success("Archived");
-    navigate("/adminpanel/agent-builder");
+    navigate(I420_ROUTES.root);
   }, [liveAgentId, navigate]);
 
   const handleRollback = useCallback((version: AgentVersion) => {
@@ -272,7 +273,7 @@ export default function AgentBuilderStudio() {
       <div className={ab.studioHeader}>
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button
-            onClick={() => navigate("/adminpanel/agent-builder")}
+            onClick={() => navigate(I420_ROUTES.root)}
             className={cn(ab.i420Badge, "hover:opacity-90 transition-opacity shrink-0 cursor-pointer border-0")}
           >
             {I420.name}

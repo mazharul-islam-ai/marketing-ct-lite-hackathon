@@ -120,7 +120,7 @@ export default function AIAgentsPage() {
             <p className="text-sm mt-1">
               {search
                 ? "Try a different search term"
-                : "Admins can publish agents with Workspace visibility in the Agent Builder"}
+                : "Admins can publish agents with Workspace visibility in i420 Studio"}
             </p>
           </div>
         </div>
