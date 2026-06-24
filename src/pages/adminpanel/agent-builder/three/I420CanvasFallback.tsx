@@ -23,7 +23,7 @@ export function I420CanvasFallback({ className, variant = "dots" }: I420CanvasFa
             }
           : {
               background:
-                "radial-gradient(ellipse 80% 60% at 50% 40%, hsl(248 45% 94% / 0.6), transparent 70%), hsl(250 33% 98%)",
+                "radial-gradient(ellipse 80% 60% at 50% 40%, hsl(18 40% 94% / 0.5), transparent 70%), hsl(40 33% 97%)",
             }
       }
       aria-hidden

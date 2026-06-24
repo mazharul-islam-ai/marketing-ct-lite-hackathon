@@ -19,7 +19,7 @@ export function FlowPreviewSceneLayer({
   className,
 }: FlowPreviewSceneLayerProps) {
   return (
-    <div className={cn("w-full h-16 rounded-lg overflow-hidden bg-[hsl(250_28%_97%)]", className)}>
+    <div className={cn("w-full h-16 rounded-lg overflow-hidden bg-[hsl(40_25%_99%)]", className)}>
       <I420Canvas
         fallbackVariant="gradient"
         camera={{ position: [0, 0, 2.2], fov: 45 }}

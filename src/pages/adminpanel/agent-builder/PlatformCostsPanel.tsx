@@ -203,11 +203,11 @@ Agent runs / automations → agent_runs → Runtime / Logs (not here)`}
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={dailyChart}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ab.chartGrid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ab.chartAxis }} />
+                <YAxis tick={{ fontSize: 10, fill: ab.chartAxis }} tickFormatter={(v) => `$${v}`} />
                 <Tooltip formatter={(v: number) => [formatUsd(v), "Cost"]} />
-                <Area type="monotone" dataKey="cost" stroke="hsl(var(--primary))" fill="hsl(var(--primary)/0.15)" />
+                <Area type="monotone" dataKey="cost" stroke={ab.chartLine} fill={ab.chartLine} fillOpacity={0.12} />
               </AreaChart>
             </ResponsiveContainer>
           )}

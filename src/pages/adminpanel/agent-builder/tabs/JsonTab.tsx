@@ -58,12 +58,12 @@ function JsonTreeNode({
 
   return (
     <Collapsible open={isOpen} onOpenChange={setOpen} className="pl-2">
-      <CollapsibleTrigger className={cn("flex items-center gap-1 py-0.5 text-[11px] font-mono w-full text-left hover:bg-[hsl(250_25%_94%)] rounded px-1", ab.textForeground)}>
+      <CollapsibleTrigger className={cn("flex items-center gap-1 py-0.5 text-[11px] font-mono w-full text-left hover:bg-[hsl(40_20%_96%)] rounded px-1", ab.textForeground)}>
         {isOpen ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
         <span className="font-semibold">{label}</span>
         <span className={cn("text-[10px]", ab.textMuted)}>{`{${entries.length}}`}</span>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pl-3 border-l border-[hsl(250_18%_90%)] ml-1.5">
+      <CollapsibleContent className="pl-3 border-l border-[hsl(35_15%_88%)] ml-1.5">
         {entries.map(([k, v]) => (
           <JsonTreeNode key={k} label={k} value={v} defaultOpen={false} forceOpen={forceOpen} />
         ))}

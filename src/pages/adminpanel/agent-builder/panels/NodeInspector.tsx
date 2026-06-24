@@ -159,7 +159,7 @@ export function NodeInspector({
 
   return (
     <div className={cn("flex flex-col h-full border-l", ab.surfaceElevated)}>
-      <div className={cn("px-3 py-2.5 border-b flex items-center justify-between border-[hsl(250_18%_90%)]", category?.bgColor ?? "bg-[hsl(250_25%_95%)]")}>
+      <div className={cn("px-3 py-2.5 border-b flex items-center justify-between border-[hsl(35_15%_88%)]", category?.bgColor ?? "bg-[hsl(40_20%_97%)]")}>
         <div>
           <div className="flex items-center gap-1.5">
             <span className="text-base">{category?.icon ?? "⬜"}</span>
@@ -264,7 +264,7 @@ export function NodeInspector({
       </ScrollArea>
 
       {/* Footer actions */}
-      <div className="px-3 py-3 border-t border-[hsl(250_18%_90%)] flex gap-2">
+      <div className="px-3 py-3 border-t border-[hsl(35_15%_88%)] flex gap-2">
         {onTestNode && (
           <Button
             variant="outline"

@@ -103,32 +103,30 @@ export function AutomationCard({
         className={cn(
           ab.cardShell,
           "w-full overflow-hidden transition-all duration-300",
-          isRunActive && "border-l-2 border-[hsl(160_55%_42%)]",
+          isRunActive && "border-l-2 border-[hsl(30_15%_55%)]",
         )}
       >
-        {/* Header — teal/emerald gradient */}
+        {/* Header */}
         <div className={cn(ab.automationCardHeader, "px-5 pt-5 pb-4 relative")}>
-          {/* decorative circles removed */}
-
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-sm">
-                <Clock className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-[hsl(40_20%_94%)] flex items-center justify-center shrink-0">
+                <Clock className={cn("w-5 h-5", ab.textMuted)} />
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-bold text-white truncate leading-tight">
+                <h2 className={cn("text-sm font-bold truncate leading-tight", ab.textForeground, ab.fontHeading)}>
                   {agentName || I420.newWorkflowLabel}
                 </h2>
                 {agentDescription ? (
-                  <p className="text-[11px] text-white/75 mt-0.5 line-clamp-1">{agentDescription}</p>
+                  <p className={cn("text-[11px] mt-0.5 line-clamp-1", ab.textMuted)}>{agentDescription}</p>
                 ) : cronHuman ? (
-                  <p className="text-[11px] text-white/75 mt-0.5">{cronHuman}</p>
+                  <p className={cn("text-[11px] mt-0.5", ab.textMuted)}>{cronHuman}</p>
                 ) : null}
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0 flex-col items-end">
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-white">
+              <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", ab.accentSoft)}>
                 <Settings2 className="w-2.5 h-2.5" />
                 Automation
               </span>
@@ -141,9 +139,9 @@ export function AutomationCard({
                 {agentStatus}
               </span>
               {isRunActive && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-white">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping absolute" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-white relative" />
+                <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", ab.accentSoft)}>
+                  <span className={cn("w-1.5 h-1.5 rounded-full animate-ping absolute", ab.accentBg)} />
+                  <span className={cn("w-1.5 h-1.5 rounded-full relative", ab.accentBg)} />
                   Running…
                 </span>
               )}
@@ -215,15 +213,15 @@ export function AutomationCard({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-[hsl(250_18%_92%)] flex items-center justify-between bg-[hsl(160_20%_98%)]">
+        <div className="px-5 py-3 border-t border-[hsl(35_15%_88%)] flex items-center justify-between bg-[hsl(40_20%_97%)]">
           <Button
             variant={isEditOpen ? "default" : "outline"}
             size="sm"
             className={cn(
               "h-8 px-3 text-xs gap-1.5",
               isEditOpen
-                ? "bg-[hsl(248_50%_62%)] hover:bg-[hsl(248_50%_58%)] text-white border-0"
-                : "border-[hsl(160_18%_85%)] hover:border-[hsl(160_35%_65%)] hover:text-[hsl(160_45%_38%)]",
+                ? "bg-[hsl(18_52%_52%)] hover:bg-[hsl(18_52%_46%)] text-white border-0"
+                : "border-[hsl(35_15%_88%)] hover:border-[hsl(18_30%_75%)] hover:text-[hsl(18_45%_38%)]",
             )}
             onClick={onEditToggle}
           >
@@ -244,7 +242,7 @@ export function AutomationCard({
           ) : (
             <Button
               size="sm"
-              className="h-8 px-4 text-xs gap-1.5 bg-[hsl(160_55%_42%)] hover:bg-[hsl(160_55%_38%)] text-white border-0"
+              className="h-8 px-4 text-xs gap-1.5 bg-[hsl(18_52%_52%)] hover:bg-[hsl(18_52%_46%)] text-white border-0"
               onClick={onRun}
               disabled={isTriggering || allNodes.length === 0 || !canRun}
             >

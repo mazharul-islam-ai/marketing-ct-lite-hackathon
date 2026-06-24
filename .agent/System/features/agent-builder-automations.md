@@ -203,14 +203,15 @@ Super admins also reach i420 Studio from the root sidebar (**i420 Studio** butto
 
 ## UI Conventions
 
-i420 Studio uses a **scoped soft Lovable-inspired palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). Brand copy lives in `i420Brand.ts`; route constants in `src/lib/i420Routes.ts`. Layout chrome is `src/layouts/I420StudioLayout.tsx` (standalone, not AdminLayout).
+i420 Studio uses a **Claude-inspired warm cream + terracotta palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). Brand copy lives in `i420Brand.ts`; route constants in `src/lib/i420Routes.ts`. Layout chrome is `src/layouts/I420StudioLayout.tsx` (standalone, not AdminLayout). Headings use **Source Serif 4** scoped to the i420 layout; body text uses Inter.
 
 **Palette traits:**
-- Page canvas: warm blue-gray (`ab.canvas`), not pure white
-- Cards/composer: elevated lavender-gray surfaces (`ab.surface`, `ab.surfaceElevated`) with soft shadow
-- Inputs: filled soft gray-lavender (`ab.input`), not white boxes on white
-- Accent: muted periwinkle (`ab.accentText`, `ab.accentBtn`, `ab.chipActive`) — not saturated platform primary
-- Chat: soft panel (`ab.chatPanel`), periwinkle user bubbles (`ab.userBubble`), tinted assistant bubbles (`ab.assistantBubble`)
+- Page canvas: warm cream (`ab.pageBg` / `ab.canvas`, ~`hsl(40 33% 97%)`), not cold lavender-gray
+- Cards/composer: warm white surfaces (`ab.surface`, `ab.surfaceElevated`) with soft stone borders and neutral shadows
+- Inputs: white fill with stone border (`ab.input`) and terracotta focus ring
+- Accent: terracotta (`ab.accentText`, `ab.accentBtn`, `ab.chipActive`, ~`hsl(18 52% 52%)`) — minimal gradients
+- Chat: warm panel (`ab.chatPanel`), tan user bubbles (`ab.userBubble`), white assistant cards (`ab.assistantBubble`)
+- 3D/canvas: aligned via `three/i4203dTheme.ts` and warm React Flow node colors in `AgentFlowCanvas.tsx`
 
 List and Settings pages use breadcrumb + header inside `I420StudioLayout`. The studio editor (`/i420/new`, `/i420/:agentId`) renders full-screen without layout chrome. Do not change global `index.css` tokens when styling i420 Studio — extend `agentBuilderTheme.ts` instead.
 

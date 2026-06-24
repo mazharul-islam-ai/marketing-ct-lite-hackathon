@@ -64,7 +64,7 @@ export function AgentCard({
       : lastRunStatus === "failed"
       ? { label: "Failed", cls: "text-red-600" }
       : lastRunStatus === "running" || lastRunStatus === "queued"
-      ? { label: "Running…", cls: "text-[hsl(248_55%_58%)]" }
+      ? { label: "Running…", cls: "text-[hsl(18_52%_52%)]" }
       : null;
 
   return (
@@ -80,21 +80,17 @@ export function AgentCard({
       >
         {/* Header */}
         <div className={cn(ab.agentCardHeader, "px-5 pt-5 pb-4 relative overflow-hidden")}>
-          {/* Decorative circles */}
-          <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
-          <div className="absolute -bottom-4 -right-2 w-16 h-16 rounded-full bg-white/8" />
-
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-sm">
-                <Bot className="w-5 h-5 text-white" />
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", ab.accentMuted)}>
+                <Bot className={cn("w-5 h-5", ab.accentText)} />
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-bold text-white truncate leading-tight">
+                <h2 className={cn("text-sm font-bold truncate leading-tight", ab.textForeground, ab.fontHeading)}>
                   {agentName || I420.newWorkflowLabel}
                 </h2>
                 {agentDescription && (
-                  <p className="text-[11px] text-white/75 mt-0.5 line-clamp-1">{agentDescription}</p>
+                  <p className={cn("text-[11px] mt-0.5 line-clamp-1", ab.textMuted)}>{agentDescription}</p>
                 )}
               </div>
             </div>
@@ -110,9 +106,9 @@ export function AgentCard({
                 {agentStatus}
               </span>
               {isRunActive && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-white">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping absolute" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-white relative" />
+                <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", ab.accentSoft)}>
+                  <span className={cn("w-1.5 h-1.5 rounded-full animate-ping absolute", ab.accentBg)} />
+                  <span className={cn("w-1.5 h-1.5 rounded-full relative", ab.accentBg)} />
                   Running…
                 </span>
               )}
@@ -155,15 +151,15 @@ export function AgentCard({
         </div>
 
         {/* Footer actions */}
-        <div className="px-5 py-3 border-t border-[hsl(250_18%_92%)] flex items-center justify-between bg-[hsl(250_25%_98%)]">
+        <div className="px-5 py-3 border-t border-[hsl(35_15%_88%)] flex items-center justify-between bg-[hsl(40_25%_99%)]">
           <Button
             variant={isEditOpen ? "default" : "outline"}
             size="sm"
             className={cn(
               "h-8 px-3 text-xs gap-1.5",
               isEditOpen
-                ? "bg-[hsl(248_50%_62%)] hover:bg-[hsl(248_50%_58%)] text-white border-0"
-                : "border-[hsl(250_18%_88%)] hover:border-[hsl(248_35%_75%)] hover:text-[hsl(248_45%_42%)]",
+                ? "bg-[hsl(18_52%_52%)] hover:bg-[hsl(18_52%_46%)] text-white border-0"
+                : "border-[hsl(35_15%_88%)] hover:border-[hsl(18_30%_75%)] hover:text-[hsl(18_45%_38%)]",
             )}
             onClick={onEditToggle}
           >

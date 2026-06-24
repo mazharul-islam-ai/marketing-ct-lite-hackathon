@@ -88,7 +88,7 @@ export function VersionsTab({ agentId, currentVersionId, onRollback }: VersionsT
                 key={v.id}
                 className={cn(
                   "rounded-lg border text-xs transition-colors",
-                  isCurrent ? "border-[hsl(248_35%_82%)] bg-[hsl(248_40%_96%)]" : "border-[hsl(250_18%_90%)] hover:border-[hsl(248_35%_82%)]",
+                  isCurrent ? "border-[hsl(18_30%_80%)] bg-[hsl(18_35%_95%)]" : "border-[hsl(35_15%_88%)] hover:border-[hsl(18_30%_80%)]",
                 )}
               >
                 {/* Version row */}
@@ -96,7 +96,7 @@ export function VersionsTab({ agentId, currentVersionId, onRollback }: VersionsT
                   {/* Version number */}
                   <div className={cn(
                     "flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold shrink-0",
-                    isCurrent ? ab.accentBtn : "bg-[hsl(250_25%_94%)] text-[hsl(240_8%_40%)]",
+                    isCurrent ? ab.accentBtn : "bg-[hsl(40_20%_96%)] text-[hsl(30_6%_45%)]",
                   )}>
                     v{v.version}
                   </div>
@@ -139,7 +139,7 @@ export function VersionsTab({ agentId, currentVersionId, onRollback }: VersionsT
 
                 {/* Expanded flow JSON preview */}
                 {isExpanded && (
-                  <div className="px-3 pb-3 border-t border-[hsl(250_18%_90%)]">
+                  <div className="px-3 pb-3 border-t border-[hsl(35_15%_88%)]">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 mt-2">
                       Flow snapshot
                     </p>

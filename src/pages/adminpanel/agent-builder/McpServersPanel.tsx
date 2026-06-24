@@ -312,7 +312,7 @@ export function McpServersPanel() {
       </div>
 
       {showForm && !editingId && (
-        <div className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] p-4 space-y-3 shadow-sm">
+        <div className="rounded-xl border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] p-4 space-y-3 shadow-sm">
           <ServerFormFields
             name={name} setName={setName}
             url={url} setUrl={setUrl}
@@ -337,7 +337,7 @@ export function McpServersPanel() {
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-slate-300" /></div>
       ) : servers.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[hsl(250_18%_90%)] p-8 text-center text-xs text-slate-500">
+        <div className="rounded-xl border border-dashed border-[hsl(35_15%_88%)] p-8 text-center text-xs text-slate-500">
           <Plug className="w-8 h-8 mx-auto mb-2 text-slate-300" />
           No MCP servers registered yet.
         </div>
@@ -349,7 +349,7 @@ export function McpServersPanel() {
             const connected = server.status === "connected";
             const isEditing = editingId === server.id;
             return (
-              <div key={server.id} className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] overflow-hidden shadow-sm">
+              <div key={server.id} className="rounded-xl border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] overflow-hidden shadow-sm">
                 <div className="flex items-center gap-3 p-4">
                   <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", connected ? ab.accentMuted : "bg-muted")}>
                     <Plug className={cn("w-4 h-4", connected ? ab.accentText : "text-muted-foreground")} />
@@ -390,7 +390,7 @@ export function McpServersPanel() {
                 </div>
 
                 {isEditing && (
-                  <div className="border-t border-[hsl(250_18%_90%)] px-4 py-4 bg-white/60 space-y-3">
+                  <div className="border-t border-[hsl(35_15%_88%)] px-4 py-4 bg-white/60 space-y-3">
                     <p className="text-xs font-medium text-slate-700">Edit server</p>
                     <ServerFormFields
                       name={name} setName={setName}
@@ -415,7 +415,7 @@ export function McpServersPanel() {
                 )}
 
                 {expanded && !isEditing && (
-                  <div className="border-t border-[hsl(250_18%_90%)] px-4 py-3 bg-white/40">
+                  <div className="border-t border-[hsl(35_15%_88%)] px-4 py-3 bg-white/40">
                     {serverTools.length === 0 ? (
                       <p className="text-xs text-slate-500">No tools synced. Click refresh to retry.</p>
                     ) : (

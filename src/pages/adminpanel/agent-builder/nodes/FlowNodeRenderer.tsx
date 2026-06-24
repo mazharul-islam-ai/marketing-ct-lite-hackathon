@@ -47,9 +47,9 @@ export const FlowNodeComponent = memo(({ data, selected }: NodeProps<FlowNodeDat
         "relative min-w-[140px] max-w-[180px] rounded-lg border-2 px-3 py-2 cursor-pointer transition-all duration-200",
         bgColor,
         statusRing,
-        selected && "border-primary -translate-y-px shadow-[0_8px_24px_hsl(248_50%_40%/0.15),0_2px_8px_hsl(250_30%_50%/0.1)]",
-        !selected && "shadow-[0_2px_8px_hsl(250_30%_50%/0.08)]",
-        data.runStatus === "running" && "ring-2 ring-[hsl(248_60%_62%)] ring-offset-1",
+        selected && "border-primary -translate-y-px shadow-[0_8px_24px_hsl(18_52%_40%/0.12),0_2px_8px_hsl(30_20%_20%/0.08)]",
+        !selected && "shadow-[0_2px_8px_hsl(30_20%_20%/0.06)]",
+        data.runStatus === "running" && "ring-2 ring-[hsl(18_52%_52%)] ring-offset-1",
       )}
     >
       {/* Incoming handle — not for trigger nodes */}

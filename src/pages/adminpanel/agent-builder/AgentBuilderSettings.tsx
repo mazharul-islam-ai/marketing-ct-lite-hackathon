@@ -590,7 +590,7 @@ export default function AgentBuilderSettings() {
             <Settings2 className={cn("w-4 h-4", ab.accentText)} />
           </div>
           <div>
-            <h1 className="text-base font-semibold text-foreground">{I420.name} Settings</h1>
+            <h1 className={cn("text-base font-semibold", ab.fontHeading, ab.textForeground)}>{I420.name} Settings</h1>
             <p className="text-xs text-muted-foreground">
               Configure models, tools, data sources, and view platform costs
             </p>
@@ -645,10 +645,10 @@ export default function AgentBuilderSettings() {
                   <div
                     key={provider.id}
                     className={cn(
-                      "rounded-xl border p-4 bg-[hsl(250_28%_96%)] transition-all",
-                      isConnected  ? "border-[hsl(250_18%_90%)] shadow-sm"
-                      : isLoading  ? "border-[hsl(250_18%_90%)] opacity-70"
-                      : "border-[hsl(250_18%_90%)] opacity-50",
+                      "rounded-xl border p-4 bg-[hsl(40_25%_99%)] transition-all",
+                      isConnected  ? "border-[hsl(35_15%_88%)] shadow-sm"
+                      : isLoading  ? "border-[hsl(35_15%_88%)] opacity-70"
+                      : "border-[hsl(35_15%_88%)] opacity-50",
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -669,7 +669,7 @@ export default function AgentBuilderSettings() {
                               <CheckCircle2 className="w-2.5 h-2.5" /> Connected
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-[hsl(250_18%_90%)]">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-[hsl(35_15%_88%)]">
                               <AlertCircle className="w-2.5 h-2.5" /> Not configured
                             </span>
                           )}
@@ -751,13 +751,13 @@ export default function AgentBuilderSettings() {
                     <div
                       key={tool.id}
                       className={cn(
-                        "rounded-xl border p-4 bg-[hsl(250_28%_96%)] flex items-center gap-4 transition-all",
-                        isConnected ? "border-[hsl(250_18%_90%)] shadow-sm" : "border-[hsl(250_18%_90%)] opacity-60",
+                        "rounded-xl border p-4 bg-[hsl(40_25%_99%)] flex items-center gap-4 transition-all",
+                        isConnected ? "border-[hsl(35_15%_88%)] shadow-sm" : "border-[hsl(35_15%_88%)] opacity-60",
                       )}
                     >
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                        isConnected ? cn(ab.accentMuted, ab.accentText) : "bg-[hsl(250_25%_94%)] text-[hsl(240_8%_40%)]",
+                        isConnected ? cn(ab.accentMuted, ab.accentText) : "bg-[hsl(40_20%_96%)] text-[hsl(30_6%_45%)]",
                       )}>
                         {tool.icon}
                       </div>
@@ -778,7 +778,7 @@ export default function AgentBuilderSettings() {
                         ) : (
                           <Link
                             to="/adminpanel/integrations"
-                            className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors", ab.accentSoft, "hover:bg-[hsl(248_45%_92%)]")}
+                            className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors", ab.accentSoft, "hover:bg-[hsl(18_40%_92%)]")}
                           >
                             Connect <ExternalLink className="w-3 h-3" />
                           </Link>
@@ -840,11 +840,11 @@ export default function AgentBuilderSettings() {
                 const enabledCount = group.tables.filter((t) => enabledTables.has(t.name)).length;
 
                 return (
-                  <div key={group.category} className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] overflow-hidden shadow-sm">
+                  <div key={group.category} className="rounded-xl border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] overflow-hidden shadow-sm">
                     {/* Group header */}
                     <button
                       onClick={() => toggleGroup(group.category)}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-[hsl(250_25%_95%)] transition-colors"
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-[hsl(40_20%_97%)] transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-slate-700">{group.category}</span>
@@ -868,12 +868,12 @@ export default function AgentBuilderSettings() {
                               key={table.name}
                               className={cn(
                                 "flex items-center gap-3 px-4 py-3 transition-colors",
-                                !enabled && "bg-[hsl(250_25%_95%)]/50",
+                                !enabled && "bg-[hsl(40_20%_97%)]/50",
                               )}
                             >
                               <div className={cn(
                                 "w-6 h-6 rounded-md flex items-center justify-center shrink-0",
-                                enabled ? cn(ab.accentMuted, ab.accentText) : "bg-[hsl(250_25%_94%)] text-[hsl(240_8%_40%)]",
+                                enabled ? cn(ab.accentMuted, ab.accentText) : "bg-[hsl(40_20%_96%)] text-[hsl(30_6%_45%)]",
                               )}>
                                 {enabled
                                   ? <Unlock className="w-3 h-3" />
@@ -917,8 +917,8 @@ export default function AgentBuilderSettings() {
             </p>
 
             {/* Editor */}
-            <div className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-[hsl(250_18%_90%)] bg-[hsl(250_25%_95%)] flex items-center gap-2">
+            <div className="rounded-xl border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-[hsl(35_15%_88%)] bg-[hsl(40_20%_97%)] flex items-center gap-2">
                 <FileText className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-xs font-semibold text-slate-600">Prompt Editor</span>
                 {activePrompt && (
@@ -970,8 +970,8 @@ export default function AgentBuilderSettings() {
             </div>
 
             {/* Version history */}
-            <div className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-[hsl(250_18%_90%)] bg-[hsl(250_25%_95%)] flex items-center gap-2">
+            <div className="rounded-xl border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-[hsl(35_15%_88%)] bg-[hsl(40_20%_97%)] flex items-center gap-2">
                 <History className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-xs font-semibold text-slate-600">Version History</span>
                 <span className="ml-auto text-[10px] text-slate-400">{promptVersions.length} versions</span>
@@ -998,7 +998,7 @@ export default function AgentBuilderSettings() {
                           key={v.id}
                           className={cn(
                             "flex items-center gap-3 px-4 py-3 transition-colors",
-                            isActive ? "bg-[hsl(248_40%_96%)]" : "hover:bg-[hsl(250_25%_94%)]",
+                            isActive ? "bg-[hsl(18_35%_95%)]" : "hover:bg-[hsl(40_20%_96%)]",
                           )}
                         >
                           {/* Version badge */}

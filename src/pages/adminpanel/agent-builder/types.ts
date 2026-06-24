@@ -142,7 +142,7 @@ export interface AgentBuilderPrompt {
 // ── Node type registry ───────────────────────────────────────────────────────
 export const NODE_CATEGORIES: NodeCategoryDef[] = [
   { id: "trigger",  label: "Triggers",   icon: "⏰", color: "text-amber-600",  bgColor: "bg-amber-50 border-amber-200" },
-  { id: "logic",    label: "Logic",      icon: "◇",  color: "text-purple-600", bgColor: "bg-purple-50 border-purple-200" },
+  { id: "logic",    label: "Logic",      icon: "◇",  color: "text-[hsl(18_45%_38%)]", bgColor: "bg-[hsl(18_40%_94%)] border-[hsl(18_30%_88%)]" },
   { id: "ai",       label: "AI Models",  icon: "🤖", color: "text-blue-600",   bgColor: "bg-blue-50 border-blue-200" },
   { id: "tool",     label: "Tools",      icon: "🔧", color: "text-green-600",  bgColor: "bg-green-50 border-green-200" },
   { id: "output",   label: "Outputs",    icon: "📤", color: "text-rose-600",   bgColor: "bg-rose-50 border-rose-200" },

@@ -24,7 +24,7 @@ export function StudioWelcomeCanvas({ onExampleClick }: StudioWelcomeCanvasProps
         <ul className="text-left space-y-2 mx-auto max-w-xs">
           {I420_WELCOME_HINTS.map((hint) => (
             <li key={hint} className={cn("flex items-start gap-2 text-xs", ab.textMuted)}>
-              <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 bg-[hsl(248_50%_62%)]" />
+              <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 bg-[hsl(18_52%_52%)]" />
               {hint}
             </li>
           ))}

@@ -195,7 +195,7 @@ export function NodeEditTabs({ flowJson, onNodeSave, onClose }: NodeEditTabsProp
     if (!state) return null;
 
     return (
-      <div key={node.id} className="space-y-3 pb-4 border-b border-[hsl(250_18%_92%)] last:border-0">
+      <div key={node.id} className="space-y-3 pb-4 border-b border-[hsl(35_15%_88%)] last:border-0">
         <div className="flex items-center gap-2">
           <span className="text-sm">{NODE_TYPE_DEFS.find(d => d.type === node.type) ? "" : ""}</span>
           <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">{state.label || node.type}</p>
@@ -237,7 +237,7 @@ export function NodeEditTabs({ flowJson, onNodeSave, onClose }: NodeEditTabsProp
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(250_18%_92%)] shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(35_15%_88%)] shrink-0">
         <p className="text-xs font-semibold text-slate-600">Edit Configuration</p>
         <button
           onClick={onClose}
@@ -248,13 +248,13 @@ export function NodeEditTabs({ flowJson, onNodeSave, onClose }: NodeEditTabsProp
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)} className="flex flex-col flex-1 min-h-0">
-        <TabsList className="h-9 w-full justify-start bg-transparent px-4 border-b border-[hsl(250_18%_92%)] rounded-none gap-0.5 overflow-x-auto shrink-0">
+        <TabsList className="h-9 w-full justify-start bg-transparent px-4 border-b border-[hsl(35_15%_88%)] rounded-none gap-0.5 overflow-x-auto shrink-0">
           {visibleTabs.map((tab) => (
             <TabsTrigger
               key={tab}
               value={tab}
               className={cn(
-                "text-[11px] h-8 px-3 rounded-md data-[state=active]:bg-[hsl(248_40%_96%)] data-[state=active]:text-[hsl(248_45%_42%)] data-[state=active]:shadow-none",
+                "text-[11px] h-8 px-3 rounded-md data-[state=active]:bg-[hsl(18_35%_95%)] data-[state=active]:text-[hsl(18_45%_38%)] data-[state=active]:shadow-none",
                 ab.textMuted,
               )}
             >
@@ -343,7 +343,7 @@ export function NodeEditTabs({ flowJson, onNodeSave, onClose }: NodeEditTabsProp
       </Tabs>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-[hsl(250_18%_92%)] flex items-center justify-end gap-2 shrink-0">
+      <div className="px-4 py-3 border-t border-[hsl(35_15%_88%)] flex items-center justify-end gap-2 shrink-0">
         <Button
           variant="ghost"
           size="sm"
