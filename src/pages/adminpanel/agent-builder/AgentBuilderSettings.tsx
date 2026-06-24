@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertCircle, ExternalLink, Loader2,
   Lock, Unlock, ChevronDown, ChevronRight,
   Zap, Globe2, MessageSquare, BarChart3, FolderOpen, Users, Briefcase,
-  FileText, Save, History, CircleDot, Mail, Plug,
+  FileText, Save, History, CircleDot, Mail, Plug, DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AgentBuilderPrompt } from "./types";
 import { I420_ROUTES } from "@/lib/i420Routes";
 import { McpServersPanel } from "./McpServersPanel";
+import { PlatformCostsPanel } from "./PlatformCostsPanel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -240,7 +241,7 @@ const DATA_TABLE_GROUPS: { category: string; tables: DataTableDef[] }[] = [
 
 export default function AgentBuilderSettings() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"models" | "tools" | "mcp" | "data" | "system_prompt">("models");
+  const [activeTab, setActiveTab] = useState<"models" | "tools" | "mcp" | "data" | "system_prompt" | "costs">("models");
 
   // AI provider health
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({
@@ -569,6 +570,7 @@ export default function AgentBuilderSettings() {
     { id: "tools"          as const, label: "Tools",          icon: Wrench },
     { id: "mcp"            as const, label: "MCP Servers",    icon: Plug },
     { id: "data"           as const, label: "Data Sources",   icon: Database },
+    { id: "costs"          as const, label: "Costs",          icon: DollarSign },
     { id: "system_prompt"  as const, label: "System Prompt",  icon: FileText },
   ];
 
@@ -590,7 +592,7 @@ export default function AgentBuilderSettings() {
           <div>
             <h1 className="text-base font-semibold text-foreground">{I420.name} Settings</h1>
             <p className="text-xs text-muted-foreground">
-              Configure models, tools, and data sources for i420 workflows
+              Configure models, tools, data sources, and view platform costs
             </p>
           </div>
         </div>
@@ -900,6 +902,12 @@ export default function AgentBuilderSettings() {
             </div>
           </div>
         )}
+
+        {/* ── COSTS TAB ── */}
+        {activeTab === "costs" && (
+          <PlatformCostsPanel />
+        )}
+
         {/* ── SYSTEM PROMPT TAB ── */}
         {activeTab === "system_prompt" && (
           <div className="max-w-3xl space-y-6">

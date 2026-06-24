@@ -192,7 +192,7 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via i420 Stu
 | `/i420` | Agent list + prompt composer + 3D canvas |
 | `/i420/new` | Studio editor (new workflow) |
 | `/i420/:agentId` | Studio editor |
-| `/i420/settings` | Data sources, MCP, integrations |
+| `/i420/settings` | Models, tools, MCP, data sources, system prompt, **platform costs** |
 | `/i420/automations` | All published scheduled automations |
 | `/i420/automations/logs` | Scheduled automation run logs (`trigger_type = cron` only) |
 | `/adminpanel/ai-control?tab=agents-logs` | Combined i420 Studio + legacy AI agent run history |
@@ -269,4 +269,17 @@ i420 Studio acts as an **MCP client**: registered servers expose tools that comp
 **Deploy:** `supabase functions deploy mcp-manage`; `npx trigger.dev@latest deploy` for runtime execution.
 
 **Node config:** `{ server_id, tool_name, arguments }` — arguments support `{{variable}}` templates from upstream steps.
+
+**Test server:** Free Cloudflare Worker at `examples/mcp-test-server/` (authless, tools `echo` + `get_client_sample`). Deploy with `npm run deploy` in that folder, then use **Test connection** in MCP Servers settings before **Connect & sync tools**.
+
+## Platform costs vs execution costs
+
+Two separate cost surfaces:
+
+| Cost type | What it tracks | Where to view |
+|-----------|----------------|---------------|
+| **Platform** | Design chat / `compile-agent-flow` LLM usage (+ future Settings AI) | `/i420/settings` → **Costs** tab |
+| **Execution** | Agent runs and cron automations (`agent_runs`, `run_steps`) | Agent list badges, Runtime, Logs, Automations logs |
+
+Platform usage is stored in `i420_platform_usage` (logged by `compile-agent-flow` using `cost-calculator.ts`). Execution costs are **not** duplicated on the Costs tab.
 

@@ -26,3 +26,5 @@ dist-ssr
 *.sw?
 supabase/.temp/
 .trigger
+examples/mcp-test-server/node_modules
+examples/mcp-test-server/.wrangler

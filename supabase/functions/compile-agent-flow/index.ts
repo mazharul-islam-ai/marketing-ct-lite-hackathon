@@ -13,9 +13,60 @@ import {
   type McpToolCatalogEntry,
   COMPILE_PHASES,
 } from '../_shared/agent-builder-integrations.ts'
+import { calculateAgentCost } from '../_shared/cost-calculator.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+interface LlmUsage {
+  promptTokens: number
+  completionTokens: number
+}
+
+interface LlmCallResult {
+  result: FlowJSON | Record<string, unknown>
+  usage: LlmUsage
+}
+
+async function logPlatformUsage(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    user_id: string
+    agent_id: string
+    action?: string
+    provider: string
+    model: string
+    usage: LlmUsage
+    metadata?: Record<string, unknown>
+  },
+): Promise<void> {
+  const { promptTokens, completionTokens } = params.usage
+  const totalTokens = promptTokens + completionTokens
+  const costUsd = calculateAgentCost(
+    params.provider,
+    params.model,
+    promptTokens,
+    completionTokens,
+  )
+
+  try {
+    await supabase.from('i420_platform_usage').insert({
+      user_id: params.user_id,
+      agent_id: params.agent_id,
+      source: 'compile',
+      action: params.action ?? 'generate',
+      provider: params.provider,
+      model: params.model,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: totalTokens,
+      cost_usd: costUsd,
+      metadata: params.metadata ?? {},
+    })
+  } catch (e) {
+    console.warn('[compile-agent-flow] failed to log platform usage:', e)
+  }
+}
 
 // ── Closed enum of allowed node types ────────────────────────────────────────
 const VALID_NODE_TYPES = [
@@ -804,7 +855,7 @@ async function callOpenAI(
   chatHistory: Array<{ role: string; content: string }>,
   useStrictSchema: boolean,
   flowSchema = FLOW_JSON_SCHEMA,
-): Promise<FlowJSON> {
+): Promise<LlmCallResult> {
   const messages = [
     { role: 'system', content: systemPrompt },
     ...chatHistory.slice(-20),
@@ -851,7 +902,11 @@ async function callOpenAI(
   }
   // Reasoning models may wrap output in markdown code fences — strip them before parsing
   const cleaned = content.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
-  return JSON.parse(cleaned) as FlowJSON
+  const usage: LlmUsage = {
+    promptTokens: data.usage?.prompt_tokens ?? 0,
+    completionTokens: data.usage?.completion_tokens ?? 0,
+  }
+  return { result: JSON.parse(cleaned) as FlowJSON, usage }
 }
 
 // ── Gemini ───────────────────────────────────────────────────────────────────
@@ -861,7 +916,7 @@ async function callGemini(
   systemPrompt: string,
   userPrompt: string,
   chatHistory: Array<{ role: string; content: string }>,
-): Promise<FlowJSON> {
+): Promise<LlmCallResult> {
   // Build conversation history in Gemini format
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = []
 
@@ -896,7 +951,12 @@ async function callGemini(
   const data = await response.json()
   const content = data.candidates?.[0]?.content?.parts?.[0]?.text
   if (!content) throw new Error('Empty response from Gemini')
-  return JSON.parse(content) as FlowJSON
+  const meta = data.usageMetadata ?? {}
+  const usage: LlmUsage = {
+    promptTokens: meta.promptTokenCount ?? 0,
+    completionTokens: meta.candidatesTokenCount ?? 0,
+  }
+  return { result: JSON.parse(content) as FlowJSON, usage }
 }
 
 // ── Anthropic ────────────────────────────────────────────────────────────────
@@ -906,7 +966,7 @@ async function callAnthropic(
   systemPrompt: string,
   userPrompt: string,
   chatHistory: Array<{ role: string; content: string }>,
-): Promise<FlowJSON> {
+): Promise<LlmCallResult> {
   const messages: Array<{ role: string; content: string }> = [
     ...chatHistory.slice(-20),
     {
@@ -941,7 +1001,11 @@ async function callAnthropic(
 
   // Strip any accidental markdown fences
   const cleaned = content.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim()
-  return JSON.parse(cleaned) as FlowJSON
+  const usage: LlmUsage = {
+    promptTokens: data.usage?.input_tokens ?? 0,
+    completionTokens: data.usage?.output_tokens ?? 0,
+  }
+  return { result: JSON.parse(cleaned) as FlowJSON, usage }
 }
 
 // ── Unified LLM dispatcher ───────────────────────────────────────────────────
@@ -953,7 +1017,7 @@ async function callLLM(
   userPrompt: string,
   chatHistory: Array<{ role: string; content: string }>,
   flowSchema = FLOW_JSON_SCHEMA,
-): Promise<FlowJSON> {
+): Promise<LlmCallResult> {
   switch (provider) {
     case 'openai':
       return callOpenAI(
@@ -1138,7 +1202,7 @@ serve(async (req) => {
         }
 
         emit('thinking')
-        const raw = await callLLM(
+        const llmResponse = await callLLM(
           compilerConfig.provider,
           compilerConfig.model,
           compilerConfig.apiKey,
@@ -1147,6 +1211,26 @@ serve(async (req) => {
           chatHistory,
           flowSchema,
         )
+        const raw = llmResponse.result
+
+        await logPlatformUsage(supabase, {
+          user_id: user.id,
+          agent_id,
+          action: action ?? 'generate',
+          provider: compilerConfig.provider,
+          model: compilerConfig.model,
+          usage: llmResponse.usage,
+          metadata: {
+            attempt: attempt + 1,
+            clarification: Boolean(
+              attempt === 0
+              && raw
+              && typeof raw === 'object'
+              && !Array.isArray(raw)
+              && (raw as Record<string, unknown>).clarification_needed === true,
+            ),
+          },
+        })
 
         emit('designing_flow')
 

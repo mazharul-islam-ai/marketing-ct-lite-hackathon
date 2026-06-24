@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Loader2, Plus, RefreshCw, Trash2, Plug, CheckCircle2, AlertCircle, ChevronDown, ChevronRight,
+  Loader2, Plus, RefreshCw, Trash2, Plug, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,20 +34,101 @@ interface McpTool {
   input_schema: Record<string, unknown>;
 }
 
+type AuthType = "none" | "bearer" | "api_key";
+
+function ServerFormFields({
+  name, setName,
+  url, setUrl,
+  description, setDescription,
+  authType, setAuthType,
+  authToken, setAuthToken,
+  authTokenHint,
+}: {
+  name: string;
+  setName: (v: string) => void;
+  url: string;
+  setUrl: (v: string) => void;
+  description: string;
+  setDescription: (v: string) => void;
+  authType: AuthType;
+  setAuthType: (v: AuthType) => void;
+  authToken: string;
+  setAuthToken: (v: string) => void;
+  authTokenHint?: string;
+}) {
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Name</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Linear MCP" className="h-8 text-xs" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Server URL</Label>
+          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://mcp.example.com/mcp" className="h-8 text-xs" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Description (optional)</Label>
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="text-xs" />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Auth type</Label>
+          <Select value={authType} onValueChange={(v) => setAuthType(v as AuthType)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="bearer">Bearer token</SelectItem>
+              <SelectItem value="api_key">API key header</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {authType !== "none" && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Auth token</Label>
+            <Input
+              type="password"
+              value={authToken}
+              onChange={(e) => setAuthToken(e.target.value)}
+              placeholder={authTokenHint ?? "Enter token"}
+              className="h-8 text-xs"
+            />
+            {authTokenHint && (
+              <p className="text-[10px] text-muted-foreground">{authTokenHint}</p>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function McpServersPanel() {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [tools, setTools] = useState<McpTool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
-  const [authType, setAuthType] = useState<"none" | "bearer" | "api_key">("none");
+  const [authType, setAuthType] = useState<AuthType>("none");
   const [authToken, setAuthToken] = useState("");
+
+  const resetForm = () => {
+    setName("");
+    setUrl("");
+    setDescription("");
+    setAuthToken("");
+    setAuthType("none");
+    setEditingId(null);
+  };
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -64,6 +145,46 @@ export function McpServersPanel() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  function startEdit(server: McpServer) {
+    setShowForm(false);
+    setEditingId(server.id);
+    setName(server.name);
+    setUrl(server.url);
+    setDescription(server.description ?? "");
+    setAuthType((server.auth_type as AuthType) || "none");
+    setAuthToken("");
+    setExpandedId(server.id);
+  }
+
+  async function handleTestConnection() {
+    if (!url.trim()) {
+      toast.error("Enter a server URL to test");
+      return;
+    }
+    setIsTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mcp-manage?action=test", {
+        body: {
+          action: "test",
+          url: url.trim(),
+          auth_type: authType,
+          auth_token: authToken || undefined,
+        },
+      });
+      if (error) throw error;
+      if (!data?.ok) {
+        toast.error(data?.error ?? "Connection test failed");
+        return;
+      }
+      const toolNames = (data.tools as { name: string }[] | undefined)?.map((t) => t.name).join(", ") ?? "";
+      toast.success(`Connected — ${data.tools?.length ?? 0} tools${toolNames ? `: ${toolNames}` : ""}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Connection test failed");
+    } finally {
+      setIsTesting(false);
+    }
+  }
 
   async function handleCreate() {
     if (!name.trim() || !url.trim()) {
@@ -89,14 +210,44 @@ export function McpServersPanel() {
         toast.success("MCP server connected");
       }
       setShowForm(false);
-      setName("");
-      setUrl("");
-      setDescription("");
-      setAuthToken("");
-      setAuthType("none");
+      resetForm();
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add MCP server");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleUpdate() {
+    if (!editingId || !name.trim() || !url.trim()) {
+      toast.error("Name and URL are required");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mcp-manage?action=update", {
+        body: {
+          action: "update",
+          server_id: editingId,
+          name: name.trim(),
+          url: url.trim(),
+          description: description.trim() || null,
+          auth_type: authType,
+          auth_token: authToken || undefined,
+          resync: true,
+        },
+      });
+      if (error) throw error;
+      if (data?.sync && !data.sync.ok) {
+        toast.warning(`Saved but sync failed: ${data.sync.error ?? "unknown error"}`);
+      } else {
+        toast.success("MCP server updated");
+      }
+      resetForm();
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update MCP server");
     } finally {
       setIsSaving(false);
     }
@@ -128,6 +279,7 @@ export function McpServersPanel() {
         body: { action: "delete", server_id: serverId },
       });
       if (error) throw error;
+      if (editingId === serverId) resetForm();
       toast.success("MCP server removed");
       await load();
     } catch (e) {
@@ -147,48 +299,33 @@ export function McpServersPanel() {
           Register external MCP servers (HTTP/SSE transport). Tools are synced and available to the
           flow compiler as <code className="text-[10px]">mcp_tool</code> nodes. Credentials are encrypted at rest.
         </p>
-        <Button size="sm" className="text-xs h-8 shrink-0" onClick={() => setShowForm((v) => !v)}>
+        <Button
+          size="sm"
+          className="text-xs h-8 shrink-0"
+          onClick={() => {
+            resetForm();
+            setShowForm((v) => !v);
+          }}
+        >
           <Plus className="w-3.5 h-3.5 mr-1" /> Add server
         </Button>
       </div>
 
-      {showForm && (
+      {showForm && !editingId && (
         <div className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] p-4 space-y-3 shadow-sm">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Linear MCP" className="h-8 text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Server URL</Label>
-              <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://mcp.example.com/mcp" className="h-8 text-xs" />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Description (optional)</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="text-xs" />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Auth type</Label>
-              <Select value={authType} onValueChange={(v) => setAuthType(v as typeof authType)}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="bearer">Bearer token</SelectItem>
-                  <SelectItem value="api_key">API key header</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {authType !== "none" && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Auth token</Label>
-                <Input type="password" value={authToken} onChange={(e) => setAuthToken(e.target.value)} className="h-8 text-xs" />
-              </div>
-            )}
-          </div>
+          <ServerFormFields
+            name={name} setName={setName}
+            url={url} setUrl={setUrl}
+            description={description} setDescription={setDescription}
+            authType={authType} setAuthType={setAuthType}
+            authToken={authToken} setAuthToken={setAuthToken}
+          />
           <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => { setShowForm(false); resetForm(); }}>Cancel</Button>
+            <Button variant="outline" size="sm" className="text-xs h-8" onClick={handleTestConnection} disabled={isTesting || !url.trim()}>
+              {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+              Test connection
+            </Button>
             <Button size="sm" className="text-xs h-8" onClick={handleCreate} disabled={isSaving}>
               {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
               Connect & sync tools
@@ -210,6 +347,7 @@ export function McpServersPanel() {
             const serverTools = toolsByServer[server.id] ?? [];
             const expanded = expandedId === server.id;
             const connected = server.status === "connected";
+            const isEditing = editingId === server.id;
             return (
               <div key={server.id} className="rounded-xl border border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] overflow-hidden shadow-sm">
                 <div className="flex items-center gap-3 p-4">
@@ -236,10 +374,13 @@ export function McpServersPanel() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleSync(server.id)} disabled={syncingId === server.id}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit server" onClick={() => startEdit(server)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Sync tools" onClick={() => handleSync(server.id)} disabled={syncingId === server.id}>
                       {syncingId === server.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => handleDelete(server.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" title="Delete server" onClick={() => handleDelete(server.id)}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpandedId(expanded ? null : server.id)}>
@@ -247,7 +388,33 @@ export function McpServersPanel() {
                     </Button>
                   </div>
                 </div>
-                {expanded && (
+
+                {isEditing && (
+                  <div className="border-t border-[hsl(250_18%_90%)] px-4 py-4 bg-white/60 space-y-3">
+                    <p className="text-xs font-medium text-slate-700">Edit server</p>
+                    <ServerFormFields
+                      name={name} setName={setName}
+                      url={url} setUrl={setUrl}
+                      description={description} setDescription={setDescription}
+                      authType={authType} setAuthType={setAuthType}
+                      authToken={authToken} setAuthToken={setAuthToken}
+                      authTokenHint="Leave blank to keep the existing token"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" className="text-xs h-8" onClick={resetForm}>Cancel</Button>
+                      <Button variant="outline" size="sm" className="text-xs h-8" onClick={handleTestConnection} disabled={isTesting || !url.trim()}>
+                        {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                        Test connection
+                      </Button>
+                      <Button size="sm" className="text-xs h-8" onClick={handleUpdate} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                        Save & re-sync
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {expanded && !isEditing && (
                   <div className="border-t border-[hsl(250_18%_90%)] px-4 py-3 bg-white/40">
                     {serverTools.length === 0 ? (
                       <p className="text-xs text-slate-500">No tools synced. Click refresh to retry.</p>

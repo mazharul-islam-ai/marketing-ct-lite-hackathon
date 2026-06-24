@@ -211,6 +211,70 @@ Deno.serve(async (req) => {
       })
     }
 
+    if (action === 'update' || body.action === 'update') {
+      const serverId = body.server_id
+      if (!serverId) {
+        return new Response(JSON.stringify({ error: 'server_id is required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const { data: existing, error: fetchError } = await adminClient
+        .from('mcp_servers')
+        .select('*')
+        .eq('id', serverId)
+        .single()
+
+      if (fetchError || !existing) {
+        return new Response(JSON.stringify({ error: 'Server not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const updates: Record<string, unknown> = {}
+      if (body.name != null) updates.name = String(body.name).trim()
+      if (body.url != null) updates.url = String(body.url).trim()
+      if (body.description !== undefined) {
+        updates.description = body.description ? String(body.description).trim() : null
+      }
+      if (body.transport != null) updates.transport = String(body.transport)
+      if (body.auth_type != null) updates.auth_type = String(body.auth_type)
+      if (body.auth_header_name != null) updates.auth_header_name = String(body.auth_header_name)
+
+      const authType = (body.auth_type ?? (existing as McpServerRow).auth_type) as string
+      if (authType === 'none') {
+        updates.auth_token_encrypted = null
+      } else if (body.auth_token) {
+        updates.auth_token_encrypted = await encryptValue(String(body.auth_token))
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return new Response(JSON.stringify({ error: 'No fields to update' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const { data: server, error: updateError } = await adminClient
+        .from('mcp_servers')
+        .update(updates)
+        .eq('id', serverId)
+        .select('*')
+        .single()
+
+      if (updateError) throw updateError
+
+      const resync = body.resync !== false
+      const sync = resync ? await syncTools(adminClient, server as McpServerRow) : null
+      const { auth_token_encrypted: _omit, ...safe } = server as McpServerRow & { auth_token_encrypted?: string }
+
+      return new Response(JSON.stringify({ server: safe, sync }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     if (action === 'test' || body.action === 'test') {
       const connection: McpServerConnection = {
         url: String(body.url),
