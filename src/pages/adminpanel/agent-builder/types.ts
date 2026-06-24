@@ -28,6 +28,7 @@ export interface NodeTypeDef {
   description: string;
   category: NodeCategory;
   configSchema: Record<string, ConfigField>;
+  outputFields?: string[];
 }
 
 export interface ConfigField {
@@ -151,18 +152,22 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   // TRIGGERS
   {
     type: "cron_trigger", label: "Schedule", description: "Run on a cron schedule", category: "trigger",
+    outputFields: ["triggered", "trigger_type"],
     configSchema: { schedule: { label: "Cron Expression", type: "text", placeholder: "0 9 * * *", required: true } },
   },
   {
     type: "webhook_trigger", label: "Webhook", description: "Trigger via HTTP webhook", category: "trigger",
+    outputFields: ["triggered", "trigger_type"],
     configSchema: {},
   },
   {
     type: "manual_trigger", label: "Manual", description: "Trigger manually by user", category: "trigger",
+    outputFields: ["triggered", "trigger_type"],
     configSchema: {},
   },
   {
     type: "db_trigger", label: "DB Event", description: "Trigger on DB row change", category: "trigger",
+    outputFields: ["triggered", "trigger_type"],
     configSchema: {
       table: { label: "Table", type: "text", required: true },
       event: { label: "Event", type: "select", options: ["INSERT", "UPDATE", "DELETE"], required: true },
@@ -170,11 +175,13 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "crm_event_trigger", label: "CRM Event", description: "Trigger on CRM event", category: "trigger",
+    outputFields: ["triggered", "trigger_type"],
     configSchema: { event_type: { label: "Event Type", type: "text", required: true } },
   },
   // LOGIC
   {
     type: "condition", label: "Condition", description: "Branch based on condition", category: "logic",
+    outputFields: ["result", "branch"],
     configSchema: {
       input_variable: { label: "Input Variable", type: "text", required: true },
       operator: { label: "Operator", type: "select", options: [">", ">=", "<", "<=", "=="], required: true },
@@ -183,19 +190,23 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "switch", label: "Switch", description: "Route to multiple branches", category: "logic",
+    outputFields: ["matched_value", "branch"],
     configSchema: { input_variable: { label: "Variable to Switch", type: "text", required: true } },
   },
   {
     type: "loop", label: "Loop", description: "Iterate over a list", category: "logic",
+    outputFields: ["loop_items", "count"],
     configSchema: { items_variable: { label: "Items Variable", type: "text", required: true } },
   },
   {
     type: "delay", label: "Delay", description: "Pause for N seconds", category: "logic",
+    outputFields: ["delayed_seconds"],
     configSchema: { seconds: { label: "Delay (seconds)", type: "number", defaultValue: 5 } },
   },
   // AI
   {
     type: "openai_llm", label: "OpenAI", description: "Call OpenAI GPT models", category: "ai",
+    outputFields: ["result", "model", "provider"],
     configSchema: {
       model: { label: "Model", type: "select", options: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"], defaultValue: "gpt-4o-mini" },
       system_prompt: { label: "System Prompt", type: "textarea" },
@@ -206,6 +217,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "gemini_llm", label: "Gemini", description: "Call Google Gemini models", category: "ai",
+    outputFields: ["result", "model", "provider"],
     configSchema: {
       model: { label: "Model", type: "select", options: ["gemini-1.5-flash", "gemini-1.5-pro"] },
       prompt: { label: "Prompt", type: "textarea", required: true },
@@ -213,6 +225,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "anthropic_llm", label: "Anthropic", description: "Call Anthropic Claude models", category: "ai",
+    outputFields: ["result", "model", "provider"],
     configSchema: {
       model: { label: "Model", type: "select", options: ["claude-3-haiku-20240307", "claude-3-sonnet-20240229"] },
       prompt: { label: "Prompt", type: "textarea", required: true },
@@ -220,6 +233,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "custom_llm", label: "Custom LLM", description: "Custom LLM endpoint", category: "ai",
+    outputFields: ["result", "model", "provider"],
     configSchema: {
       prompt: { label: "Prompt", type: "textarea", required: true },
     },
@@ -227,6 +241,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   // TOOLS
   {
     type: "db_query", label: "DB Query", description: "Query Supabase table", category: "tool",
+    outputFields: ["rows", "count"],
     configSchema: {
       table: { label: "Table", type: "text", required: true },
       limit: { label: "Row Limit", type: "number", defaultValue: 50 },
@@ -234,6 +249,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "api_call", label: "API Call", description: "HTTP REST/GraphQL request", category: "tool",
+    outputFields: ["status", "data"],
     configSchema: {
       url: { label: "URL", type: "text", required: true },
       method: { label: "Method", type: "select", options: ["GET", "POST", "PUT", "PATCH", "DELETE"], defaultValue: "GET" },
@@ -241,6 +257,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "email_send", label: "Send Email", description: "Send an email", category: "tool",
+    outputFields: ["sent", "to", "subject"],
     configSchema: {
       to: { label: "To", type: "text", required: true },
       subject: { label: "Subject", type: "text", required: true },
@@ -249,6 +266,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "slack_fetch_messages", label: "Slack Messages", description: "Fetch recent messages from a Slack channel", category: "tool",
+    outputFields: ["messages", "count", "channel"],
     configSchema: {
       channel: { label: "Channel", type: "text", required: true, placeholder: "#general", defaultValue: "#general" },
       limit: { label: "Max Messages", type: "number", defaultValue: 25 },
@@ -256,6 +274,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "slack_notify", label: "Slack", description: "Post to Slack channel", category: "tool",
+    outputFields: ["sent", "channel", "message"],
     configSchema: {
       webhook_url: { label: "Webhook URL (optional)", type: "text", placeholder: "Leave empty to use workspace Slack connection" },
       channel: { label: "Channel", type: "text", placeholder: "#general" },
@@ -264,6 +283,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "crm_update", label: "CRM Update", description: "Update a CRM record", category: "tool",
+    outputFields: ["updated", "table", "id"],
     configSchema: {
       table: { label: "Table", type: "text", required: true },
       id_variable: { label: "ID Variable", type: "text", required: true },
@@ -271,6 +291,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "mcp_tool", label: "MCP Tool", description: "Execute an MCP server tool", category: "tool",
+    outputFields: ["executed", "result", "tool"],
     configSchema: {
       server_id: { label: "MCP Server ID", type: "text", required: true },
       tool_name: { label: "Tool Name", type: "text", required: true },
@@ -279,6 +300,7 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   },
   {
     type: "gmail_fetch_unread", label: "Gmail Unread", description: "Fetch unread emails from Gmail inbox", category: "tool",
+    outputFields: ["emails", "count", "total_unread"],
     configSchema: {
       max_results: { label: "Max Emails", type: "number", defaultValue: 25 },
     },
@@ -286,18 +308,22 @@ export const NODE_TYPE_DEFS: NodeTypeDef[] = [
   // OUTPUT
   {
     type: "db_write", label: "DB Write", description: "Write to a database table", category: "output",
+    outputFields: ["written", "table"],
     configSchema: { table: { label: "Table", type: "text", required: true } },
   },
   {
     type: "report_generate", label: "Report", description: "Generate a report", category: "output",
+    outputFields: ["generated", "title", "content"],
     configSchema: { title: { label: "Report Title", type: "text", defaultValue: "Agent Report" } },
   },
   {
     type: "dashboard_write", label: "Dashboard", description: "Push metrics to dashboard", category: "output",
+    outputFields: ["generated", "title", "content"],
     configSchema: { title: { label: "Dashboard Title", type: "text" } },
   },
   {
     type: "email_output", label: "Email Report", description: "Email a report to recipients", category: "output",
+    outputFields: ["sent", "to", "subject"],
     configSchema: {
       to: { label: "To", type: "text", required: true },
       subject: { label: "Subject", type: "text", required: true },

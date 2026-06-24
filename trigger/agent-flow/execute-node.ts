@@ -139,8 +139,7 @@ export const executeFlowNode = task({
           else if (operator === "<=") result = value <= threshold;
           else if (operator === "==") result = value === threshold;
           else {
-            // Fallback: evaluate simple JS expression (safe, no network)
-            result = Boolean(eval(`(function(){ return ${expr}; })()`));
+            throw new Error(`condition: unsupported operator "${operator}"`);
           }
 
           branch = result ? "YES" : "NO";
@@ -225,7 +224,7 @@ export const executeFlowNode = task({
 
         // TOOL: api_call
         case "api_call": {
-          const url = String(node.config.url ?? "");
+          const url = interpolateTemplate(String(node.config.url ?? ""), input_data);
           const method = String(node.config.method ?? "GET").toUpperCase();
           const headers = (node.config.headers as Record<string, string>) ?? {};
           const bodyTemplate = node.config.body;
@@ -234,7 +233,8 @@ export const executeFlowNode = task({
 
           const fetchOptions: RequestInit = { method, headers };
           if (method !== "GET" && bodyTemplate) {
-            fetchOptions.body = JSON.stringify(bodyTemplate);
+            const interpolatedBody = interpolateObjectTemplates(bodyTemplate, input_data);
+            fetchOptions.body = JSON.stringify(interpolatedBody);
             fetchOptions.headers = { ...headers, "Content-Type": "application/json" };
           }
 
@@ -672,6 +672,32 @@ async function executeAINode(
 
 // ── Simple mustache-style template interpolation ──────────────────────────
 function resolveTemplateValue(key: string, data: Record<string, unknown>): unknown {
+  // Dot-path resolution e.g. "n3.result" → data["n3_output"]["result"]
+  if (key.includes(".")) {
+    const [nodeId, ...rest] = key.split(".");
+    const nodeOutput = data[`${nodeId}_output`];
+    if (nodeOutput && typeof nodeOutput === "object") {
+      const outputRecord = nodeOutput as Record<string, unknown>;
+      let cur: unknown = nodeOutput;
+      for (const part of rest) {
+        if (cur && typeof cur === "object") {
+          cur = (cur as Record<string, unknown>)[part];
+        } else {
+          cur = undefined;
+          break;
+        }
+      }
+      if (cur !== undefined && cur !== null) return cur;
+
+      const lastPart = rest.at(-1);
+      if (lastPart === "text" || lastPart === "output") {
+        const fallback = outputRecord.result;
+        if (fallback !== undefined && fallback !== null) return fallback;
+      }
+    }
+    return undefined;
+  }
+
   if (data[key] !== undefined && data[key] !== null) {
     return data[key];
   }
@@ -715,7 +741,7 @@ function interpolateObjectTemplates(
 }
 
 function interpolateTemplate(template: string, data: Record<string, unknown>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+  return template.replace(/\{\{([\w.]+)\}\}/g, (_, key) => {
     const val = resolveTemplateValue(key, data);
     if (val === undefined || val === null) return `{{${key}}}`;
     if (typeof val === "object") {
