@@ -4,10 +4,11 @@ import { corsHeaders } from '../_shared/cors.ts'
 import {
   buildPlatformOverview,
   checkPromptIntegrations,
-  checkDbSourceClarification,
   getAllowedNodeTypes,
   buildMcpToolsBlock,
   validateMcpToolNodes,
+  extractConversationState,
+  buildResolvedContextBlock,
   type CompilePhase,
   type McpToolCatalogEntry,
   COMPILE_PHASES,
@@ -300,12 +301,18 @@ async function loadCustomSystemPrompt(
 // If an admin-defined custom prompt is active it is placed first as context /
 // persona instructions; the structural rules are always appended so the LLM
 // always knows the valid node types and output format.
+//
+// Architecture: Context-Document + LLM-First (aligned with Cursor/Lovable patterns).
+// The LLM receives full structured context (platform state + resolved conversation
+// facts) and makes ALL clarification decisions. No regex pre-checks intercept before
+// this prompt reaches the model.
 function buildSystemPrompt(
   customPrefix: string | null | undefined,
   configuredTypes: Set<string>,
   allowedNodeTypes: string[],
   enabledTables: string[],
   mcpToolsBlock: string,
+  resolvedContextBlock?: string,
 ): string {
   const platformBlock = buildPlatformOverview(configuredTypes)
   const allowedList = allowedNodeTypes.join(', ')
@@ -325,17 +332,15 @@ RULES:
 2. Use mcp_tool ONLY when the user explicitly needs an external MCP integration AND a matching tool exists in AVAILABLE MCP TOOLS. Set config.server_id, config.tool_name, and config.arguments (JSON object, may use {{variables}}).
 3. NEVER use nodes that require integrations not in CONFIGURED INTEGRATIONS.
 4. If the user needs a missing integration, return ONLY: { "clarification_needed": true, "question": "..." } directing them to Integrations Hub.
-5. If delivery channel (email vs Slack vs dashboard) or schedule time is unspecified, ask ONE clarifying question.
-6. Assign sequential node IDs: "n1", "n2", "n3", ...
-7. Position nodes left-to-right with x increasing by 200 per step, y=200 for main path, y=400 for branches.
-8. Edges must reference valid node IDs only.
-9. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
-10. The trigger field should be a single trigger node (or null for manual/on-demand workflows).
-11. Return ONLY the JSON object, no markdown, no explanation.
-12. If the user mentions database/db/table/query without naming a specific enabled table, return clarification_needed asking which enabled table.
-13. For report+chat dual mode, use input_variable "mode" on switch nodes; edge conditions must be "report" and "chat"; set cases: { "report": "report", "chat": "chat" }.
-14. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
-15. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON without asking user to supply missing data.
+5. Assign sequential node IDs: "n1", "n2", "n3", ...
+6. Position nodes left-to-right with x increasing by 200 per step, y=200 for main path, y=400 for branches.
+7. Edges must reference valid node IDs only.
+8. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
+9. The trigger field should be a single trigger node (or null for manual/on-demand workflows).
+10. Return ONLY the JSON object, no markdown, no explanation.
+11. For report+chat dual mode, use input_variable "mode" on switch nodes; edge conditions must be "report" and "chat"; set cases: { "report": "report", "chat": "chat" }.
+12. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
+13. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON without asking user to supply missing data.
 
 ${enabledTablesBlock}
 
@@ -354,13 +359,35 @@ COMMON PATTERNS — use these exact node types:
 
 ${mcpToolsBlock}
 
-CLARIFICATION:
-If the request is genuinely ambiguous OR requires an unconfigured integration,
-return ONLY this JSON object (no flow, no explanation):
+CLARIFICATION PRINCIPLES (follow these exactly — this is the most important section):
+Ask a clarifying question ONLY when a required parameter for the SPECIFIC workflow type
+is genuinely missing AND cannot be reasonably inferred. Ask at most ONE question per turn.
+
+Workflow-type scoping — each type only needs its own params, NEVER cross-pollinate:
+  slack_fetch_messages / slack_notify  → needs: Slack channel ID (if not in RESOLVED CONTEXT above)
+                                         NEVER asks about DB tables, email addresses, or CRM data.
+  gmail_fetch_unread                   → needs: nothing extra (uses authenticated Gmail account)
+                                         NEVER asks about DB tables.
+  email_send / email_output            → needs: recipient email (if not provided)
+  db_query / db_write                  → needs: table name from ENABLED DATA TABLES (if flow requires DB access)
+  api_call / mcp_tool                  → needs: endpoint URL or tool name (if not provided)
+  report_generate / dashboard_write    → no external params needed, always available.
+
+Make reasonable defaults rather than asking:
+  - If user says "any time" or "daily" without HH:MM → use 09:00 Asia/Dhaka (UTC+6)
+  - If user says "show in UI / dashboard" → use dashboard_write node, do not ask further
+  - If user says "pull and show" without specifying storage → do NOT add db_write nodes
+  - If the user says they do NOT want something, respect it; see RESOLVED CONTEXT above
+
+When in doubt, build the flow with your best interpretation.
+The user can refine it — it is better to produce a flow than to ask unnecessary questions.
+
+CLARIFICATION FORMAT:
+If a question is truly needed, return ONLY this JSON (no flow, no explanation):
 { "clarification_needed": true, "question": "your single concise question" }`
 
-  const structuralWithMcp = structural.replace('${mcpToolsBlock}', mcpToolsBlock)
-  const parts = [platformBlock, structuralWithMcp]
+  const parts = [platformBlock, structural]
+  if (resolvedContextBlock) parts.splice(1, 0, resolvedContextBlock)
   if (customPrefix) parts.unshift(customPrefix)
   return parts.join('\n\n---\n\n')
 }
@@ -780,7 +807,7 @@ async function callOpenAI(
 ): Promise<FlowJSON> {
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...chatHistory.slice(-10),
+    ...chatHistory.slice(-20),
     { role: 'user', content: userPrompt },
   ]
 
@@ -838,7 +865,7 @@ async function callGemini(
   // Build conversation history in Gemini format
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = []
 
-  for (const msg of chatHistory.slice(-10)) {
+  for (const msg of chatHistory.slice(-20)) {
     const geminiRole = msg.role === 'assistant' ? 'model' : 'user'
     contents.push({ role: geminiRole, parts: [{ text: msg.content }] })
   }
@@ -881,7 +908,7 @@ async function callAnthropic(
   chatHistory: Array<{ role: string; content: string }>,
 ): Promise<FlowJSON> {
   const messages: Array<{ role: string; content: string }> = [
-    ...chatHistory.slice(-10),
+    ...chatHistory.slice(-20),
     {
       role: 'user',
       content: userPrompt + '\n\nRespond with ONLY valid JSON, no markdown fences, no explanation.',
@@ -1049,14 +1076,6 @@ serve(async (req) => {
       )
     }
 
-    const dbClarification = checkDbSourceClarification(prompt, enabledTables)
-    if (dbClarification) {
-      return await upsertClarification(
-        supabase, agent_id, user.id, prompt, dbClarification.question,
-        (await supabase.from('builder_sessions').select('chat_history').eq('agent_id', agent_id).eq('user_id', user.id).maybeSingle()).data?.chat_history ?? [],
-      )
-    }
-
     emit('loading_context')
     const { data: session } = await supabase
       .from('builder_sessions')
@@ -1085,8 +1104,20 @@ serve(async (req) => {
 
     const customSystemPrompt = await loadCustomSystemPrompt(supabase)
 
+    // Build structured resolved context from conversation history (Context-Document pattern).
+    // This tells the LLM what's already been established so it never re-asks answered questions.
+    const conversationState = extractConversationState(chatHistory)
+    const resolvedContextBlock = buildResolvedContextBlock(conversationState)
+
     const mcpToolsBlock = buildMcpToolsBlock(mcpCatalog)
-    const systemPrompt = buildSystemPrompt(customSystemPrompt, configuredTypes, allowedNodeTypes, enabledTables, mcpToolsBlock) + (
+    const systemPrompt = buildSystemPrompt(
+      customSystemPrompt,
+      configuredTypes,
+      allowedNodeTypes,
+      enabledTables,
+      mcpToolsBlock,
+      resolvedContextBlock || undefined,
+    ) + (
       currentFlow
         ? `\n\n---\n\nCURRENT FLOW STATE (for context):\n${JSON.stringify(currentFlow, null, 2)}`
         : ''

@@ -155,34 +155,110 @@ export const KNOWN_DATA_TABLES = [
   'activecollab_task_data', 'activecollab_sync_logs',
 ] as const
 
-const DB_PROMPT_PATTERN = /\b(database|db|table|query|search my)\b/i
+// ── Conversation State Extractor ─────────────────────────────────────────────
+// Deterministic scan of chat history to extract already-resolved facts.
+// Inspired by how Cursor injects structured file/cursor context and Lovable
+// injects full platform state — so the LLM never re-asks what was answered.
 
-export function checkDbSourceClarification(
-  prompt: string,
-  enabledTables: string[],
-): { question: string } | null {
-  if (!DB_PROMPT_PATTERN.test(prompt)) return null
+export interface ConversationState {
+  /** Detected workflow type hint, e.g. 'slack', 'gmail', 'db_query', 'api' */
+  workflowHint: string | null
+  /** Key→value pairs already confirmed in conversation, e.g. { channel_id: 'C0BCJ27' } */
+  resolvedParams: Record<string, string>
+  /** Things the user explicitly said they don't want */
+  userExclusions: string[]
+}
 
-  if (enabledTables.length === 0) {
-    return {
-      question:
-        'No data tables are enabled. Go to Agent Builder → Settings → Data Sources, enable the tables you want to query, then try again.',
+const WORKFLOW_HINT_PATTERNS: Array<{ pattern: RegExp; hint: string }> = [
+  { pattern: /\b(slack|channel)\b/i, hint: 'slack' },
+  { pattern: /\b(gmail|email\s+inbox|unread\s+email)\b/i, hint: 'gmail' },
+  { pattern: /\b(send\s+email|email\s+(report|summary|me))\b/i, hint: 'email_send' },
+  { pattern: /\b(hubspot|crm\s+(deals?|contacts?))\b/i, hint: 'hubspot' },
+  { pattern: /\b(activecollab|ac\s+tasks?)\b/i, hint: 'activecollab' },
+  { pattern: /\b(google\s+analytics|ga\s+data)\b/i, hint: 'google_analytics' },
+  { pattern: /\b(google\s+drive|gdrive)\b/i, hint: 'google_drive' },
+]
+
+const EXCLUSION_PATTERNS: Array<RegExp> = [
+  /\b(no\s+need\s+(?:to\s+)?(?:store|save|use)?\s*(?:in\s+)?(?:db|database|table))\b/i,
+  /\b(don[''']?t\s+(?:store|save|use)\s+(?:in\s+)?(?:db|database|table))\b/i,
+  /\b(without\s+(?:storing|saving|db|database))\b/i,
+  /\b(no\s+(?:db|database|table|storage))\b/i,
+  /\b(not\s+(?:from|in|via)\s+(?:db|database|table))\b/i,
+  /\b(skip\s+(?:db|database|storage))\b/i,
+]
+
+/** Extract a Slack channel ID (e.g. C0BCJ27UQHG) from text */
+const SLACK_CHANNEL_RE = /\b(C[A-Z0-9]{8,})\b/
+
+/** Extract a cron-like schedule mention */
+const SCHEDULE_RE = /\b(\d{1,2}:\d{2}(?:\s*(?:am|pm))?(?:\s+(?:UTC|BD|EST|PST|GMT)[^\s]*)?)\b/i
+
+export function extractConversationState(
+  chatHistory: Array<{ role: string; content: string }>,
+): ConversationState {
+  const state: ConversationState = {
+    workflowHint: null,
+    resolvedParams: {},
+    userExclusions: [],
+  }
+
+  const allText = chatHistory.map((m) => m.content).join('\n')
+
+  // Detect workflow type from full history
+  for (const { pattern, hint } of WORKFLOW_HINT_PATTERNS) {
+    if (pattern.test(allText)) {
+      state.workflowHint = hint
+      break
     }
   }
 
-  const promptLower = prompt.toLowerCase()
-  const tableMentioned = enabledTables.some((table) => {
-    const normalized = table.toLowerCase()
-    return promptLower.includes(normalized) || promptLower.includes(normalized.replace(/_/g, ' '))
-  })
+  // Extract Slack channel ID if present anywhere in history
+  const channelMatch = allText.match(SLACK_CHANNEL_RE)
+  if (channelMatch) {
+    state.resolvedParams['slack_channel_id'] = channelMatch[1]
+  }
 
-  if (!tableMentioned) {
-    return {
-      question: `Which data table should this agent query? Enabled tables: ${enabledTables.join(', ')}. Specify one in your prompt or reply with the table name.`,
+  // Extract explicit schedule time if mentioned
+  const scheduleMatch = allText.match(SCHEDULE_RE)
+  if (scheduleMatch) {
+    state.resolvedParams['schedule_time'] = scheduleMatch[1]
+  }
+
+  // Detect user exclusions (things user said they DON'T want)
+  for (const pattern of EXCLUSION_PATTERNS) {
+    for (const msg of chatHistory) {
+      if (msg.role === 'user' && pattern.test(msg.content)) {
+        const match = msg.content.match(pattern)
+        if (match) state.userExclusions.push(match[0].trim())
+      }
     }
   }
 
-  return null
+  return state
+}
+
+/** Build the RESOLVED CONTEXT block injected into the system prompt */
+export function buildResolvedContextBlock(state: ConversationState): string {
+  const lines: string[] = []
+
+  if (state.workflowHint) {
+    lines.push(`- Workflow type detected: ${state.workflowHint}`)
+  }
+
+  for (const [key, value] of Object.entries(state.resolvedParams)) {
+    const label = key.replace(/_/g, ' ')
+    lines.push(`- ${label}: ${value}`)
+  }
+
+  for (const exclusion of state.userExclusions) {
+    lines.push(`- User explicitly said they do NOT want: "${exclusion}"`)
+  }
+
+  if (lines.length === 0) return ''
+
+  return `RESOLVED CONTEXT (already confirmed in this conversation — do NOT re-ask these):
+${lines.join('\n')}`
 }
 
 export function buildPlatformOverview(configuredTypes: Set<string>): string {
