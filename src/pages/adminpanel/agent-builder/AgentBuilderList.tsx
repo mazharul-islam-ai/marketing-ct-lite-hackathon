@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { I420_ROUTES } from "@/lib/i420Routes";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -237,7 +238,7 @@ export default function AgentBuilderList() {
   function handleChatSubmit() {
     const prompt = chatInput.trim();
     if (!prompt) return;
-    navigate("/adminpanel/agent-builder/new", { state: { initialPrompt: prompt } });
+    navigate(I420_ROUTES.new, { state: { initialPrompt: prompt } });
   }
 
   function handleChatInputChange(value: string) {
@@ -265,7 +266,7 @@ export default function AgentBuilderList() {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/adminpanel">Admin Panel</BreadcrumbLink>
+            <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbItem>
             <BreadcrumbPage>{I420.studioLabel}</BreadcrumbPage>
@@ -281,7 +282,7 @@ export default function AgentBuilderList() {
             <p className={cn("text-xs", ab.textMuted)}>{I420.tagline}</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate("/adminpanel/agent-builder/settings")}>
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(I420_ROUTES.settings)}>
           <Settings2 className="w-4 h-4" />
           Settings
         </Button>
@@ -292,7 +293,7 @@ export default function AgentBuilderList() {
           <h2 className={cn("text-sm font-semibold", ab.textForeground)}>Create a new workflow</h2>
           <button
             type="button"
-            onClick={() => navigate("/adminpanel/agent-builder/new")}
+            onClick={() => navigate(I420_ROUTES.new)}
             className={cn("inline-flex items-center gap-1 text-xs font-medium hover:underline shrink-0", ab.accentText)}
           >
             <Plus className="w-3 h-3" />
@@ -418,7 +419,7 @@ export default function AgentBuilderList() {
               <AgentCard
                 key={agent.id}
                 agent={agent}
-                onOpen={() => navigate(`/adminpanel/agent-builder/${agent.id}`)}
+                onOpen={() => navigate(I420_ROUTES.agent(agent.id))}
                 onRun={() => runAgent(agent)}
                 onClone={() => cloneAgent(agent)}
                 onArchive={() => archiveAgent(agent.id)}

@@ -100,8 +100,8 @@ function BuilderAgentsSection() {
                   <Play className="mr-1.5 h-3.5 w-3.5" /> Run
                 </Button>
                 <Button size="sm" variant="outline" asChild>
-                  <a href={`/adminpanel/agent-builder/${agent.id}`} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open Builder
+                  <a href={`/i420/${agent.id}`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open in Studio
                   </a>
                 </Button>
               </div>

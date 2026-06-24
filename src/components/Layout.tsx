@@ -11,6 +11,7 @@ import {
   Building2,
   Target,
   Shield,
+  Sparkles,
   Video,
   History,
   Calendar,
@@ -39,6 +40,7 @@ interface NavigationItem {
   current: boolean;
   isHeader?: boolean;
   isAdmin?: boolean;
+  isI420?: boolean;
   subItems?: NavigationItem[];
   minRole?: 'user' | 'pm' | 'manager' | 'super_admin';
 }
@@ -162,10 +164,11 @@ const Layout = () => {
       );
     }
 
-    // Super admin only - Admin Panel
+    // Super admin only — i420 Studio + Admin Panel
     if (role === 'super_admin') {
       navigation.push(
         { name: "SEPARATOR", href: "", icon: null, current: false, isHeader: true },
+        { name: "i420 Studio", href: "/i420", icon: Sparkles, current: false, isI420: true },
         { name: "Admin Panel", href: "/adminpanel", icon: Shield, current: false, isAdmin: true }
       );
     }
@@ -274,8 +277,9 @@ const Layout = () => {
                 );
               }
 
-              // Special styling for Admin Panel and Vision
+              // Special styling for i420 Studio, Admin Panel, and Vision
               const isAdminPanel = item.isAdmin;
+              const isI420Studio = item.isI420;
               const isVision = item.name === "Vision";
 
               return (
@@ -287,18 +291,22 @@ const Layout = () => {
                     ${isActive
                       ? isAdminPanel
                         ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/25'
-                        : isVision
-                          ? 'bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 text-white shadow-lg shadow-fuchsia-500/30 animate-pulse'
-                          : 'bg-gradient-primary text-white shadow-md'
+                        : isI420Studio
+                          ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-500/25'
+                          : isVision
+                            ? 'bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 text-white shadow-lg shadow-fuchsia-500/30 animate-pulse'
+                            : 'bg-gradient-primary text-white shadow-md'
                       : isAdminPanel
                         ? 'text-red-500 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-orange-500 hover:shadow-md hover:shadow-red-500/25 border border-red-200 dark:border-red-800'
-                        : isVision
-                          ? 'bg-gradient-to-r from-violet-500/10 via-fuchsia-500/10 to-pink-500/10 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-300 dark:border-fuchsia-700 hover:from-violet-500 hover:via-fuchsia-500 hover:to-pink-500 hover:text-white hover:shadow-lg hover:shadow-fuchsia-500/30 hover:border-transparent'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                        : isI420Studio
+                          ? 'text-indigo-600 hover:text-white hover:bg-gradient-to-r hover:from-indigo-500 hover:to-violet-500 hover:shadow-md hover:shadow-indigo-500/25 border border-indigo-200 dark:border-indigo-800'
+                          : isVision
+                            ? 'bg-gradient-to-r from-violet-500/10 via-fuchsia-500/10 to-pink-500/10 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-300 dark:border-fuchsia-700 hover:from-violet-500 hover:via-fuchsia-500 hover:to-pink-500 hover:text-white hover:shadow-lg hover:shadow-fuchsia-500/30 hover:border-transparent'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                     }
                   `}
                 >
-                  <item.icon className={`mr-3 h-5 w-5 ${isAdminPanel && !location.pathname.includes(item.href) ? 'text-red-500' : ''} ${isVision && !location.pathname.includes(item.href) ? 'text-fuchsia-500' : ''}`} />
+                  <item.icon className={`mr-3 h-5 w-5 ${isAdminPanel && !location.pathname.includes(item.href) ? 'text-red-500' : ''} ${isI420Studio && !location.pathname.startsWith(item.href) ? 'text-indigo-500' : ''} ${isVision && !location.pathname.includes(item.href) ? 'text-fuchsia-500' : ''}`} />
                   {item.name}
                 </NavLink>
               );

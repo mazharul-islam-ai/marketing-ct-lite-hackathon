@@ -5,6 +5,8 @@ export const I420 = {
   tagline: "Build agents & automations from plain language",
   studioLabel: "i420 Studio",
   newWorkflowLabel: "New workflow",
+  poweredByLabel: "Powered by i420",
+  loginSubtitle: "Build agents & automations from plain language",
 } as const;
 
 export const I420_WELCOME_HINTS = [

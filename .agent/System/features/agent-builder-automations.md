@@ -1,12 +1,14 @@
-# Agent Builder & Automations
+# i420 Studio & Automations
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 ## Overview
 
-The **Agent Builder** (`/adminpanel/agent-builder`) is a visual workflow studio where super admins describe automations in natural language. The AI compiler (`compile-agent-flow`) produces validated `flow_json` graphs stored in `agent_versions`.
+**i420 Studio** (`/i420`) is a first-class super-admin product for building agents and automations from natural language. It was formerly known as Agent Builder (`/adminpanel/agent-builder` — legacy URLs redirect to `/i420`).
 
-**Automations** (`/adminpanel/automations`) are published agents with active schedules in the `automations` table, executed by Trigger.dev (`automation-scheduler` + `execute-agent-run`).
+The AI compiler (`compile-agent-flow`) produces validated `flow_json` graphs stored in `agent_versions`.
+
+**Automations** (`/i420/automations`) are published agents with active schedules in the `automations` table, executed by Trigger.dev (`automation-scheduler` + `execute-agent-run`).
 
 ## Architecture
 
@@ -40,7 +42,7 @@ Before generating flows, `compile-agent-flow`:
 
 Before compiling flows that query the database, the compiler:
 
-1. Loads `enabled_tables` from `organization_integrations` where `integration_type = 'agent_builder_data_sources'` (configured in Agent Builder → Settings → Data Sources)
+1. Loads `enabled_tables` from `organization_integrations` where `integration_type = 'agent_builder_data_sources'` (configured in i420 Studio → Settings → Data Sources)
 2. If the prompt mentions database/db/table/query without naming a specific enabled table → returns `needs_clarification` listing enabled tables
 3. If zero tables are enabled → asks user to enable data sources first
 4. Post-compile validation: every `db_query` node `config.table` must be in `enabled_tables`; invalid tables surface as clarification errors
@@ -105,7 +107,7 @@ manual_trigger → switch(mode)
 |---------|-----|
 | "I don't have information about the first client" | Redeploy Trigger.dev; runtime prefetch + forced chat templates fix this for existing agents |
 | Chat run has only 2–3 steps (no `db_query`) | Recompile agent or rely on runtime prefetch after Trigger.dev deploy |
-| Empty `rows` in LLM step input | Enable table in Agent Builder → Settings → Data Sources; verify table has rows |
+| Empty `rows` in LLM step input | Enable table in i420 Studio → Settings → Data Sources; verify table has rows |
 | Report works, chat does not | Report path runs `db_query` in flow; chat needs Trigger.dev deploy for prefetch back-compat |
 
 **Deploy:** compiler changes → `supabase functions deploy compile-agent-flow`; runtime changes → Trigger.dev redeploy (`execute-agent-run`, `execute-flow-node`).
@@ -153,7 +155,7 @@ cron_trigger (daily 8am)
 
 **Required integrations:** Gmail, OpenAI (or Gemini), SendGrid or Resend
 
-Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via Agent Builder chat after configuring integrations.
+Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via i420 Studio chat after configuring integrations.
 
 ## Gmail Integration
 
@@ -187,14 +189,21 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via Agent Bu
 
 | Route | Page |
 |-------|------|
-| `/adminpanel/agent-builder` | Design & compile flows |
-| `/adminpanel/automations` | All published scheduled automations |
-| `/adminpanel/automations/logs` | Scheduled automation run logs (`trigger_type = cron` only) |
-| `/adminpanel/ai-control?tab=agents-logs` | Combined Agent Builder + legacy AI agent run history |
+| `/i420` | Agent list + prompt composer + 3D canvas |
+| `/i420/new` | Studio editor (new workflow) |
+| `/i420/:agentId` | Studio editor |
+| `/i420/settings` | Data sources, MCP, integrations |
+| `/i420/automations` | All published scheduled automations |
+| `/i420/automations/logs` | Scheduled automation run logs (`trigger_type = cron` only) |
+| `/adminpanel/ai-control?tab=agents-logs` | Combined i420 Studio + legacy AI agent run history |
+
+Legacy `/adminpanel/agent-builder/*` and `/adminpanel/automations/*` URLs redirect to the matching `/i420/*` path.
+
+Super admins also reach i420 Studio from the root sidebar (**i420 Studio** button above Admin Panel) and the dashboard hero on `/`.
 
 ## UI Conventions
 
-Agent Builder uses a **scoped soft Lovable-inspired palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). This is intentionally distinct from stark admin `bg-card` and the global `--primary` token used elsewhere in the admin panel.
+i420 Studio uses a **scoped soft Lovable-inspired palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). Brand copy lives in `i420Brand.ts`; route constants in `src/lib/i420Routes.ts`. Layout chrome is `src/layouts/I420StudioLayout.tsx` (standalone, not AdminLayout).
 
 **Palette traits:**
 - Page canvas: warm blue-gray (`ab.canvas`), not pure white
@@ -203,7 +212,7 @@ Agent Builder uses a **scoped soft Lovable-inspired palette** via `src/pages/adm
 - Accent: muted periwinkle (`ab.accentText`, `ab.accentBtn`, `ab.chipActive`) — not saturated platform primary
 - Chat: soft panel (`ab.chatPanel`), periwinkle user bubbles (`ab.userBubble`), tinted assistant bubbles (`ab.assistantBubble`)
 
-List and Settings pages follow the same Breadcrumb + header pattern as AI Control. The studio workspace bleeds into admin content padding with `ab.studioShell`. Do not change global `index.css` tokens when styling Agent Builder — extend `agentBuilderTheme.ts` instead.
+List and Settings pages use breadcrumb + header inside `I420StudioLayout`. The studio editor (`/i420/new`, `/i420/:agentId`) renders full-screen without layout chrome. Do not change global `index.css` tokens when styling i420 Studio — extend `agentBuilderTheme.ts` instead.
 
 **List page composer:** Prompt-first compact card (`composerCompact`, `promptBar`): unified input + Build bar, keyboard hint, short template labels with icons (`templateStrip` / `templateChip`); full prompt text applied on chip click. "Start from scratch" is an inline link in the card header.
 
@@ -245,11 +254,11 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 
 ## MCP integration (external tools)
 
-Agent Builder acts as an **MCP client**: registered servers expose tools that compile into `mcp_tool` flow nodes and execute at runtime via Trigger.dev.
+i420 Studio acts as an **MCP client**: registered servers expose tools that compile into `mcp_tool` flow nodes and execute at runtime via Trigger.dev.
 
 | Component | Path |
 |-----------|------|
-| Registry UI | Agent Builder → Settings → **MCP Servers** |
+| Registry UI | i420 Studio → Settings → **MCP Servers** |
 | Edge function | `mcp-manage` (connect, sync tools, health) |
 | Tables | `mcp_servers`, `mcp_server_tools` |
 | Runtime | `trigger/agent-flow/mcp-client.ts` + `execute-node.ts` `mcp_tool` case |

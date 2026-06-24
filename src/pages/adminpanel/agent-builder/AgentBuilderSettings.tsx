@@ -21,6 +21,7 @@ import { I420 } from "./i420Brand";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AgentBuilderPrompt } from "./types";
+import { I420_ROUTES } from "@/lib/i420Routes";
 import { McpServersPanel } from "./McpServersPanel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -578,7 +579,7 @@ export default function AgentBuilderSettings() {
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={() => navigate("/adminpanel/agent-builder")}
+          onClick={() => navigate(I420_ROUTES.root)}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>

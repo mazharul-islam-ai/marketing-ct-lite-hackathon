@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, Download, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { I420_ROUTES } from "@/lib/i420Routes";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -106,7 +107,7 @@ export default function AutomationsLogs() {
             <Download className="w-3 h-3" /> Export
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link to="/adminpanel/automations">All Automations</Link>
+            <Link to={I420_ROUTES.automations}>All Automations</Link>
           </Button>
         </div>
       </div>

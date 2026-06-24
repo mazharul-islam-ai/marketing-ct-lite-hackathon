@@ -31,6 +31,7 @@ import { EmptyDashboard } from "@/components/empty-states/EmptyDashboard";
 import { BrandCardSkeleton } from "@/components/skeleton/BrandCardSkeleton";
 import { TestimonialDashboardSection } from "@/components/marketing/TestimonialDashboardSection";
 import { SEODashboardSection } from "@/features/seo-hub/components/SEODashboardSection";
+import { I420DashboardHero } from "@/components/i420/I420DashboardHero";
 
 export default function Index() {
   const { user } = useAuth();
@@ -312,6 +313,8 @@ export default function Index() {
 
   return (
     <div className="space-y-6">
+      {user?.role === "super_admin" && <I420DashboardHero />}
+
       {/* AI Agents Spotlight */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 p-6">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />

@@ -30,7 +30,7 @@ export const ab = {
   agentCard:
     "bg-[hsl(250_28%_96%)] border-[hsl(250_18%_90%)] shadow-[0_1px_3px_hsl(250_30%_50%/0.05)] hover:border-[hsl(248_35%_82%)] hover:shadow-[0_2px_8px_hsl(250_30%_50%/0.08)]",
   studioShell:
-    "flex flex-col -m-4 lg:-m-6 h-[calc(100vh-4rem)] bg-[hsl(250_33%_98%)] border-t border-[hsl(250_18%_90%)] overflow-hidden",
+    "flex flex-col h-screen min-h-0 bg-[hsl(250_33%_98%)] overflow-hidden",
   studioHeader:
     "flex items-center gap-2 px-4 h-12 border-b border-[hsl(250_18%_90%)] bg-[hsl(250_28%_96%)] shrink-0",
   studioTabs: "border-b border-[hsl(250_18%_90%)] bg-[hsl(250_32%_97.5%)] px-4 shrink-0",
