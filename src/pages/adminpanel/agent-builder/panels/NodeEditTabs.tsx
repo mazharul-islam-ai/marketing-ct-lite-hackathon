@@ -314,15 +314,29 @@ export function NodeEditTabs({ flowJson, onNodeSave, onClose }: NodeEditTabsProp
               Use <code className={cn("px-1.5 py-0.5 rounded text-[10px] font-mono", ab.chip)}>{"{{variable}}"}</code> in
               prompts and config fields to reference outputs from previous nodes.
             </p>
-            <div className="mt-2 space-y-1.5">
-              {allNodes.map((node) => (
-                <div key={node.id} className="flex items-center gap-2 text-[11px]">
-                  <code className={cn("px-1.5 py-0.5 rounded font-mono", ab.chip)}>
-                    {`{{${node.id}.output}}`}
-                  </code>
-                  <span className="text-slate-400">→ {editState[node.id]?.label || node.type}</span>
-                </div>
-              ))}
+            <div className="mt-2 space-y-2">
+              {allNodes.map((node) => {
+                const def = getNodeDef(node.type);
+                const fields = def?.outputFields ?? ["output"];
+                return (
+                  <div key={node.id} className="space-y-1 pb-2 border-b border-slate-100 last:border-0">
+                    <span className="text-[10px] font-medium text-slate-500">
+                      {editState[node.id]?.label || node.type}
+                      <span className="ml-1 text-slate-300 font-normal font-mono">{node.id}</span>
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {fields.map((field) => (
+                        <code
+                          key={field}
+                          className={cn("px-1.5 py-0.5 rounded font-mono cursor-pointer", ab.chip)}
+                        >
+                          {`{{${node.id}.${field}}}`}
+                        </code>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </TabsContent>
