@@ -20,6 +20,9 @@ interface AgentCardProps {
   onRun: () => void;
   onStop: () => void;
   versionNumber?: number;
+  isCompiling?: boolean;
+  justRevealed?: boolean;
+  reducedMotion?: boolean;
 }
 
 const STATUS_COLORS = {
@@ -47,6 +50,9 @@ export function AgentCard({
   onRun,
   onStop,
   versionNumber,
+  isCompiling = false,
+  justRevealed = false,
+  reducedMotion = false,
 }: AgentCardProps) {
 
   const allNodes = flowJson
@@ -75,7 +81,9 @@ export function AgentCard({
           ab.cardShell,
           ab.cardShell3d,
           "w-full overflow-hidden transition-all duration-300",
-          isRunActive && ab.cardRunningGlow,
+          isCompiling && (reducedMotion ? ab.cardCompilingShimmerStatic : ab.cardCompilingShimmer),
+          !isCompiling && isRunActive && ab.cardRunningGlow,
+          !isCompiling && !isRunActive && justRevealed && ab.cardRevealFlash,
         )}
       >
         {/* Header */}
@@ -123,31 +131,43 @@ export function AgentCard({
           )}
 
           {/* Stats row */}
-          <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
-            <span className="font-medium text-slate-500">
-              {nodeCount} node{nodeCount !== 1 ? "s" : ""}
-            </span>
-            {versionNumber != null && (
-              <>
-                <span className="text-slate-200">·</span>
-                <span>v{versionNumber}</span>
-              </>
-            )}
-            {lastRunTime && (
-              <>
-                <span className="text-slate-200">·</span>
-                <span>
-                  Last run: {formatDistanceToNow(new Date(lastRunTime), { addSuffix: true })}
-                </span>
-              </>
-            )}
-            {runStatusBadge && (
-              <>
-                <span className="text-slate-200">·</span>
-                <span className={runStatusBadge.cls}>{runStatusBadge.label}</span>
-              </>
-            )}
-          </div>
+          {isCompiling ? (
+            <div className="flex items-center gap-3">
+              <div className={cn(ab.skeletonBar, "w-[72px]")} aria-hidden />
+              {versionNumber != null && (
+                <>
+                  <span className="text-slate-200">·</span>
+                  <div className={cn(ab.skeletonBar, "w-8")} aria-hidden />
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+              <span className="font-medium text-slate-500">
+                {nodeCount} node{nodeCount !== 1 ? "s" : ""}
+              </span>
+              {versionNumber != null && (
+                <>
+                  <span className="text-slate-200">·</span>
+                  <span>v{versionNumber}</span>
+                </>
+              )}
+              {lastRunTime && (
+                <>
+                  <span className="text-slate-200">·</span>
+                  <span>
+                    Last run: {formatDistanceToNow(new Date(lastRunTime), { addSuffix: true })}
+                  </span>
+                </>
+              )}
+              {runStatusBadge && (
+                <>
+                  <span className="text-slate-200">·</span>
+                  <span className={runStatusBadge.cls}>{runStatusBadge.label}</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer actions */}

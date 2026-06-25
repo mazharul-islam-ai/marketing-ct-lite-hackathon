@@ -111,6 +111,14 @@ export default {
           "0%": { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(100%)" },
         },
+        "compile-border": {
+          "0%, 100%": { boxShadow: "0 0 0 1px hsl(18 52% 52% / 0.22)" },
+          "50%": { boxShadow: "0 0 0 1px hsl(18 52% 52% / 0.42), 0 0 14px hsl(18 52% 52% / 0.07)" },
+        },
+        "compile-border-auto": {
+          "0%, 100%": { boxShadow: "0 0 0 1px hsl(18 45% 48% / 0.2)" },
+          "50%": { boxShadow: "0 0 0 1px hsl(18 45% 48% / 0.38), 0 0 14px hsl(18 45% 48% / 0.06)" },
+        },
         "fade-in": {
           from: { opacity: "0" },
           to: { opacity: "1" },

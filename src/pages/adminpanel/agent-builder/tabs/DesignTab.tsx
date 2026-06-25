@@ -8,6 +8,7 @@ import { AgentCard } from "../panels/AgentCard";
 import { AutomationCard } from "../panels/AutomationCard";
 import { StudioWelcomeCanvas } from "../panels/StudioWelcomeCanvas";
 import { CanvasToolbar, type CanvasViewMode } from "../panels/CanvasToolbar";
+import { CompareCanvas } from "../panels/CompareCanvas";
 import { useBuilderSession } from "../hooks/useBuilderSession";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,8 @@ import { ab } from "../agentBuilderTheme";
 import { I420 } from "../i420Brand";
 import { CanvasBackground } from "../three/CanvasBackground";
 import { FlowPreviewSceneLayer } from "../three/FlowPreviewSceneLayer";
+import { useReducedMotion3d } from "../three/useReducedMotion3d";
+import { diffFlows, diffHighlightSets } from "../flowDiff";
 import { extractCronFromFlow } from "@/lib/automationSchedule";
 
 interface DesignTabProps {
@@ -33,7 +36,6 @@ interface DesignTabProps {
   onCompilingChange?: (isCompiling: boolean) => void;
   initialPrompt?: string;
   onInitialPromptConsumed?: () => void;
-  // Run state (passed from Studio)
   currentRun?: AgentRun | null;
   isRunActive?: boolean;
   isTriggering?: boolean;
@@ -71,6 +73,17 @@ export function DesignTab({
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [canvasViewMode, setCanvasViewMode] = useState<CanvasViewMode>("card");
   const [cardEditOpen, setCardEditOpen] = useState(false);
+  const [justRevealed, setJustRevealed] = useState(false);
+  const [compareHighlights, setCompareHighlights] = useState<{
+    added: Set<string>;
+    removed: Set<string>;
+    changed: Set<string>;
+  } | null>(null);
+
+  const reducedMotion = useReducedMotion3d();
+  const prevCompilingRef = useRef(false);
+  const flowJsonRef = useRef(flowJson);
+  flowJsonRef.current = flowJson;
 
   const firedInitialPromptRef = useRef(false);
   const sendPromptRef = useRef<(prompt: string, action?: "generate" | "improve" | "add_tool") => Promise<FlowJSON | null>>(async () => null);
@@ -84,13 +97,25 @@ export function DesignTab({
     [onFlowChange],
   );
 
-  const { chatHistory, isCompiling, compileStatus, error, sendPrompt, clearError } = useBuilderSession(
+  const {
+    chatHistory,
+    isCompiling,
+    compileStatus,
+    error,
+    sendPrompt,
+    clearError,
+    compileDiffSession,
+    compareUnseen,
+    clearCompileDiffSession,
+    markCompareSeen,
+  } = useBuilderSession(
     agentId,
     handleFlowUpdate,
     {
       onAgentCreated,
       onCompileComplete,
       onVersionUpdated,
+      getCurrentFlow: () => flowJsonRef.current,
     },
   );
 
@@ -99,6 +124,15 @@ export function DesignTab({
   useEffect(() => {
     onCompilingChange?.(isCompiling);
   }, [isCompiling, onCompilingChange]);
+
+  useEffect(() => {
+    if (prevCompilingRef.current && !isCompiling && compileDiffSession) {
+      setJustRevealed(true);
+      const t = window.setTimeout(() => setJustRevealed(false), 400);
+      return () => window.clearTimeout(t);
+    }
+    prevCompilingRef.current = isCompiling;
+  }, [isCompiling, compileDiffSession]);
 
   useEffect(() => {
     if (initialFlowJson) {
@@ -121,17 +155,24 @@ export function DesignTab({
     sendPromptRef.current(initialPrompt, "generate");
   }, [initialPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const clearCompareState = useCallback(() => {
+    clearCompileDiffSession();
+    setCompareHighlights(null);
+  }, [clearCompileDiffSession]);
+
   const handleCanvasFlowChange = useCallback(
     (updated: FlowJSON) => {
+      clearCompareState();
       setFlowJson(updated);
       onFlowChange(updated);
     },
-    [onFlowChange],
+    [onFlowChange, clearCompareState],
   );
 
   const handleNodeSave = useCallback(
     (nodeId: string, updates: { label?: string; config?: Record<string, unknown> }) => {
       if (!flowJson) return;
+      clearCompareState();
       const updateNode = (n: FlowNode): FlowNode =>
         n.id === nodeId ? { ...n, ...updates } : n;
       const updated: FlowJSON = {
@@ -141,10 +182,9 @@ export function DesignTab({
       };
       setFlowJson(updated);
       onFlowChange(updated);
-      // Only clear selectedNode in flow mode (card mode saves without closing)
       if (canvasViewMode === "flow") setSelectedNode(null);
     },
-    [flowJson, onFlowChange, canvasViewMode],
+    [flowJson, onFlowChange, canvasViewMode, clearCompareState],
   );
 
   useEffect(() => {
@@ -153,9 +193,26 @@ export function DesignTab({
     }
   }, [canvasViewMode]);
 
-  const handleCanvasViewModeChange = useCallback((mode: CanvasViewMode) => {
-    setCanvasViewMode(mode);
-  }, []);
+  const handleCanvasViewModeChange = useCallback(
+    (mode: CanvasViewMode) => {
+      setCanvasViewMode(mode);
+      if (mode === "compare") markCompareSeen();
+    },
+    [markCompareSeen],
+  );
+
+  const handleOpenCompareInFlow = useCallback(() => {
+    if (!compileDiffSession) return;
+    const diff = diffFlows(compileDiffSession.before, compileDiffSession.after);
+    setCompareHighlights(diffHighlightSets(diff));
+    setCanvasViewMode("flow");
+    markCompareSeen();
+  }, [compileDiffSession, markCompareSeen]);
+
+  const handleDismissCompare = useCallback(() => {
+    clearCompareState();
+    setCanvasViewMode("card");
+  }, [clearCompareState]);
 
   const handleCardEditToggle = useCallback(() => {
     setCardEditOpen((open) => !open);
@@ -173,7 +230,6 @@ export function DesignTab({
     }
   }
 
-  // Determine if this is an automation (has cron trigger)
   const isAutomation = flowJson?.trigger?.type === "cron_trigger" ||
     !!(extractCronFromFlow(flowJson));
 
@@ -193,10 +249,28 @@ export function DesignTab({
     [sendPrompt],
   );
 
+  const cardSharedProps = {
+    agentName,
+    agentDescription,
+    agentStatus,
+    flowJson,
+    currentRun,
+    isRunActive,
+    isTriggering,
+    canRun,
+    isEditOpen: cardEditOpen,
+    onEditToggle: handleCardEditToggle,
+    onRun: handleRun,
+    onStop: handleStop,
+    versionNumber,
+    isCompiling,
+    justRevealed,
+    reducedMotion,
+  };
+
   return (
     <div className="h-full min-h-0 overflow-hidden relative flex flex-col">
       <PanelGroup direction="horizontal" className="h-full min-h-0 flex-1">
-        {/* ── Left: AI Chat ──────────────────────────────────────────────── */}
         <Panel
           ref={leftPanelRef}
           defaultSize={22}
@@ -256,24 +330,31 @@ export function DesignTab({
           <div className="absolute inset-y-0 left-0 w-px bg-[hsl(35_15%_88%)] group-hover:bg-[hsl(18_52%_52%/0.4)] transition-colors" />
         </PanelResizeHandle>
 
-        {/* ── Right: Canvas ───────────────────────────────────────────────── */}
         <Panel defaultSize={78} minSize={30} className="flex flex-col overflow-hidden min-w-0">
-          {/* View toggle toolbar */}
           <CanvasToolbar
             mode={canvasViewMode}
             onModeChange={handleCanvasViewModeChange}
             isRunActive={isRunActive}
+            showCompare={!!compileDiffSession}
+            compareUnseen={compareUnseen}
           />
 
-          {/* Canvas content */}
           <div className={cn("flex-1 overflow-hidden relative", ab.canvas)}>
             <CanvasBackground
               variant="studio"
               running={isRunActive}
               className="absolute inset-0 z-0"
             />
-            {canvasViewMode === "card" ? (
-              /* ── Card view ───────────────────────────────────────────── */
+
+            {canvasViewMode === "compare" && compileDiffSession && (
+              <CompareCanvas
+                session={compileDiffSession}
+                onOpenInFlow={handleOpenCompareInFlow}
+                onDismiss={handleDismissCompare}
+              />
+            )}
+
+            {canvasViewMode === "card" && (
               <div className="absolute inset-0 overflow-auto h-full z-[1]">
                 {isRunActive && (
                   <div className="absolute inset-0 pointer-events-none bg-[hsl(18_52%_52%/0.02)] animate-pulse" />
@@ -284,42 +365,16 @@ export function DesignTab({
                   ) : (
                     <div className="flex flex-col items-center justify-start pt-6 pb-8 px-8 min-h-full">
                       {isAutomation ? (
-                        <AutomationCard
-                          agentName={agentName}
-                          agentDescription={agentDescription}
-                          agentStatus={agentStatus}
-                          flowJson={flowJson}
-                          currentRun={currentRun}
-                          isRunActive={isRunActive}
-                          isTriggering={isTriggering}
-                          canRun={canRun}
-                          isEditOpen={cardEditOpen}
-                          onEditToggle={handleCardEditToggle}
-                          onRun={handleRun}
-                          onStop={handleStop}
-                          versionNumber={versionNumber}
-                        />
+                        <AutomationCard {...cardSharedProps} />
                       ) : (
-                        <AgentCard
-                          agentName={agentName}
-                          agentDescription={agentDescription}
-                          agentStatus={agentStatus}
-                          flowJson={flowJson}
-                          currentRun={currentRun}
-                          isRunActive={isRunActive}
-                          isTriggering={isTriggering}
-                          canRun={canRun}
-                          isEditOpen={cardEditOpen}
-                          onEditToggle={handleCardEditToggle}
-                          onRun={handleRun}
-                          onStop={handleStop}
-                          versionNumber={versionNumber}
-                        />
+                        <AgentCard {...cardSharedProps} />
                       )}
 
-                      {/* Workflow 3D preview — below card with visual separation */}
                       {flowJson && (flowJson.trigger || flowJson.steps.length > 0) && (
-                        <div className="mt-5 w-full max-w-[520px] space-y-1.5">
+                        <div className={cn(
+                          "mt-5 w-full max-w-[520px] space-y-1.5 transition-opacity duration-300",
+                          isCompiling && "opacity-60",
+                        )}>
                           <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest text-center select-none">
                             Workflow
                           </p>
@@ -335,31 +390,29 @@ export function DesignTab({
                   )}
                 </div>
               </div>
-            ) : (
-              /* ── Flow view ───────────────────────────────────────────── */
+            )}
+
+            {canvasViewMode === "flow" && (
               <div className="absolute inset-0 z-[1]">
                 <AgentFlowCanvas
-                flowJson={flowJson}
-                onFlowChange={handleCanvasFlowChange}
-                onNodeSelect={setSelectedNode}
-                nodeRunStatuses={nodeRunStatuses}
-                currentNodeId={currentNodeId}
-                isRunActive={isRunActive}
-              />
+                  flowJson={flowJson}
+                  onFlowChange={handleCanvasFlowChange}
+                  onNodeSelect={setSelectedNode}
+                  nodeRunStatuses={nodeRunStatuses}
+                  currentNodeId={currentNodeId}
+                  isRunActive={isRunActive}
+                  compareHighlights={compareHighlights}
+                />
               </div>
             )}
           </div>
         </Panel>
       </PanelGroup>
 
-      {/* Card edit slide-in — right drawer in card mode */}
       {canvasViewMode === "card" && (
         <>
           {cardEditOpen && (
-            <div
-              className="absolute inset-0 z-10"
-              onClick={handleCardEditClose}
-            />
+            <div className="absolute inset-0 z-10" onClick={handleCardEditClose} />
           )}
           <div
             className={cn(
@@ -380,14 +433,10 @@ export function DesignTab({
         </>
       )}
 
-      {/* Node inspector slide-in — only active in flow mode */}
       {canvasViewMode === "flow" && (
         <>
           {selectedNode && (
-            <div
-              className="absolute inset-0 z-10"
-              onClick={() => setSelectedNode(null)}
-            />
+            <div className="absolute inset-0 z-10" onClick={() => setSelectedNode(null)} />
           )}
           <div
             className={cn(

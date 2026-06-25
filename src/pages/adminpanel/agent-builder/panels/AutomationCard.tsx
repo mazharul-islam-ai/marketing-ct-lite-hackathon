@@ -21,6 +21,9 @@ interface AutomationCardProps {
   onRun: () => void;
   onStop: () => void;
   versionNumber?: number;
+  isCompiling?: boolean;
+  justRevealed?: boolean;
+  reducedMotion?: boolean;
 }
 
 const STATUS_COLORS = {
@@ -73,6 +76,9 @@ export function AutomationCard({
   onRun,
   onStop,
   versionNumber,
+  isCompiling = false,
+  justRevealed = false,
+  reducedMotion = false,
 }: AutomationCardProps) {
 
   const cronExpression = extractCronFromFlow(flowJson);
@@ -103,7 +109,10 @@ export function AutomationCard({
         className={cn(
           ab.cardShell,
           "w-full overflow-hidden transition-all duration-300",
-          isRunActive && "border-l-2 border-[hsl(30_15%_55%)]",
+          isCompiling && (reducedMotion ? ab.cardCompilingShimmerAutoStatic : ab.cardCompilingShimmerAuto),
+          !isCompiling && isRunActive && ab.cardRunningGlowAuto,
+          !isCompiling && !isRunActive && justRevealed && ab.cardRevealFlash,
+          !isCompiling && isRunActive && "border-l-2 border-[hsl(30_15%_55%)]",
         )}
       >
         {/* Header */}
@@ -199,17 +208,29 @@ export function AutomationCard({
           )}
 
           {/* Stats */}
-          <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
-            <span className="font-medium text-slate-500">
-              {nodeCount} node{nodeCount !== 1 ? "s" : ""}
-            </span>
-            {versionNumber != null && (
-              <>
-                <span className="text-slate-200">·</span>
-                <span>v{versionNumber}</span>
-              </>
-            )}
-          </div>
+          {isCompiling ? (
+            <div className="flex items-center gap-3">
+              <div className={cn(ab.skeletonBar, "w-[72px]")} aria-hidden />
+              {versionNumber != null && (
+                <>
+                  <span className="text-slate-200">·</span>
+                  <div className={cn(ab.skeletonBar, "w-8")} aria-hidden />
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+              <span className="font-medium text-slate-500">
+                {nodeCount} node{nodeCount !== 1 ? "s" : ""}
+              </span>
+              {versionNumber != null && (
+                <>
+                  <span className="text-slate-200">·</span>
+                  <span>v{versionNumber}</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

@@ -9,6 +9,7 @@ export interface FlowNodeData {
   config: Record<string, unknown>;
   runStatus?: "pending" | "running" | "completed" | "failed" | "skipped";
   isSelected?: boolean;
+  diffHighlight?: "added" | "removed" | "changed";
 }
 
 const STATUS_RING: Record<string, string> = {
@@ -41,12 +42,21 @@ export const FlowNodeComponent = memo(({ data, selected }: NodeProps<FlowNodeDat
 
   const isTrigger = def?.category === "trigger";
 
+  const diffRing =
+    data.diffHighlight === "added"
+      ? "ring-2 ring-emerald-400 ring-offset-1 border-emerald-300"
+      : data.diffHighlight === "removed"
+        ? "ring-2 ring-red-300 ring-offset-1 border-red-200 opacity-70"
+        : data.diffHighlight === "changed"
+          ? "ring-2 ring-amber-400 ring-offset-1 border-amber-300"
+          : "";
+
   return (
     <div
       className={cn(
         "relative min-w-[140px] max-w-[180px] rounded-lg border-2 px-3 py-2 cursor-pointer transition-all duration-200",
         bgColor,
-        statusRing,
+        diffRing || statusRing,
         selected && "border-primary -translate-y-px shadow-[0_8px_24px_hsl(18_52%_40%/0.12),0_2px_8px_hsl(30_20%_20%/0.08)]",
         !selected && "shadow-[0_2px_8px_hsl(30_20%_20%/0.06)]",
         data.runStatus === "running" && "ring-2 ring-[hsl(18_52%_52%)] ring-offset-1",

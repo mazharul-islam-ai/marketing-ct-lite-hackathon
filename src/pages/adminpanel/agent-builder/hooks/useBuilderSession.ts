@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatMessage, FlowJSON } from "../types";
+import { diffFlows } from "../flowDiff";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -11,6 +12,13 @@ export interface CompileStatus {
   completedPhases: string[];
 }
 
+export interface CompileDiffSession {
+  before: FlowJSON | null;
+  after: FlowJSON;
+  previousVersion?: number | null;
+  newVersion?: number;
+}
+
 interface BuilderSessionState {
   chatHistory: ChatMessage[];
   isCompiling: boolean;
@@ -18,18 +26,23 @@ interface BuilderSessionState {
   error: string | null;
   lastVersionId: string | null;
   lastVersion: number | null;
+  compileDiffSession: CompileDiffSession | null;
+  compareUnseen: boolean;
 }
 
 export interface UseBuilderSessionOptions {
   onAgentCreated?: (newAgentId: string, name: string) => void;
   onCompileComplete?: (versionId: string, version: number) => void;
   onVersionUpdated?: (versionId: string, version: number) => void;
+  getCurrentFlow?: () => FlowJSON | null;
 }
 
 interface UseBuilderSessionReturn extends BuilderSessionState {
   sendPrompt: (prompt: string, action?: "generate" | "improve" | "add_tool") => Promise<FlowJSON | null>;
   updateCanvasFlow: (flow: FlowJSON) => void;
   clearError: () => void;
+  clearCompileDiffSession: () => void;
+  markCompareSeen: () => void;
 }
 
 function nameFromPrompt(prompt: string): string {
@@ -182,6 +195,7 @@ export function useBuilderSession(
   const onAgentCreated = options?.onAgentCreated;
   const onCompileComplete = options?.onCompileComplete;
   const onVersionUpdated = options?.onVersionUpdated;
+  const getCurrentFlow = options?.getCurrentFlow;
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isCompiling, setIsCompiling] = useState(false);
@@ -189,9 +203,16 @@ export function useBuilderSession(
   const [error, setError] = useState<string | null>(null);
   const [lastVersionId, setLastVersionId] = useState<string | null>(null);
   const [lastVersion, setLastVersion] = useState<number | null>(null);
+  const [compileDiffSession, setCompileDiffSession] = useState<CompileDiffSession | null>(null);
+  const [compareUnseen, setCompareUnseen] = useState(false);
   const resolvedAgentIdRef = useRef<string | null>(agentId);
   const completedPhasesRef = useRef<string[]>([]);
   const isCompilingRef = useRef(false);
+  const lastVersionRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    lastVersionRef.current = lastVersion;
+  }, [lastVersion]);
 
   useEffect(() => {
     resolvedAgentIdRef.current = agentId;
@@ -263,6 +284,9 @@ export function useBuilderSession(
       completedPhasesRef.current = [];
       setCompileStatus({ phase: "checking_provider", label: "Starting…", completedPhases: [] });
 
+      const beforeFlow = getCurrentFlow?.() ?? null;
+      const versionBeforeCompile = lastVersionRef.current;
+
       const userMsg: ChatMessage = { role: "user", content: prompt, timestamp: new Date().toISOString() };
       setChatHistory((prev) => [...prev, userMsg]);
 
@@ -316,7 +340,7 @@ export function useBuilderSession(
           },
         );
 
-        return handleCompileResult(
+        const newFlow = handleCompileResult(
           result,
           setChatHistory,
           onFlowUpdate,
@@ -325,6 +349,21 @@ export function useBuilderSession(
           setError,
           onCompileComplete,
         );
+
+        if (newFlow && result.success) {
+          const diff = diffFlows(beforeFlow, newFlow);
+          if (diff.hasChanges) {
+            setCompileDiffSession({
+              before: beforeFlow,
+              after: newFlow,
+              previousVersion: versionBeforeCompile,
+              newVersion: result.version ?? undefined,
+            });
+            setCompareUnseen(true);
+          }
+        }
+
+        return newFlow;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
         setError(msg);
@@ -340,7 +379,7 @@ export function useBuilderSession(
         completedPhasesRef.current = [];
       }
     },
-    [onAgentCreated, onCompileComplete, onFlowUpdate],
+    [onAgentCreated, onCompileComplete, onFlowUpdate, getCurrentFlow],
   );
 
   const updateCanvasFlow = useCallback((_flow: FlowJSON) => {
@@ -349,6 +388,13 @@ export function useBuilderSession(
 
   const clearError = useCallback(() => setError(null), []);
 
+  const clearCompileDiffSession = useCallback(() => {
+    setCompileDiffSession(null);
+    setCompareUnseen(false);
+  }, []);
+
+  const markCompareSeen = useCallback(() => setCompareUnseen(false), []);
+
   return {
     chatHistory,
     isCompiling,
@@ -356,8 +402,12 @@ export function useBuilderSession(
     error,
     lastVersionId,
     lastVersion,
+    compileDiffSession,
+    compareUnseen,
     sendPrompt,
     updateCanvasFlow,
+    clearCompileDiffSession,
+    markCompareSeen,
     clearError,
   };
 }

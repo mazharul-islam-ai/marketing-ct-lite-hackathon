@@ -19,10 +19,11 @@ export const i4203d = {
   emerald: new THREE.Color("hsl(18, 52%, 46%)"),
 } as const;
 
-export type CanvasBackgroundVariant = "studio" | "list" | "welcome";
+export type CanvasBackgroundVariant = "studio" | "list" | "welcome" | "compile";
 
 export const PARTICLE_COUNTS: Record<CanvasBackgroundVariant, number> = {
   studio: 32,
   list: 16,
   welcome: 48,
+  compile: 40,
 };

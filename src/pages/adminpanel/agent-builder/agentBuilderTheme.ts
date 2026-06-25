@@ -71,9 +71,29 @@ export const ab = {
   /** Running glow ring around card */
   cardRunningGlow:
     "ring-2 ring-offset-2 ring-[hsl(18_52%_52%)] shadow-[0_0_24px_hsl(18_52%_52%/0.25)]",
+  /** Subtle compiling border — quiet "being edited" affordance (no ring pulse) */
+  cardCompilingShimmer: "animate-[compile-border_2.5s_ease-in-out_infinite]",
+  cardCompilingShimmerStatic: "shadow-[0_0_0_1px_hsl(18_52%_52%/0.25)]",
+  cardCompilingShimmerAuto: "animate-[compile-border-auto_2.5s_ease-in-out_infinite]",
+  cardCompilingShimmerAutoStatic: "shadow-[0_0_0_1px_hsl(18_45%_48%/0.22)]",
+  /** Skeleton bars for stats row during compile */
+  skeletonBar: "h-3 rounded bg-[hsl(35_15%_88%)] animate-pulse",
+  /** Brief flash after successful compile */
+  cardRevealFlash:
+    "ring-2 ring-offset-2 ring-emerald-400 shadow-[0_0_20px_hsl(152_60%_45%/0.3)]",
   /** Running glow ring for automation */
   cardRunningGlowAuto:
     "ring-2 ring-offset-2 ring-[hsl(30_15%_55%)] shadow-[0_0_24px_hsl(30_15%_55%/0.2)]",
+  /** Toolbar compile indicator */
+  compileToolbarPill: "text-[10px] font-medium text-[hsl(18_52%_52%)]",
+  /** Compare diff colors */
+  diffAdded: "border-emerald-200 bg-emerald-50/80 text-emerald-800",
+  diffRemoved: "border-red-200 bg-red-50/80 text-red-800",
+  diffChanged: "border-amber-200 bg-amber-50/80 text-amber-900",
+  diffUnchanged: "border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] text-[hsl(30_6%_45%)]",
+  /** Compile overlay on flow canvas */
+  canvasCompilingOverlay:
+    "absolute inset-0 pointer-events-none z-10 bg-[hsl(18_52%_52%/0.05)] animate-pulse",
   /** Subtle node type chip on card body */
   nodeChip:
     "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[hsl(40_20%_96%)] border-[hsl(35_15%_88%)] text-[hsl(30_6%_40%)]",

@@ -19,6 +19,12 @@ import { NODE_TYPE_DEFS } from "../types";
 import { cn } from "@/lib/utils";
 import { ab } from "../agentBuilderTheme";
 
+interface CompareHighlights {
+  added: Set<string>;
+  removed: Set<string>;
+  changed: Set<string>;
+}
+
 interface AgentFlowCanvasProps {
   flowJson: FlowJSON | null;
   onFlowChange: (flow: FlowJSON) => void;
@@ -26,10 +32,15 @@ interface AgentFlowCanvasProps {
   nodeRunStatuses?: Record<string, { status: string; cost?: number; tokens?: number; duration_ms?: number }>;
   currentNodeId?: string | null;
   isRunActive?: boolean;
+  compareHighlights?: CompareHighlights | null;
 }
 
 // Convert FlowJSON → ReactFlow nodes+edges
-function flowJsonToRF(flow: FlowJSON | null, nodeRunStatuses?: Record<string, { status: string }>): { nodes: Node[]; edges: Edge[] } {
+function flowJsonToRF(
+  flow: FlowJSON | null,
+  nodeRunStatuses?: Record<string, { status: string }>,
+  compareHighlights?: CompareHighlights | null,
+): { nodes: Node[]; edges: Edge[] } {
   if (!flow) return { nodes: [], edges: [] };
 
   const allNodes: FlowNode[] = [
@@ -46,6 +57,13 @@ function flowJsonToRF(flow: FlowJSON | null, nodeRunStatuses?: Record<string, { 
       type: n.type,
       config: n.config,
       runStatus: nodeRunStatuses?.[n.id]?.status ?? "pending",
+      diffHighlight: compareHighlights?.added.has(n.id)
+        ? "added"
+        : compareHighlights?.removed.has(n.id)
+          ? "removed"
+          : compareHighlights?.changed.has(n.id)
+            ? "changed"
+            : undefined,
     },
     selectable: true,
     draggable: true,
@@ -102,6 +120,7 @@ export function AgentFlowCanvas({
   nodeRunStatuses,
   currentNodeId,
   isRunActive,
+  compareHighlights = null,
 }: AgentFlowCanvasProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => flowJsonToRF(flowJson, nodeRunStatuses),
@@ -114,10 +133,10 @@ export function AgentFlowCanvas({
 
   // Sync when flowJson changes from outside (AI compile)
   useEffect(() => {
-    const { nodes: newNodes, edges: newEdges } = flowJsonToRF(flowJson, nodeRunStatuses);
+    const { nodes: newNodes, edges: newEdges } = flowJsonToRF(flowJson, nodeRunStatuses, compareHighlights);
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [flowJson, setNodes, setEdges]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [flowJson, compareHighlights, setNodes, setEdges]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update node run status indicators
   useEffect(() => {

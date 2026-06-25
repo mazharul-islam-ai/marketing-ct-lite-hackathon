@@ -52,10 +52,12 @@ interface CanvasBackgroundSceneProps {
 
 function CanvasBackgroundScene({ variant = "studio", running = false }: CanvasBackgroundSceneProps) {
   const count = PARTICLE_COUNTS[variant];
+  const isCompile = variant === "compile";
+  const particlesRunning = running || isCompile;
 
   return (
     <>
-      <ambientLight intensity={0.5} />
+      <ambientLight intensity={isCompile ? 0.65 : 0.5} />
       <Grid
         args={[20, 20]}
         cellSize={0.5}
@@ -71,7 +73,7 @@ function CanvasBackgroundScene({ variant = "studio", running = false }: CanvasBa
         position={[0, -1.5, -2]}
         rotation={[0, 0, 0]}
       />
-      <Particles count={count} running={running} />
+      <Particles count={count} running={particlesRunning} />
     </>
   );
 }
