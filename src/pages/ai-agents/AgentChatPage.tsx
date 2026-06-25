@@ -22,6 +22,8 @@ export default function AgentChatPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const starterClickedRef = useRef(false);
+  const [starterLocked, setStarterLocked] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
 
   const { data: agent, isLoading, error } = useQuery({
@@ -92,6 +94,13 @@ export default function AgentChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
 
+  useEffect(() => {
+    if (!isSending) {
+      starterClickedRef.current = false;
+      setStarterLocked(false);
+    }
+  }, [isSending]);
+
   if (isLoading || !agent) {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-[#f7f5f0]">
@@ -103,6 +112,13 @@ export default function AgentChatPage() {
   if (!capabilities.hasChat) return null;
 
   const showEmpty = messages.length === 0 && !isSending;
+
+  const handleStarterPrompt = (prompt: string) => {
+    if (starterClickedRef.current || starterLocked || !canSend) return;
+    starterClickedRef.current = true;
+    setStarterLocked(true);
+    void sendMessageWithText(prompt);
+  };
 
   return (
     <>
@@ -141,8 +157,8 @@ export default function AgentChatPage() {
                 <button
                   key={prompt}
                   type="button"
-                  onClick={() => void sendMessageWithText(prompt)}
-                  disabled={!canSend}
+                  onClick={() => handleStarterPrompt(prompt)}
+                  disabled={!canSend || starterLocked}
                   className="text-xs px-3 py-1.5 rounded-full border border-stone-300/80 bg-white text-stone-600 hover:bg-stone-50 hover:border-stone-400 transition-colors disabled:opacity-50"
                 >
                   {prompt}

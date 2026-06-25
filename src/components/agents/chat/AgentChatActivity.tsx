@@ -72,7 +72,7 @@ export function AgentChatActivity({
           {steps.length === 0 && isRunning && (
             <div className="flex items-center gap-2 text-xs text-stone-500 py-1">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Starting…
+              Waiting for agent…
             </div>
           )}
           {steps.map((step) => {

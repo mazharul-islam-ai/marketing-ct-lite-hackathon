@@ -14,6 +14,11 @@ import type { AgentChatMessage } from "./agentChatTypes";
 
 export type { AgentChatMessage, ChatActivityStep, ChatReference } from "./agentChatTypes";
 
+type ActiveRun = { runId: string; assistantId: string };
+
+const RUN_TIMEOUT_MS = 120_000;
+const POLL_INTERVAL_MS = 4_000;
+
 async function fetchRunSteps(runId: string): Promise<RunStep[]> {
   const { data } = await supabase
     .from("run_steps" as never)
@@ -45,9 +50,10 @@ export function useAgentChat(agentId: string, versionId: string | null) {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
   const sessionIdRef = useRef(crypto.randomUUID());
-  const activeAssistantIdRef = useRef<string | null>(null);
+  const submittingRef = useRef(false);
+  const finishedRunIdsRef = useRef(new Set<string>());
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
 
@@ -61,10 +67,14 @@ export function useAgentChat(agentId: string, versionId: string | null) {
   );
 
   const finishRun = useCallback(
-    async (runId: string, assistantId: string, run: { status: string; error_message: string | null }) => {
+    async (
+      runId: string,
+      assistantId: string,
+      run: { status: string; error_message: string | null },
+    ) => {
       const steps = await fetchRunSteps(runId);
 
-      if (run.status === "failed") {
+      if (run.status === "failed" || run.status === "cancelled") {
         updateAssistantMessage(assistantId, {
           status: "error",
           content: run.error_message ?? "Chat run failed",
@@ -83,24 +93,31 @@ export function useAgentChat(agentId: string, versionId: string | null) {
         });
       }
       setIsSending(false);
-      setActiveRunId(null);
-      activeAssistantIdRef.current = null;
+      setActiveRun(null);
     },
     [updateAssistantMessage],
   );
 
   // Live subscription while a run is active
   useEffect(() => {
-    if (!activeRunId || !activeAssistantIdRef.current) return;
+    if (!activeRun) return;
 
-    const assistantId = activeAssistantIdRef.current;
-    const runId = activeRunId;
+    const { runId, assistantId } = activeRun;
+    let stopped = false;
 
     const applySteps = (steps: RunStep[]) => {
+      if (stopped) return;
       updateAssistantMessage(assistantId, {
         activity: mapRunStepsToActivity(steps),
         runId,
       });
+    };
+
+    const finishOnce = async (run: { status: string; error_message: string | null }) => {
+      if (stopped || finishedRunIdsRef.current.has(runId)) return;
+      finishedRunIdsRef.current.add(runId);
+      stopped = true;
+      await finishRun(runId, assistantId, run);
     };
 
     const channel = supabase
@@ -111,13 +128,14 @@ export function useAgentChat(agentId: string, versionId: string | null) {
         (payload) => {
           const run = payload.new as AgentRun;
           if (run.status === "queued" || run.status === "running") return;
-          void finishRun(runId, assistantId, run);
+          void finishOnce(run);
         },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "run_steps", filter: `run_id=eq.${runId}` },
         () => {
+          if (stopped) return;
           void fetchRunSteps(runId).then(applySteps);
         },
       )
@@ -126,32 +144,46 @@ export function useAgentChat(agentId: string, versionId: string | null) {
     void fetchRunSteps(runId).then(applySteps);
 
     const pollInterval = setInterval(async () => {
+      if (stopped) return;
+
       const { data: run } = await supabase
         .from("agent_runs" as never)
         .select("status, error_message")
         .eq("id", runId)
         .single() as { data: { status: string; error_message: string | null } | null };
 
-      if (!run) return;
+      if (!run || stopped) return;
 
       const steps = await fetchRunSteps(runId);
-      applySteps(steps);
+      if (!stopped) applySteps(steps);
 
       if (run.status !== "queued" && run.status !== "running") {
-        void finishRun(runId, assistantId, run);
+        void finishOnce(run);
       }
-    }, 3000);
+    }, POLL_INTERVAL_MS);
+
+    const timeoutId = setTimeout(() => {
+      if (stopped || finishedRunIdsRef.current.has(runId)) return;
+      void finishOnce({
+        status: "failed",
+        error_message: "Chat run timed out after 2 minutes. Please try again.",
+      });
+    }, RUN_TIMEOUT_MS);
 
     return () => {
+      stopped = true;
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      clearTimeout(timeoutId);
     };
-  }, [activeRunId, updateAssistantMessage, finishRun]);
+  }, [activeRun, updateAssistantMessage, finishRun]);
 
   const submitText = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || isSending || !versionId) return;
+      if (!trimmed || submittingRef.current || isSending || !versionId) return;
+
+      submittingRef.current = true;
 
       const userMessage: AgentChatMessage = {
         id: crypto.randomUUID(),
@@ -160,7 +192,6 @@ export function useAgentChat(agentId: string, versionId: string | null) {
       };
 
       const assistantId = crypto.randomUUID();
-      activeAssistantIdRef.current = assistantId;
       setMessages((prev) => [
         ...prev,
         userMessage,
@@ -205,7 +236,7 @@ export function useAgentChat(agentId: string, versionId: string | null) {
         if (!result.success) throw new Error(result.error ?? "Failed to start chat run");
 
         updateAssistantMessage(assistantId, { runId: result.run_id });
-        setActiveRunId(result.run_id);
+        setActiveRun({ runId: result.run_id, assistantId });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to send message";
         setError(msg);
@@ -214,8 +245,9 @@ export function useAgentChat(agentId: string, versionId: string | null) {
           content: `Sorry, something went wrong: ${msg}`,
         });
         setIsSending(false);
-        setActiveRunId(null);
-        activeAssistantIdRef.current = null;
+        setActiveRun(null);
+      } finally {
+        submittingRef.current = false;
       }
     },
     [agentId, versionId, isSending, updateAssistantMessage],
@@ -236,8 +268,8 @@ export function useAgentChat(agentId: string, versionId: string | null) {
     setMessages([]);
     setInput("");
     setError(null);
-    setActiveRunId(null);
-    activeAssistantIdRef.current = null;
+    setActiveRun(null);
+    submittingRef.current = false;
     sessionIdRef.current = crypto.randomUUID();
   }, []);
 
