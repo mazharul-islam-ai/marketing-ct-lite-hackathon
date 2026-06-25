@@ -37,7 +37,12 @@ async function deriveKey(keyString: string): Promise<CryptoKey> {
 export async function decryptValue(encryptedText: string): Promise<string> {
   if (!encryptedText) return "";
   const keyString = process.env.ENCRYPTION_KEY;
-  if (!keyString) throw new Error("ENCRYPTION_KEY environment variable is not set");
+  if (!keyString) {
+    throw new Error(
+      "ENCRYPTION_KEY is not set in Trigger.dev environment variables. " +
+        "Set it in the Trigger.dev dashboard (must match the Supabase ENCRYPTION_KEY secret), then redeploy.",
+    );
+  }
 
   const key = await deriveKey(keyString);
   const combined = Uint8Array.from(Buffer.from(encryptedText, "base64"));

@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk";
+import { syncEnvVars } from "@trigger.dev/build/extensions/core";
 
 export default defineConfig({
   project: "proj_mqhzfjulsoqmhdykfkdm",
@@ -19,4 +20,15 @@ export default defineConfig({
     },
   },
   dirs: ["trigger"],
+  build: {
+    extensions: [
+      syncEnvVars(async () => {
+        const vars: { name: string; value: string }[] = [];
+        if (process.env.ENCRYPTION_KEY) {
+          vars.push({ name: "ENCRYPTION_KEY", value: process.env.ENCRYPTION_KEY });
+        }
+        return vars;
+      }),
+    ],
+  },
 });

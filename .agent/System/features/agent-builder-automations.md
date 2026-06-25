@@ -423,6 +423,13 @@ i420 Studio acts as an **MCP client**: registered servers expose tools that comp
 
 **Deploy:** `supabase functions deploy mcp-manage`; `npx trigger.dev@latest deploy` for runtime execution.
 
+**Secrets:** MCP server auth tokens are encrypted when saved via `mcp-manage` and decrypted at runtime in Trigger.dev. Set `ENCRYPTION_KEY` in **both** places with the **same value**:
+- Supabase Dashboard → Edge Functions → Secrets (`ENCRYPTION_KEY`)
+- Trigger.dev project `proj_mqhzfjulsoqmhdykfkdm` → Environment Variables → Production (and Staging)
+- Local: add `ENCRYPTION_KEY` to `.env`, then `npx trigger.dev@latest deploy` (synced via `syncEnvVars` in `trigger.config.ts`)
+
+If you rotate the key, re-save MCP server credentials in i420 Settings → MCP Servers.
+
 **Node config:** `{ server_id, tool_name, arguments }` — arguments support `{{variable}}` templates from upstream steps.
 
 **Test server:** Free Cloudflare Worker at `examples/mcp-test-server/` (authless, tools `echo` + `get_client_sample`). Deploy with `npm run deploy` in that folder, then use **Test connection** in MCP Servers settings before **Connect & sync tools**.

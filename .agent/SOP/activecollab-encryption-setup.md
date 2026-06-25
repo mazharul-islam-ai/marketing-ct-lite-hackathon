@@ -40,6 +40,16 @@ The encryption key must be set as a Supabase secret for the edge functions to de
 supabase secrets set ENCRYPTION_KEY=your-base64-encoded-key
 ```
 
+### Set Trigger.dev Secret (Required for MCP + agent runtime)
+
+Agent flows that decrypt stored credentials (MCP server auth tokens, etc.) run on **Trigger.dev**, not Supabase Edge Functions. The same `ENCRYPTION_KEY` must be set there:
+
+1. Trigger.dev dashboard → project `proj_mqhzfjulsoqmhdykfkdm` → Environment Variables
+2. Add `ENCRYPTION_KEY` with the **exact same value** as the Supabase secret
+3. Redeploy: `npx trigger.dev@latest deploy`
+
+For local Trigger.dev (`npx trigger.dev@latest dev`), add `ENCRYPTION_KEY` to `.env` (see `.env.example`).
+
 ## Security Notes
 
 - The encryption key is a 256-bit key encoded in base64
@@ -51,7 +61,7 @@ supabase secrets set ENCRYPTION_KEY=your-base64-encoded-key
 
 - `src/lib/encryption.ts` - Frontend encryption utilities
 - `supabase/functions/_shared/encryption.ts` - Backend encryption utilities
-- `supabase/functions/_shared/activecollab-client.ts` - ActiveCollab API client
+- `trigger/agent-flow/mcp-client.ts` - Trigger.dev MCP client (decrypts auth tokens)
 
 ## Testing
 
@@ -68,3 +78,4 @@ After setting up the encryption key:
 - **"Failed to encrypt value" error**: Ensure encryption key is set and restart dev server
 - **Edge functions can't decrypt**: Ensure `ENCRYPTION_KEY` secret is set in Supabase dashboard
 - **Keys don't match**: Both frontend and backend must use the exact same encryption key
+- **MCP tool fails with ENCRYPTION_KEY error in chat**: Set `ENCRYPTION_KEY` in Trigger.dev (not only Supabase) and redeploy Trigger.dev

@@ -26,6 +26,13 @@ export function getChatDataDiagnostic(steps: RunStep[]): string | null {
   for (const step of fetchSteps) {
     const output = step.output as Record<string, unknown> | undefined;
     if (step.status === "failed") {
+      const stepError = step.error ?? "";
+      if (stepError.includes("ENCRYPTION_KEY")) {
+        return (
+          "MCP auth decryption failed. Ask an admin to set ENCRYPTION_KEY in Trigger.dev " +
+          "(same value as the Supabase Edge Function secret) and redeploy."
+        );
+      }
       if (step.node_type === "mcp_tool") {
         return "MCP tool call failed. Check i420 Settings → MCP Servers (server active, tools synced).";
       }
