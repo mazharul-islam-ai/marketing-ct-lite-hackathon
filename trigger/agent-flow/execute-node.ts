@@ -5,6 +5,7 @@ import {
   buildLlmUserPrompt,
   ensureDataInLlmPrompt,
   runDbQuery,
+  hasChatAwarePrompt,
   CHAT_LLM_PROMPT,
   CHAT_LLM_SYSTEM,
   type DbQueryNodeConfig,
@@ -581,8 +582,17 @@ async function executeAINode(
   let systemPrompt = String(config.system_prompt ?? "You are a helpful AI assistant.");
 
   if (ctx.mode === "chat") {
-    promptTemplate = CHAT_LLM_PROMPT;
-    systemPrompt = CHAT_LLM_SYSTEM;
+    const configuredPrompt = String(config.prompt ?? "");
+    const configuredSystem = String(config.system_prompt ?? "");
+    if (hasChatAwarePrompt(configuredPrompt) || hasChatAwarePrompt(configuredSystem)) {
+      promptTemplate = configuredPrompt || CHAT_LLM_PROMPT;
+      systemPrompt = configuredSystem || CHAT_LLM_SYSTEM;
+      promptTemplate = ensureDataInLlmPrompt(promptTemplate, ctx);
+    } else {
+      promptTemplate = CHAT_LLM_PROMPT;
+      systemPrompt = CHAT_LLM_SYSTEM;
+      promptTemplate = ensureDataInLlmPrompt(promptTemplate, ctx);
+    }
   } else {
     promptTemplate = ensureDataInLlmPrompt(promptTemplate, ctx);
   }

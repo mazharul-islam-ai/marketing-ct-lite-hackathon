@@ -60,6 +60,10 @@ export interface FlowJSON {
   trigger: FlowNode | null;
   steps: FlowNode[];
   edges: FlowEdge[];
+  metadata?: {
+    supports_chat?: boolean;
+    supports_report?: boolean;
+  };
 }
 
 export type AgentVisibility = "workspace" | "admin_only" | "public";

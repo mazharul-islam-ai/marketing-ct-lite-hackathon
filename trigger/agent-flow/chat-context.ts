@@ -10,7 +10,22 @@ export const LLM_NODE_TYPES = new Set([
 
 export const CHAT_LLM_PROMPT = "User question: {{message}}\n\nData:\n{{rows}}";
 export const CHAT_LLM_SYSTEM =
-  "Answer the user question using the provided data JSON. Be concise and helpful. When data rows are provided, use them directly — do not say you lack information.";
+  "Answer the user question using the provided context JSON. Be concise and helpful. When data is provided, use it directly — do not say you lack information.";
+
+export const FETCH_NODE_TYPES = new Set([
+  "db_query",
+  "mcp_tool",
+  "slack_fetch_messages",
+  "gmail_fetch_unread",
+  "api_call",
+]);
+
+/** True when the template already references chat message or upstream tool outputs */
+export function hasChatAwarePrompt(template: string): boolean {
+  return /\{\{(message|rows|messages|emails|data|records|mcp|tool_result|n\d+\.[\w.]+)\}\}/.test(
+    template,
+  );
+}
 
 export interface DbQueryNodeConfig {
   table?: string;
@@ -152,6 +167,36 @@ export function enrichLlmContext(
     }
   }
 
+  // Gmail fetch outputs { emails, count } — wire for LLM {{emails}} templates
+  if (!Array.isArray(ctx.emails) || ctx.emails.length === 0) {
+    for (const val of Object.values(ctx)) {
+      if (
+        val &&
+        typeof val === "object" &&
+        !Array.isArray(val) &&
+        Array.isArray((val as Record<string, unknown>).emails)
+      ) {
+        ctx.emails = (val as Record<string, unknown>).emails;
+        break;
+      }
+    }
+  }
+
+  if (!Array.isArray(ctx.emails) || ctx.emails.length === 0) {
+    for (const [key, val] of Object.entries(ctx)) {
+      if (
+        key.endsWith("_output") &&
+        val &&
+        typeof val === "object" &&
+        !Array.isArray(val) &&
+        Array.isArray((val as Record<string, unknown>).emails)
+      ) {
+        ctx.emails = (val as Record<string, unknown>).emails;
+        break;
+      }
+    }
+  }
+
   return applyRowAliases(ctx);
 }
 
@@ -210,9 +255,17 @@ export async function ensureChatContext(
     return applyRowAliases(enriched);
   }
 
+  const hasFetchNode = flowSteps.some((s) => FETCH_NODE_TYPES.has(s.type));
   const dbNode = flowSteps.find((s) => s.type === "db_query");
+
   if (!dbNode) {
-    logger.warn("ensureChatContext: no db_query node in flow for chat prefetch");
+    if (hasFetchNode) {
+      logger.info("ensureChatContext: non-DB fetch flow — using execution context", {
+        fetchTypes: flowSteps.filter((s) => FETCH_NODE_TYPES.has(s.type)).map((s) => s.type),
+      });
+    } else {
+      logger.warn("ensureChatContext: no fetch nodes in flow for chat prefetch");
+    }
     return enriched;
   }
 
@@ -264,12 +317,14 @@ export function buildLlmUserPrompt(
   return prompt;
 }
 
-/** Append Slack/email payload when the template omits standard placeholders. */
+/** Append upstream tool payloads when the template omits standard placeholders. */
 export function ensureDataInLlmPrompt(
   template: string,
   ctx: Record<string, unknown>,
 ): string {
-  const hasPlaceholder = /\{\{(messages|rows|data|records|emails)\}\}/.test(template);
+  const hasPlaceholder = /\{\{(messages|rows|data|records|emails|mcp|tool_result|n\d+\.[\w.]+)\}\}/.test(
+    template,
+  );
   if (hasPlaceholder) return template;
 
   const messages = Array.isArray(ctx.messages) ? ctx.messages : [];
@@ -285,6 +340,25 @@ export function ensureDataInLlmPrompt(
   const emails = Array.isArray(ctx.emails) ? ctx.emails : [];
   if (emails.length > 0) {
     return `${template}\n\nEmails (JSON):\n${JSON.stringify(emails, null, 2)}`;
+  }
+
+  // MCP / API tool results merged into execution context
+  const toolBlocks: string[] = [];
+  for (const [key, val] of Object.entries(ctx)) {
+    if (!val || typeof val !== "object" || Array.isArray(val)) continue;
+    const record = val as Record<string, unknown>;
+    if (record.executed === true && record.result != null) {
+      toolBlocks.push(
+        `${key} (MCP/API result):\n${JSON.stringify(record.result, null, 2)}`,
+      );
+    } else if (record.response != null) {
+      toolBlocks.push(
+        `${key} (API response):\n${JSON.stringify(record.response, null, 2)}`,
+      );
+    }
+  }
+  if (toolBlocks.length > 0) {
+    return `${template}\n\n${toolBlocks.join("\n\n")}`;
   }
 
   return template;

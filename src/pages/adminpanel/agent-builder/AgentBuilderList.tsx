@@ -4,7 +4,7 @@ import {
   Plus, Play, Copy, Archive, Edit2, Search, Bot,
   CheckCircle2, Clock, XCircle, Loader2, MoreHorizontal,
   Trash2, Sparkles, ArrowRight, Settings2, Check,
-  Mail, Users, Radar, ListTodo, BarChart3, Linkedin, Undo2,
+  Mail, Users, Radar, ListTodo, BarChart3, Linkedin, Undo2, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +36,9 @@ import { I420 } from "./i420Brand";
 import { CanvasBackground } from "./three/CanvasBackground";
 import { useAgentLifecycle } from "./hooks/useAgentLifecycle";
 import type { LucideIcon } from "lucide-react";
-import type { Agent, AgentRun } from "./types";
+import type { Agent, AgentRun, FlowJSON } from "./types";
+import { getExecutionCapabilities } from "./flowCapabilities";
+import { BuilderAgentChatDialog } from "@/components/agents/BuilderAgentChatDialog";
 
 interface PromptTemplate {
   id: string;
@@ -87,6 +89,7 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
 interface AgentWithStats extends Agent {
   last_run?: AgentRun | null;
   cost_today?: number;
+  flow_json?: FlowJSON | null;
 }
 
 type LifecycleAction = "unpublish" | "archive" | "delete";
@@ -103,6 +106,7 @@ export default function AgentBuilderList() {
 
   const [chatInput, setChatInput] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [chatAgent, setChatAgent] = useState<AgentWithStats | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -128,6 +132,22 @@ export default function AgentBuilderList() {
 
       if (!agentsData) return;
 
+      const versionIds = agentsData
+        .map((a) => a.current_version_id)
+        .filter((id): id is string => Boolean(id));
+
+      let flowByVersion = new Map<string, FlowJSON>();
+      if (versionIds.length > 0) {
+        const { data: versions } = await supabase
+          .from("agent_versions" as never)
+          .select("id, flow_json")
+          .in("id", versionIds) as { data: { id: string; flow_json: FlowJSON }[] | null };
+
+        flowByVersion = new Map(
+          (versions ?? []).map((v) => [v.id, v.flow_json]),
+        );
+      }
+
       const enriched: AgentWithStats[] = await Promise.all(
         agentsData.map(async (agent) => {
           const { data: runs } = await supabase
@@ -146,7 +166,14 @@ export default function AgentBuilderList() {
             };
 
           const costToday = todayRuns?.reduce((sum, r) => sum + (r.total_cost ?? 0), 0) ?? 0;
-          return { ...agent, last_run: runs?.[0] ?? null, cost_today: costToday };
+          return {
+            ...agent,
+            last_run: runs?.[0] ?? null,
+            cost_today: costToday,
+            flow_json: agent.current_version_id
+              ? flowByVersion.get(agent.current_version_id) ?? null
+              : null,
+          };
         }),
       );
 
@@ -177,7 +204,12 @@ export default function AgentBuilderList() {
 
   async function runAgent(agent: AgentWithStats) {
     const response = await supabase.functions.invoke("trigger-flow-run", {
-      body: { agent_id: agent.id, trigger_type: "manual" },
+      body: {
+        agent_id: agent.id,
+        version_id: agent.current_version_id ?? undefined,
+        trigger_type: "manual",
+        input_context: { mode: "report" },
+      },
     });
     if (response.error) { toast.error("Failed to trigger run"); return; }
     toast.success("Run queued");
@@ -394,6 +426,7 @@ export default function AgentBuilderList() {
                 agent={agent}
                 onOpen={() => navigate(I420_ROUTES.agent(agent.id))}
                 onRun={() => runAgent(agent)}
+                onChat={() => setChatAgent(agent)}
                 onClone={() => cloneAgent(agent).then(() => loadAgents())}
                 onUnpublish={() => setLifecycleTarget({ agent, action: "unpublish" })}
                 onArchive={() => setLifecycleTarget({ agent, action: "archive" })}
@@ -460,6 +493,15 @@ export default function AgentBuilderList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {chatAgent && (
+        <BuilderAgentChatDialog
+          agentId={chatAgent.id}
+          agentName={chatAgent.name}
+          versionId={chatAgent.current_version_id}
+          onClose={() => setChatAgent(null)}
+        />
+      )}
     </div>
   );
 }
@@ -468,6 +510,7 @@ function AgentCard({
   agent,
   onOpen,
   onRun,
+  onChat,
   onClone,
   onUnpublish,
   onArchive,
@@ -476,6 +519,7 @@ function AgentCard({
   agent: AgentWithStats;
   onOpen: () => void;
   onRun: () => void;
+  onChat: () => void;
   onClone: () => void;
   onUnpublish: () => void;
   onArchive: () => void;
@@ -484,6 +528,10 @@ function AgentCard({
   const lastRun = agent.last_run;
   const lastRunTime = lastRun ? formatRelativeTime(lastRun.created_at) : null;
   const isArchived = agent.status === "archived";
+  const hasVersion = Boolean(agent.current_version_id);
+  const { hasChat, hasReport, isDualMode, isChatOnly } = getExecutionCapabilities(
+    agent.flow_json,
+  );
 
   return (
     <div className={cn(
@@ -513,7 +561,20 @@ function AgentCard({
           <StatusBadge status={agent.status} />
         </div>
 
-        <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
+        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+          {hasChat && (
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-violet-200 text-violet-700 bg-violet-50">
+              Chat
+            </Badge>
+          )}
+          {hasReport && (
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-emerald-200 text-emerald-700 bg-emerald-50">
+              Report
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
           {lastRun && (
             <div className="flex items-center gap-1">
               <RunStatusIcon status={lastRun.status} />
@@ -537,13 +598,42 @@ function AgentCard({
             <Edit2 className="w-3 h-3" />
             Open
           </Button>
-          {!isArchived && (
+          {!isArchived && hasChat && (
+            <Button
+              variant={isChatOnly ? "default" : "outline"}
+              size="sm"
+              className={cn(
+                "flex-1 h-7 text-xs gap-1 rounded-lg",
+                isChatOnly
+                  ? cn(ab.accentBtn, "border-0")
+                  : "hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700",
+              )}
+              onClick={onChat}
+              disabled={!hasVersion}
+            >
+              <MessageSquare className="w-3 h-3" />
+              Chat
+            </Button>
+          )}
+          {!isArchived && hasReport && (
             <Button
               variant="outline"
               size="sm"
               className="flex-1 h-7 text-xs gap-1 rounded-lg hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700"
               onClick={onRun}
-              disabled={!agent.current_version_id}
+              disabled={!hasVersion}
+            >
+              <Play className="w-3 h-3" />
+              {isDualMode ? "Report" : "Run"}
+            </Button>
+          )}
+          {!isArchived && !hasChat && !hasReport && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-7 text-xs gap-1 rounded-lg hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700"
+              onClick={onRun}
+              disabled={!hasVersion}
             >
               <Play className="w-3 h-3" />
               Run

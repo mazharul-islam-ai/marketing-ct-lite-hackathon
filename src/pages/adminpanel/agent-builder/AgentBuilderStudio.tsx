@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Play, Square, Loader2, Globe, ChevronRight,
-  CheckCircle2, MoreHorizontal, Archive, Copy, Trash2, Undo2,
+  CheckCircle2, MoreHorizontal, Archive, Copy, Trash2, Undo2, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,6 +36,7 @@ import type { AgentVisibility } from "./types";
 import type { Agent, AgentVersion, FlowJSON } from "./types";
 import { I420_ROUTES } from "@/lib/i420Routes";
 import { extractCronFromFlow, computeNextRunAt } from "@/lib/automationSchedule";
+import { getExecutionCapabilities } from "./flowCapabilities";
 
 type StudioTab = "design" | "runtime" | "json" | "logs" | "versions";
 type LifecycleAction = "unpublish" | "archive" | "delete";
@@ -72,6 +73,7 @@ export default function AgentBuilderStudio() {
     () => initialPromptRef.current,
   );
   const [isCompiling, setIsCompiling] = useState(false);
+  const [cardChatOpen, setCardChatOpen] = useState(false);
 
   useEffect(() => {
     if (isNew) return;
@@ -163,10 +165,20 @@ export default function AgentBuilderStudio() {
 
   const handleRun = useCallback(async () => {
     if (!liveAgentId) return;
+    setCardChatOpen(false);
     clearRun();
     const { runId, error } = await triggerRun(liveAgentId, currentVersionId ?? undefined, "manual");
     if (!runId) toast.error(error ?? "Failed to start run");
   }, [liveAgentId, currentVersionId, triggerRun, clearRun]);
+
+  const handleOpenCardChat = useCallback(() => {
+    setActiveTab("design");
+    setCardChatOpen(true);
+  }, []);
+
+  const handleCloseCardChat = useCallback(() => {
+    setCardChatOpen(false);
+  }, []);
 
   const handlePublish = useCallback(async (visibility: AgentVisibility) => {
     if (!liveAgentId) return;
@@ -291,6 +303,9 @@ export default function AgentBuilderStudio() {
       };
 
   const hasFlow = flowHasContent(currentFlow);
+  const executionCaps = getExecutionCapabilities(currentFlow);
+  const { hasChat, hasReport, isDualMode, isChatOnly } = executionCaps;
+  const canChat = hasChat && !!currentVersionId && !!liveAgentId && hasFlow && !isArchived;
   const isAutomationType =
     hasFlow &&
     (currentFlow?.trigger?.type === "cron_trigger" || !!extractCronFromFlow(currentFlow));
@@ -411,22 +426,70 @@ export default function AgentBuilderStudio() {
               Stop
             </Button>
           ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  className={cn("h-7 px-2.5 text-[11px] gap-1", ab.accentBtn)}
-                  onClick={handleRun}
-                  disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId || !hasFlow || isArchived}
-                >
-                  {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                  Run
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs max-w-[240px]">
-                {runDisabledReason ?? "Run this automation manually — output appears in the Runtime tab."}
-              </TooltipContent>
-            </Tooltip>
+            <>
+              {hasChat && !isAutomationType && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      className={cn(
+                        "h-7 px-2.5 text-[11px] gap-1",
+                        isChatOnly
+                          ? ab.accentBtn
+                          : "border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
+                      )}
+                      onClick={handleOpenCardChat}
+                      disabled={!canChat || isCompiling}
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                      Chat
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[240px]">
+                    Open inline chat preview on the agent card
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {hasReport && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      className={cn(
+                        "h-7 px-2.5 text-[11px] gap-1",
+                        isDualMode ? "outline" : ab.accentBtn,
+                      )}
+                      onClick={handleRun}
+                      disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId || !hasFlow || isArchived}
+                    >
+                      {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                      {isDualMode ? "Run Report" : "Run"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[240px]">
+                    {runDisabledReason ?? "Run report mode — output appears in the Runtime tab."}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {!hasChat && !hasReport && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      className={cn("h-7 px-2.5 text-[11px] gap-1", ab.accentBtn)}
+                      onClick={handleRun}
+                      disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId || !hasFlow || isArchived}
+                    >
+                      {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                      Run
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[240px]">
+                    {runDisabledReason ?? "Run this automation manually — output appears in the Runtime tab."}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </>
           )}
 
           <div className="flex items-center gap-1.5">
@@ -534,6 +597,10 @@ export default function AgentBuilderStudio() {
             onRun={handleRun}
             onStop={() => currentRun && cancelRun(currentRun.id)}
             versionNumber={currentVersionNumber ?? undefined}
+            versionId={currentVersionId}
+            cardChatOpen={cardChatOpen}
+            onOpenCardChat={handleOpenCardChat}
+            onCloseCardChat={handleCloseCardChat}
           />
         </TabsContent>
         <TabsContent value="runtime" className="flex-1 min-h-0 h-full overflow-hidden m-0 mt-0">

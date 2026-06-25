@@ -1,4 +1,4 @@
-import { Play, Pencil, Loader2, Bot, Square } from "lucide-react";
+import { Play, Pencil, Loader2, Bot, Square, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ab } from "../agentBuilderTheme";
@@ -10,12 +10,16 @@ import FlowStepStrip from "./FlowStepStrip";
 import { ModelChipRow } from "./ModelChipRow";
 import { BuilderArtifactCard } from "./BuilderArtifactCard";
 import { CardMetaStrip } from "./CardMetaStrip";
+import { getExecutionCapabilities } from "../flowCapabilities";
+import { AgentChatPanel } from "@/components/agents/AgentChatPanel";
 
 interface AgentCardProps {
+  agentId?: string | null;
   agentName: string;
   agentDescription?: string | null;
   agentStatus: "draft" | "published" | "archived";
   flowJson: FlowJSON | null;
+  versionId?: string | null;
   currentRun: AgentRun | null;
   isRunActive: boolean;
   isTriggering: boolean;
@@ -28,6 +32,9 @@ interface AgentCardProps {
   isCompiling?: boolean;
   justRevealed?: boolean;
   reducedMotion?: boolean;
+  chatOpen?: boolean;
+  onOpenChat?: () => void;
+  onCloseChat?: () => void;
 }
 
 const STATUS_COLORS = {
@@ -42,10 +49,12 @@ const STATUS_DOTS = {
 };
 
 export function AgentCard({
+  agentId,
   agentName,
   agentDescription,
   agentStatus,
   flowJson,
+  versionId,
   currentRun,
   isRunActive,
   isTriggering,
@@ -58,6 +67,9 @@ export function AgentCard({
   isCompiling = false,
   justRevealed = false,
   reducedMotion = false,
+  chatOpen = false,
+  onOpenChat,
+  onCloseChat,
 }: AgentCardProps) {
   const allNodes = flowJson
     ? [...(flowJson.trigger ? [flowJson.trigger] : []), ...flowJson.steps]
@@ -65,6 +77,7 @@ export function AgentCard({
   const nodeCount = allNodes.length;
   const hasFlow = nodeCount > 0;
   const flowModels = extractFlowModels(flowJson);
+  const { hasChat, hasReport, isDualMode, isChatOnly } = getExecutionCapabilities(flowJson);
 
   const lastRunTime = currentRun?.completed_at ?? currentRun?.started_at;
   const lastRunStatus = currentRun?.status;
@@ -77,6 +90,31 @@ export function AgentCard({
         : lastRunStatus === "running" || lastRunStatus === "queued"
           ? { label: "Running…", cls: "text-[hsl(18_52%_52%)]" }
           : null;
+
+  const canChat = hasChat && Boolean(agentId) && Boolean(versionId);
+
+  if (chatOpen && canChat && agentId) {
+    return (
+      <div className={cn("flex flex-col items-center", ab.cardWidth)}>
+        <div
+          className={cn(
+            ab.cardShell,
+            ab.cardShell3d,
+            "w-full overflow-hidden h-[520px] flex flex-col",
+          )}
+        >
+          <AgentChatPanel
+            agentId={agentId}
+            agentName={agentName}
+            versionId={versionId ?? null}
+            variant="inline"
+            onClose={onCloseChat}
+            className="flex-1 min-h-0 border-0 rounded-none shadow-none"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BuilderArtifactCard
@@ -104,6 +142,11 @@ export function AgentCard({
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             <span className={cn(ab.cardTypePill, ab.accentSoft)}>Agent</span>
+            {hasChat && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-violet-200 bg-violet-50 text-violet-700">
+                Chat
+              </span>
+            )}
             <span
               className={cn(
                 "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
@@ -193,15 +236,48 @@ export function AgentCard({
               Stop
             </Button>
           ) : (
-            <Button
-              size="sm"
-              className={cn("h-8 px-4 text-xs gap-1.5", ab.accentBtn)}
-              onClick={onRun}
-              disabled={isTriggering || !hasFlow || !canRun}
-            >
-              {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-              Run
-            </Button>
+            <>
+              {hasChat && (
+                <Button
+                  size="sm"
+                  className={cn(
+                    "h-8 px-4 text-xs gap-1.5",
+                    isChatOnly ? ab.accentBtn : "border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
+                  )}
+                  onClick={onOpenChat}
+                  disabled={!canChat || isTriggering}
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  Chat
+                </Button>
+              )}
+              {hasReport && (
+                <Button
+                  size="sm"
+                  className={cn("h-8 px-4 text-xs gap-1.5", isDualMode ? "outline" : ab.accentBtn)}
+                  onClick={onRun}
+                  disabled={isTriggering || !hasFlow || !canRun}
+                >
+                  {isTriggering ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Play className="w-3 h-3" />
+                  )}
+                  {isDualMode ? "Run Report" : "Run"}
+                </Button>
+              )}
+              {!hasChat && !hasReport && (
+                <Button
+                  size="sm"
+                  className={cn("h-8 px-4 text-xs gap-1.5", ab.accentBtn)}
+                  onClick={onRun}
+                  disabled={isTriggering || !hasFlow || !canRun}
+                >
+                  {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                  Run
+                </Button>
+              )}
+            </>
           )}
         </>
       }

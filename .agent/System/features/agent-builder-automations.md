@@ -132,9 +132,27 @@ When DB access is required:
 2. Post-compile validation: every `db_query` node `config.table` must be in `enabled_tables`
 3. Validation failures are rewritten as conversational questions via `formatValidationAsQuestion()`
 
+## Unified Chat + Run execution model
+
+Chat and Run are **parallel execution modes** over the same toolchain — not separate agent types. Both modes support `db_query`, `mcp_tool`, `slack_fetch_messages`, `gmail_fetch_unread`, `api_call`, all LLM providers, and outputs like `dashboard_write`.
+
+| Mode | Trigger | `input_context` | Typical output |
+|------|---------|-----------------|----------------|
+| **Report** | Run / Run Report | `{ mode: "report" }` | `report_generate`, dashboard panel |
+| **Chat** | Chat (inline or dialog) | `{ mode: "chat", message, session_id, chat_history }` | Conversational LLM reply + optional dashboard |
+
+**Capability detection** (`getExecutionCapabilities` in `flowCapabilities.ts`):
+
+| Signal | `hasChat` | `hasReport` |
+|--------|-----------|-------------|
+| `switch` + edge `condition: "chat"` | yes | — |
+| `manual_trigger` + LLM + no `report_generate` + no cron | yes (chat-only) | — |
+| `switch` + edge `condition: "report"` or `report_generate` node | — | yes |
+| `cron_trigger` | — | yes (Run only) |
+
 ## Manual runs & switch routing
 
-Manual runs from Studio or `/ai-agents` pass `input_context: { mode: "report" }` by default via `trigger-flow-run`. Chat runs pass `mode: "chat"` plus `message`.
+Manual runs from Studio or `/ai-agents` pass `input_context: { mode: "report" }` via `trigger-flow-run`. Chat runs pass `mode: "chat"` plus `message`.
 
 For dual-mode report+chat agents:
 
@@ -142,6 +160,41 @@ For dual-mode report+chat agents:
 - Outgoing edges use `condition: "report"` or `condition: "chat"`
 - If `mode` is missing on manual runs, the runtime defaults to `"report"`
 - If no branch edge matches, `execute-agent-run` logs a warning and tries a fallback edge
+
+### Chat branch parity (all tool types)
+
+Dual-mode flows must mirror fetch/tool nodes on the chat path — not only `db_query`:
+
+```
+manual_trigger → switch(mode)
+  → report: [db_query | mcp_tool | slack | gmail | api] → LLM → report_generate
+  → chat:   [same fetch/tool nodes] → LLM ({{message}} + upstream data) → optional dashboard_write
+```
+
+Chat-only agents use a linear flow (no mode switch): `manual_trigger → fetch/tools → LLM → dashboard_write`.
+
+**Compiler** (`compile-agent-flow` → `normalizeChatBranch`): clones missing fetch/tool nodes from report branch onto chat branch for `db_query`, `mcp_tool`, `slack_fetch_messages`, `gmail_fetch_unread`, `api_call`; standardizes chat LLM templates when `{{message}}` is absent.
+
+**Runtime** (`trigger/agent-flow/chat-context.ts`, `execute-node.ts`):
+
+- Preserves configured LLM prompts in chat mode when they include `{{message}}` or node-scoped refs (`{{nX.result}}`)
+- Falls back to legacy `CHAT_LLM_PROMPT` only for generic prompts
+- `ensureDataInLlmPrompt` injects Slack, Gmail, DB rows, and MCP/API results into chat prompts
+- `ensureChatContext` prefetches `db_query` when present; MCP/Slack/Gmail/API flows use merged execution context
+
+### Studio inline chat preview
+
+In i420 studio (`/i420/:agentId`), chat-capable agents show **Chat** on the agent card and header (not hardcoded Run):
+
+| Capability | Card / header buttons |
+|------------|----------------------|
+| Chat-only | **Chat** (inline overlay on card) |
+| Dual-mode | **Chat** + **Run Report** |
+| Report-only / cron | **Run** |
+
+Components: `AgentChatPanel` (shared), `useAgentChat`, `AgentCard` inline overlay, `AgentBuilderStudio` header mirrors card.
+
+Design chat (left panel) is still for **compiling flows** — not agent execution.
 
 ## Run output location
 
@@ -158,24 +211,15 @@ Runtime shows an amber banner if a run completes with &lt;3 steps and the last n
 
 Published agents with `status = published` and `visibility = workspace` appear on `/ai-agents`.
 
-- **Run Report** — triggers `trigger-flow-run` with `mode: "report"`
-- **Chat** — shown when flow has a switch with a `chat` edge; opens `BuilderAgentChatDialog` which runs with `mode: "chat"` per message
+- **Run Report** — when `hasReport`; triggers `trigger-flow-run` with `mode: "report"`
+- **Chat** — when `hasChat`; opens `BuilderAgentChatDialog` (uses shared `AgentChatPanel`) with `mode: "chat"` per message
+- Chat-only agents show **Chat** only; dual-mode shows both buttons
 
 ### Chat branch requirements
 
-Dual-mode flows must fetch data on the chat path, not only on report:
+See **Unified Chat + Run execution model** above. Dual-mode flows must fetch data on the chat path using the same tool types as report — DB, MCP, Slack, Gmail, or API.
 
-```
-manual_trigger → switch(mode)
-  → report: db_query → openai_llm → report_generate
-  → chat:   db_query → openai_llm   (no report_generate)
-```
-
-**Compiler** (`compile-agent-flow`): auto-inserts `db_query` on chat branch if missing (cloned from report-path table); validates chat path shape; standardizes chat LLM templates (`{{message}}`, `{{rows}}`).
-
-**Runtime** (`trigger/agent-flow/chat-context.ts`): before chat LLM execution, `ensureChatContext` normalizes `message`, sets aliases (`clients`, `data`, `first_client`), compacts rows for "first" queries, auto-prefetches from the flow's first `db_query` (with `order_by` default `created_at` for `clients`), and forces chat LLM templates at runtime.
-
-**Chat UI** passes `input_context`: `{ mode: "chat", message, session_id, chat_history }`. Shows a diagnostic hint when the LLM reply indicates missing data.
+**Chat UI** passes `input_context`: `{ mode: "chat", message, session_id, chat_history }`. Tool-agnostic diagnostics in `agentChatDiagnostics.ts` hint when fetch steps fail or return empty data.
 
 **Deploy checklist:**
 
@@ -352,7 +396,10 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | Run output helpers | `src/pages/adminpanel/agent-builder/runOutput.ts` |
 | Flow capabilities | `src/pages/adminpanel/agent-builder/flowCapabilities.ts` |
 | Chat context runtime | `trigger/agent-flow/chat-context.ts` |
-| Workspace chat UI | `src/components/agents/BuilderAgentChatDialog.tsx` |
+| Agent chat panel (shared) | `src/components/agents/AgentChatPanel.tsx` |
+| Agent chat hook | `src/components/agents/useAgentChat.ts` |
+| Chat diagnostics | `src/components/agents/agentChatDiagnostics.ts` |
+| Workspace chat dialog | `src/components/agents/BuilderAgentChatDialog.tsx` |
 | Scheduler | `trigger/automation-scheduler.ts` |
 | Node execution | `trigger/agent-flow/execute-node.ts` |
 | Gmail inbox | `supabase/functions/gmail-inbox/index.ts` |

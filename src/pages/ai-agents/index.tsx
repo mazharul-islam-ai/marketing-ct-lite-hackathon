@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BuilderAgentRunnerDialog } from "@/components/agents/BuilderAgentRunnerDialog";
 import { BuilderAgentChatDialog } from "@/components/agents/BuilderAgentChatDialog";
-import { getFlowCapabilities } from "@/pages/adminpanel/agent-builder/flowCapabilities";
+import { getExecutionCapabilities } from "@/pages/adminpanel/agent-builder/flowCapabilities";
 import type { FlowJSON } from "@/pages/adminpanel/agent-builder/types";
 
 interface WorkspaceAgent {
@@ -169,7 +169,7 @@ function AgentCard({
   onChat: () => void;
 }) {
   const hasVersion = Boolean(agent.current_version_id);
-  const { hasChat, hasReport } = getFlowCapabilities(agent.flow_json);
+  const { hasChat, hasReport, isDualMode } = getExecutionCapabilities(agent.flow_json);
 
   return (
     <Card className="flex flex-col hover:shadow-md transition-shadow">
@@ -214,26 +214,39 @@ function AgentCard({
           Updated {new Date(agent.updated_at).toLocaleDateString()}
         </div>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            className="flex-1"
-            onClick={onRunReport}
-            disabled={!hasVersion}
-            title={!hasVersion ? "No compiled version available yet" : undefined}
-          >
-            <Play className="mr-1.5 h-3.5 w-3.5" />
-            Run Report
-          </Button>
+          {hasReport && (
+            <Button
+              size="sm"
+              className={isDualMode ? "flex-1" : "flex-1 w-full"}
+              onClick={onRunReport}
+              disabled={!hasVersion}
+              title={!hasVersion ? "No compiled version available yet" : undefined}
+            >
+              <Play className="mr-1.5 h-3.5 w-3.5" />
+              Run Report
+            </Button>
+          )}
           {hasChat && (
             <Button
               size="sm"
-              variant="outline"
+              variant={isDualMode ? "outline" : "default"}
               className="flex-1"
               onClick={onChat}
               disabled={!hasVersion}
             >
               <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
               Chat
+            </Button>
+          )}
+          {!hasChat && !hasReport && (
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={onRunReport}
+              disabled={!hasVersion}
+            >
+              <Play className="mr-1.5 h-3.5 w-3.5" />
+              Run
             </Button>
           )}
         </div>

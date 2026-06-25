@@ -159,6 +159,10 @@ interface FlowJSON {
   trigger: FlowNode | null
   steps: FlowNode[]
   edges: FlowEdge[]
+  metadata?: {
+    supports_chat?: boolean
+    supports_report?: boolean
+  }
 }
 
 // Maps compiler provider names → organization_integrations types + env var fallbacks
@@ -441,12 +445,14 @@ STRUCTURAL RULES:
 12. NEVER use nodes requiring integrations not in CONFIGURED INTEGRATIONS.
 13. If the user needs a missing integration, set clarification_needed true with user_message explaining what to connect in Integrations Hub.
 14. For report+chat dual mode: switch with input_variable "mode"; edge conditions "report" and "chat"; cases { "report": "report", "chat": "chat" }.
-15. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
-16. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON.
-17. Cron schedules run in UTC — for Asia/Dhaka 09:00 daily use schedule "0 3 * * *" and timezone_label on the trigger.
-18. db_query config.table MUST be one of the enabled tables in WORKSPACE TOOLCHAIN when database access is needed.
-19. After slack_fetch_messages, the next LLM step prompt MUST include {{messages}} (use the fetch node id if needed, e.g. {{n2.messages}}). After gmail_fetch_unread, include {{emails}}. Never summarize Slack/Gmail without injecting fetched data into the LLM prompt.
-20. LLM nodes output a "result" field. In dashboard_write, report_generate, slack_notify, and email_output use {{nX.result}} (node-scoped) — never {{nX.output}}, {{nX.text}}, or bare {{result}} unless you also set upstream context explicitly.
+15. CHAT BRANCH (condition="chat"): MUST mirror the same fetch/tool nodes as the report branch (db_query, mcp_tool, slack_fetch_messages, gmail_fetch_unread, api_call) — then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
+16. Chat-path LLM config MUST use: prompt with {{message}} plus upstream data placeholders ({{rows}}, {{messages}}, {{emails}}, {{nX.result}}). system_prompt instructing to answer from message + provided context.
+17. Chat-only agents (no report): manual_trigger → fetch/tool nodes → LLM → optional dashboard_write. No mode switch required.
+18. Cron schedules run in UTC — for Asia/Dhaka 09:00 daily use schedule "0 3 * * *" and timezone_label on the trigger.
+19. db_query config.table MUST be one of the enabled tables in WORKSPACE TOOLCHAIN when database access is needed.
+20. After slack_fetch_messages, the next LLM step prompt MUST include {{messages}} (use the fetch node id if needed, e.g. {{n2.messages}}). After gmail_fetch_unread, include {{emails}}. Never summarize Slack/Gmail without injecting fetched data into the LLM prompt.
+21. LLM nodes output a "result" field. In dashboard_write, report_generate, slack_notify, and email_output use {{nX.result}} (node-scoped) — never {{nX.output}}, {{nX.text}}, or bare {{result}} unless you also set upstream context explicitly.
+22. When building chat-capable flows, never assume chat = DB-only. Chat and report share the same toolchain; only the output format differs (conversational reply vs report_generate).
 
 COMMON PATTERNS — use these exact node types:
 - "retrieve unread emails / Gmail inbox"              → gmail_fetch_unread
@@ -664,9 +670,71 @@ function normalizeFlowJSON(raw: unknown): unknown {
 const LLM_NODE_TYPES = new Set(['openai_llm', 'gemini_llm', 'anthropic_llm', 'custom_llm'])
 
 const CHAT_LLM_PROMPT = 'User question: {{message}}\n\nData:\n{{rows}}'
-const CHAT_LLM_SYSTEM = 'Answer the user question using the provided data JSON. Be concise and helpful. Do not ask the user to supply data that is already in the context.'
+const CHAT_LLM_SYSTEM = 'Answer the user question using the provided context JSON. Be concise and helpful. Do not ask the user to supply data that is already in the context.'
 
-/** Ensure chat branch has db_query before LLM and standard LLM templates */
+const FETCH_MIRROR_TYPES = new Set([
+  'db_query',
+  'mcp_tool',
+  'slack_fetch_messages',
+  'gmail_fetch_unread',
+  'api_call',
+])
+
+function nextNodeId(steps: Record<string, unknown>[]): string {
+  const maxNum = steps.reduce((max, s) => {
+    const m = String(s.id).match(/^n(\d+)$/)
+    return m ? Math.max(max, parseInt(m[1], 10)) : max
+  }, 0)
+  return `n${maxNum + 1}`
+}
+
+function nextEdgeId(edges: Record<string, unknown>[]): string {
+  const maxEdge = edges.reduce((max, e) => {
+    const m = String(e.id).match(/^e(\d+)$/)
+    return m ? Math.max(max, parseInt(m[1], 10)) : max
+  }, 0)
+  return `e${maxEdge + 1}`
+}
+
+/** Collect nodes reachable from startId following outgoing edges (linear-ish branch walk) */
+function collectBranchNodeIds(
+  startId: string,
+  steps: Record<string, unknown>[],
+  edges: Record<string, unknown>[],
+  stopTypes: Set<string>,
+): string[] {
+  const nodeById = new Map(steps.map((s) => [String(s.id), s]))
+  const order: string[] = []
+  const visited = new Set<string>()
+  let current = startId
+
+  while (current && !visited.has(current)) {
+    visited.add(current)
+    const node = nodeById.get(current)
+    if (!node) break
+    order.push(current)
+    if (stopTypes.has(String(node.type))) break
+
+    const outEdges = edges.filter((e) => e.source === current)
+    if (outEdges.length === 0) break
+    current = String(outEdges[0].target ?? '')
+  }
+
+  return order
+}
+
+function branchHasFetchType(
+  nodeIds: string[],
+  steps: Record<string, unknown>[],
+  fetchType: string,
+): boolean {
+  const idSet = new Set(nodeIds)
+  return steps.some(
+    (s) => idSet.has(String(s.id)) && String(s.type) === fetchType,
+  )
+}
+
+/** Ensure chat branch mirrors report-branch fetch/tool nodes and standard LLM templates */
 function normalizeChatBranch(obj: Record<string, unknown>): void {
   if (!Array.isArray(obj.steps) || !Array.isArray(obj.edges)) return
 
@@ -674,7 +742,23 @@ function normalizeChatBranch(obj: Record<string, unknown>): void {
   const edges = obj.edges as Record<string, unknown>[]
 
   const hasChatEdge = edges.some((e) => String(e.condition ?? '').toLowerCase() === 'chat')
-  if (!hasChatEdge) return
+  if (!hasChatEdge) {
+    // Chat-only linear flows: still normalize LLM templates
+    for (const step of steps) {
+      if (!LLM_NODE_TYPES.has(String(step.type))) continue
+      const config = { ...(step.config as Record<string, unknown> ?? {}) }
+      const prompt = String(config.prompt ?? '')
+      if (!prompt.includes('{{message}}')) {
+        config.prompt = CHAT_LLM_PROMPT
+      }
+      const system = String(config.system_prompt ?? '')
+      if (!system || system.toLowerCase().includes('cannot provide') || system.length < 30) {
+        config.system_prompt = CHAT_LLM_SYSTEM
+      }
+      step.config = config
+    }
+    return
+  }
 
   const switchNode = steps.find((s) => s.type === 'switch')
   if (!switchNode) return
@@ -684,50 +768,60 @@ function normalizeChatBranch(obj: Record<string, unknown>): void {
   )
   if (!chatEdge) return
 
-  const chatTargetId = String(chatEdge.target ?? '')
-  const chatTarget = steps.find((s) => s.id === chatTargetId)
-  if (!chatTarget) return
-
   const reportEdge = edges.find(
     (e) => e.source === switchNode.id && String(e.condition ?? '').toLowerCase() === 'report',
   )
-  let refDbQuery = steps.find((s) => s.type === 'db_query')
-  if (reportEdge) {
-    const reportTarget = steps.find((s) => s.id === reportEdge.target)
-    if (reportTarget?.type === 'db_query') refDbQuery = reportTarget
-  }
 
-  if (LLM_NODE_TYPES.has(String(chatTarget.type)) && refDbQuery) {
-    const maxNum = steps.reduce((max, s) => {
-      const m = String(s.id).match(/^n(\d+)$/)
-      return m ? Math.max(max, parseInt(m[1], 10)) : max
-    }, 0)
-    const newId = `n${maxNum + 1}`
-    const refConfig = (refDbQuery.config as Record<string, unknown>) ?? {}
-    const chatTargetPos = chatTarget.position as { x?: number; y?: number } | undefined
-    steps.push({
+  const stopTypes = new Set(['report_generate', ...LLM_NODE_TYPES])
+  const reportNodeIds = reportEdge
+    ? collectBranchNodeIds(String(reportEdge.target ?? ''), steps, edges, stopTypes)
+    : []
+
+  const reportFetchNodes = steps.filter(
+    (s) =>
+      reportNodeIds.includes(String(s.id)) &&
+      FETCH_MIRROR_TYPES.has(String(s.type)),
+  )
+
+  let chatTargetId = String(chatEdge.target ?? '')
+  let chatBranchIds = collectBranchNodeIds(chatTargetId, steps, edges, stopTypes)
+
+  // Insert missing fetch/tool nodes from report branch before chat LLM chain
+  for (const refNode of reportFetchNodes) {
+    const fetchType = String(refNode.type)
+    if (branchHasFetchType(chatBranchIds, steps, fetchType)) continue
+
+    const newId = nextNodeId(steps)
+    const refConfig = (refNode.config as Record<string, unknown>) ?? {}
+    const refPos = refNode.position as { x?: number; y?: number } | undefined
+    const chatTarget = steps.find((s) => s.id === chatTargetId)
+    const chatPos = chatTarget?.position as { x?: number; y?: number } | undefined
+
+    const newNode: Record<string, unknown> = {
       id: newId,
-      type: 'db_query',
-      label: `Query ${refConfig.table ?? 'data'} (chat)`,
-      config: { ...refConfig },
+      type: fetchType,
+      label: String(refNode.label ?? fetchType) + ' (chat)',
+      config: JSON.parse(JSON.stringify(refConfig)),
       position: {
-        x: (chatTargetPos?.x ?? 440) - 220,
-        y: chatTargetPos?.y ?? 600,
+        x: (chatPos?.x ?? refPos?.x ?? 440) - 220,
+        y: chatPos?.y ?? refPos?.y ?? 600,
       },
-    })
+    }
+    steps.push(newNode)
+
     chatEdge.target = newId
-    const maxEdge = edges.reduce((max, e) => {
-      const m = String(e.id).match(/^e(\d+)$/)
-      return m ? Math.max(max, parseInt(m[1], 10)) : max
-    }, 0)
     edges.push({
-      id: `e${maxEdge + 1}`,
+      id: nextEdgeId(edges),
       source: newId,
       target: chatTargetId,
     })
-    obj.steps = steps
-    obj.edges = edges
+
+    chatTargetId = newId
+    chatBranchIds = collectBranchNodeIds(String(chatEdge.target ?? ''), steps, edges, stopTypes)
   }
+
+  obj.steps = steps
+  obj.edges = edges
 
   for (const step of steps) {
     if (!LLM_NODE_TYPES.has(String(step.type))) continue
@@ -741,6 +835,30 @@ function normalizeChatBranch(obj: Record<string, unknown>): void {
       config.system_prompt = CHAT_LLM_SYSTEM
     }
     step.config = config
+  }
+}
+
+/** Stamp execution-mode metadata for UI (Chat / Run Report buttons) */
+function stampFlowExecutionMetadata(flow: FlowJSON): FlowJSON {
+  const isCron = flow.trigger?.type === 'cron_trigger'
+  const isManual = !flow.trigger || flow.trigger.type === 'manual_trigger'
+  const hasLlm = flow.steps.some((s) => LLM_NODE_TYPES.has(s.type))
+  const hasSwitchChat =
+    flow.steps.some((s) => s.type === 'switch') &&
+    flow.edges.some((e) => String(e.condition ?? '').toLowerCase() === 'chat')
+  const hasReportEdge = flow.edges.some(
+    (e) => String(e.condition ?? '').toLowerCase() === 'report',
+  )
+  const hasReportGenerate = flow.steps.some((s) => s.type === 'report_generate')
+  const supportsReport = hasReportEdge || hasReportGenerate || isCron
+  const supportsChat = !isCron && (hasSwitchChat || (isManual && hasLlm))
+
+  return {
+    ...flow,
+    metadata: {
+      supports_chat: supportsChat,
+      supports_report: supportsReport,
+    },
   }
 }
 
@@ -1415,6 +1533,8 @@ serve(async (req) => {
     }
 
     emit('saving_version')
+    flowJSON = stampFlowExecutionMetadata(flowJSON)
+
     const nextVersion = await supabase
       .rpc('next_agent_version', { p_agent_id: agent_id })
       .then((r) => r.data ?? 1)

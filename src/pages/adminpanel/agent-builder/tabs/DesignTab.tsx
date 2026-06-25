@@ -42,6 +42,10 @@ interface DesignTabProps {
   onRun?: () => void;
   onStop?: () => void;
   versionNumber?: number;
+  versionId?: string | null;
+  cardChatOpen?: boolean;
+  onOpenCardChat?: () => void;
+  onCloseCardChat?: () => void;
 }
 
 export function DesignTab({
@@ -66,6 +70,10 @@ export function DesignTab({
   onRun,
   onStop,
   versionNumber,
+  versionId,
+  cardChatOpen = false,
+  onOpenCardChat,
+  onCloseCardChat,
 }: DesignTabProps) {
   const [flowJson, setFlowJson] = useState<FlowJSON | null>(initialFlowJson);
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
@@ -249,10 +257,12 @@ export function DesignTab({
   );
 
   const cardSharedProps = {
+    agentId,
     agentName,
     agentDescription,
     agentStatus,
     flowJson,
+    versionId,
     currentRun,
     isRunActive,
     isTriggering,
@@ -265,6 +275,9 @@ export function DesignTab({
     isCompiling,
     justRevealed,
     reducedMotion,
+    chatOpen: cardChatOpen,
+    onOpenChat: onOpenCardChat,
+    onCloseChat: onCloseCardChat,
   };
 
   return (
