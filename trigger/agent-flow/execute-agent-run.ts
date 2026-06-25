@@ -237,6 +237,17 @@ export const executeAgentRun = task({
 
       const nodeResult = result.output;
 
+      if (nodeResult.status === "failed") {
+        const failMsg = nodeResult.error ?? `Node ${node.label} failed`;
+        logger.error("Node returned failed status", { nodeId, error: failMsg });
+        metadata.set(`node_${nodeId}`, { status: "failed", label: node.label, error: failMsg });
+        await finalizeRun(supabase, run_id, "failed", totalCost, totalTokens, stepCount,
+          `Node ${nodeId} (${node.label}) failed: ${failMsg}`);
+        metadata.set("status", "failed");
+        metadata.set("error", failMsg);
+        throw new AbortTaskRunError(failMsg);
+      }
+
       // Accumulate cost and tokens
       totalCost += nodeResult.cost;
       totalTokens += nodeResult.tokens_used;

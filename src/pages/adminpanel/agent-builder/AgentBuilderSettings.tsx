@@ -804,7 +804,7 @@ export default function AgentBuilderSettings() {
               <p className="text-xs text-slate-500 max-w-xl">
                 Enable database tables that agents are allowed to query when running.
                 Disabled tables cannot be accessed even if an agent flow includes a DB Query node.
-                The compiler will ask which table to query if you mention a database without specifying one.
+                Enabled tables are always visible to the i420 compiler; the agent only uses them when your prompt requires database access.
                 {isSavingData && <span className="ml-2 text-slate-400 inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Saving…</span>}
               </p>
               <div className="flex gap-2 shrink-0">
@@ -912,7 +912,9 @@ export default function AgentBuilderSettings() {
         {activeTab === "system_prompt" && (
           <div className="max-w-3xl space-y-6">
             <p className="text-xs text-slate-500">
-              Define the global system prompt used by i420. Saving creates a new
+              Define the global <strong>persona and tone</strong> for i420 Design chat. Flow structure,
+              valid node types, validation rules, and workspace context are injected automatically by the
+              compiler kernel — do not paste JSON schema or node lists here. Saving creates a new
               immutable version; activate any past version to make it live.
             </p>
 
@@ -937,7 +939,7 @@ export default function AgentBuilderSettings() {
                   <Textarea
                     value={promptText}
                     onChange={(e) => setPromptText(e.target.value)}
-                    placeholder="Enter the system prompt for i420…"
+                    placeholder="Persona and tone for i420 (e.g. how the IDE agent speaks when building flows)…"
                     className="min-h-[280px] text-xs font-mono resize-y leading-relaxed"
                     spellCheck={false}
                   />

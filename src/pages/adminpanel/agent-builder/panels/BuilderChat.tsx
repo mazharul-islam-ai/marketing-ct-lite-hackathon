@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Sparkles, Zap, Wrench, CheckCircle2 } from "lucide-react";
+import { Send, Loader2, Sparkles, Zap, Wrench, CheckCircle2, HelpCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -65,6 +65,34 @@ function CompileInlineProgress({ status }: { status: CompileStatus }) {
       </p>
     </div>
   );
+}
+
+function assistantBubbleClass(msg: ChatMessage): string {
+  switch (msg.message_type) {
+    case "clarification":
+      return cn(ab.assistantBubble, "rounded-bl-md border border-amber-200 bg-amber-50/80");
+    case "success":
+      return cn(ab.assistantBubble, "rounded-bl-md border border-emerald-200 bg-emerald-50/50");
+    case "error":
+      return cn("rounded-bl-md border border-red-200 bg-red-50 text-red-800");
+    case "hint":
+      return cn(ab.assistantBubble, "rounded-bl-md border border-slate-200 bg-slate-50");
+    default:
+      return cn(ab.assistantBubble, "rounded-bl-md border");
+  }
+}
+
+function AssistantIcon({ messageType }: { messageType?: ChatMessage["message_type"] }) {
+  if (messageType === "clarification") {
+    return <HelpCircle className="w-2.5 h-2.5 text-white" />;
+  }
+  if (messageType === "error") {
+    return <AlertCircle className="w-2.5 h-2.5 text-white" />;
+  }
+  if (messageType === "success") {
+    return <CheckCircle2 className="w-2.5 h-2.5 text-white" />;
+  }
+  return <Sparkles className="w-2.5 h-2.5 text-white" />;
 }
 
 export function BuilderChat({
@@ -135,8 +163,11 @@ export function BuilderChat({
               className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
             >
               {msg.role === "assistant" && (
-                <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2", ab.accentBtn)}>
-                  <Sparkles className="w-2.5 h-2.5 text-white" />
+                <div className={cn(
+                  "w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2",
+                  msg.message_type === "error" ? "bg-red-500" : msg.message_type === "clarification" ? "bg-amber-500" : msg.message_type === "success" ? "bg-emerald-600" : ab.accentBtn,
+                )}>
+                  <AssistantIcon messageType={msg.message_type} />
                 </div>
               )}
               <div
@@ -144,7 +175,7 @@ export function BuilderChat({
                   "max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed",
                   msg.role === "user"
                     ? cn(ab.userBubble, "rounded-br-md")
-                    : cn(ab.assistantBubble, "rounded-bl-md border"),
+                    : assistantBubbleClass(msg),
                 )}
               >
                 {msg.content}

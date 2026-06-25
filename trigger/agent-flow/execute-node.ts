@@ -9,6 +9,7 @@ import {
   type DbQueryNodeConfig,
 } from "./chat-context";
 import { decryptValue, executeMcpTool, type McpServerConnection } from "./mcp-client";
+import { enrichRuntimeError, formatRuntimeErrorMessage } from "./runtime-errors";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -343,7 +344,11 @@ export const executeFlowNode = task({
 
           const slackData = await slackResponse.json();
           if (!slackResponse.ok) {
-            throw new Error(slackData.error ?? "Slack fetch failed");
+            const rawErr = String(slackData.error ?? "Slack fetch failed");
+            const enriched = enrichRuntimeError(rawErr, {
+              channel: String(slackData.channel ?? channel),
+            });
+            throw new Error(formatRuntimeErrorMessage(enriched));
           }
 
           output = {

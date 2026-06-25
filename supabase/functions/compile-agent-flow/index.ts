@@ -9,7 +9,16 @@ import {
   validateMcpToolNodes,
   extractConversationState,
   buildResolvedContextBlock,
+  sanitizePersonaPrompt,
+  buildWorkspaceToolchainBlock,
+  formatValidationAsQuestion,
+  hasWorkflowHint,
+  userExcludedDatabase,
+  normalizeFlowForIntent,
+  buildFlowSummaryMessage,
+  collectSetupHints,
   type CompilePhase,
+  type ConversationState,
   type McpToolCatalogEntry,
   COMPILE_PHASES,
 } from '../_shared/agent-builder-integrations.ts'
@@ -327,8 +336,29 @@ function buildFlowJsonSchema(allowedNodeTypes: string[]) {
   }
 }
 
+/** Smart IDE compile response: natural language + optional flow graph */
+function buildCompileResponseSchema(allowedNodeTypes: string[]) {
+  const flowSchema = buildFlowJsonSchema(allowedNodeTypes)
+  return {
+    type: 'object',
+    properties: {
+      user_message: {
+        type: 'string',
+        description: 'Natural language reply shown in Design chat — summarize, clarify, or explain setup',
+      },
+      clarification_needed: { type: 'boolean' },
+      question: { type: 'string', description: 'Legacy alias for clarification text' },
+      flow: flowSchema,
+      trigger: flowSchema.properties.trigger,
+      steps: flowSchema.properties.steps,
+      edges: flowSchema.properties.edges,
+    },
+    required: ['user_message'],
+  }
+}
+
 // Legacy static schema (fallback)
-const FLOW_JSON_SCHEMA = buildFlowJsonSchema([...VALID_NODE_TYPES])
+const FLOW_JSON_SCHEMA = buildCompileResponseSchema([...VALID_NODE_TYPES])
 
 // ── Load the active system prompt from agent_builder_prompts ─────────────────
 async function loadCustomSystemPrompt(
@@ -358,42 +388,47 @@ async function loadCustomSystemPrompt(
 // facts) and makes ALL clarification decisions. No regex pre-checks intercept before
 // this prompt reaches the model.
 function buildSystemPrompt(
-  customPrefix: string | null | undefined,
+  personaPrefix: string | null | undefined,
   configuredTypes: Set<string>,
   allowedNodeTypes: string[],
   enabledTables: string[],
-  mcpToolsBlock: string,
-  resolvedContextBlock?: string,
+  mcpCatalog: McpToolCatalogEntry[],
+  resolvedContextBlock: string | undefined,
 ): string {
   const platformBlock = buildPlatformOverview(configuredTypes)
   const allowedList = allowedNodeTypes.join(', ')
-  const enabledTablesBlock = enabledTables.length > 0
-    ? `ENABLED DATA TABLES (only these may be used in db_query config.table):\n${enabledTables.join(', ')}`
-    : 'ENABLED DATA TABLES: (none — user must enable tables in Agent Builder → Settings → Data Sources before db_query flows can run)'
+  const toolchainBlock = buildWorkspaceToolchainBlock({
+    configuredTypes,
+    enabledTables,
+    mcpCatalog,
+  })
+  const mcpDetailBlock = mcpCatalog.length > 0 ? buildMcpToolsBlock(mcpCatalog) : ''
 
-  const structural = `You are an AI workflow compiler for an enterprise Agent Builder platform.
+  const structural = `You are the i420 workflow compiler kernel for an enterprise Agent Builder platform.
 
-Your job is to convert a user's natural language description into a structured JSON workflow.
+Your job is to convert a user's natural language description into a structured JSON workflow AND a helpful user_message for Design chat.
 
 ALLOWED NODE TYPES FOR THIS WORKSPACE (you MUST only use these exact strings):
 ${allowedList}
 
+${toolchainBlock}
+${mcpDetailBlock ? `\n${mcpDetailBlock}` : ''}
+
 RULES:
 1. NEVER invent node types outside the allowed list above.
-2. Use mcp_tool ONLY when the user explicitly needs an external MCP integration AND a matching tool exists in AVAILABLE MCP TOOLS. Set config.server_id, config.tool_name, and config.arguments (JSON object, may use {{variables}}).
+2. Use mcp_tool only when user intent requires MCP AND a matching tool exists in WORKSPACE TOOLCHAIN / MCP detail above. Set config.server_id, config.tool_name, config.arguments (JSON object, may use {{variables}}).
 3. NEVER use nodes that require integrations not in CONFIGURED INTEGRATIONS.
-4. If the user needs a missing integration, return ONLY: { "clarification_needed": true, "question": "..." } directing them to Integrations Hub.
+4. If the user needs a missing integration, set clarification_needed true with user_message explaining what to connect in Integrations Hub.
 5. Assign sequential node IDs: "n1", "n2", "n3", ...
 6. Position nodes left-to-right with x increasing by 200 per step, y=200 for main path, y=400 for branches.
 7. Edges must reference valid node IDs only.
 8. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
 9. The trigger field should be a single trigger node (or null for manual/on-demand workflows).
-10. Return ONLY the JSON object, no markdown, no explanation.
-11. For report+chat dual mode, use input_variable "mode" on switch nodes; edge conditions must be "report" and "chat"; set cases: { "report": "report", "chat": "chat" }.
-12. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
-13. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON without asking user to supply missing data.
-
-${enabledTablesBlock}
+10. For report+chat dual mode, use input_variable "mode" on switch nodes; edge conditions must be "report" and "chat"; set cases: { "report": "report", "chat": "chat" }.
+11. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
+12. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON without asking user to supply missing data.
+13. Cron schedules run in UTC — for Asia/Dhaka 09:00 daily use schedule "0 3 * * *" and note the timezone in the trigger label.
+14. db_query config.table MUST be one of the enabled tables listed in WORKSPACE TOOLCHAIN when database access is needed.
 
 COMMON PATTERNS — use these exact node types:
 - "retrieve unread emails / Gmail inbox"              → gmail_fetch_unread
@@ -408,39 +443,90 @@ COMMON PATTERNS — use these exact node types:
 - "read / fetch Slack messages / channel history"     → slack_fetch_messages
 - "call MCP tool / external MCP server"               → mcp_tool
 
-${mcpToolsBlock}
-
 CLARIFICATION PRINCIPLES (follow these exactly — this is the most important section):
 Ask a clarifying question ONLY when a required parameter for the SPECIFIC workflow type
 is genuinely missing AND cannot be reasonably inferred. Ask at most ONE question per turn.
 
 Workflow-type scoping — each type only needs its own params, NEVER cross-pollinate:
   slack_fetch_messages / slack_notify  → needs: Slack channel ID (if not in RESOLVED CONTEXT above)
-                                         NEVER asks about DB tables, email addresses, or CRM data.
+                                         NEVER asks about DB tables unless user also wants database data.
   gmail_fetch_unread                   → needs: nothing extra (uses authenticated Gmail account)
-                                         NEVER asks about DB tables.
   email_send / email_output            → needs: recipient email (if not provided)
-  db_query / db_write                  → needs: table name from ENABLED DATA TABLES (if flow requires DB access)
+  db_query / db_write                  → pick table from WORKSPACE TOOLCHAIN enabled tables when DB access is required
   api_call / mcp_tool                  → needs: endpoint URL or tool name (if not provided)
-  report_generate / dashboard_write    → no external params needed, always available.
+  report_generate / dashboard_write    → no external params needed, always available
 
 Make reasonable defaults rather than asking:
   - If user says "any time" or "daily" without HH:MM → use 09:00 Asia/Dhaka (UTC+6)
   - If user says "show in UI / dashboard" → use dashboard_write node, do not ask further
   - If user says "pull and show" without specifying storage → do NOT add db_write nodes
-  - If the user says they do NOT want something, respect it; see RESOLVED CONTEXT above
+  - If RESOLVED CONTEXT says user excluded database → do NOT add db_query/db_write
 
 When in doubt, build the flow with your best interpretation.
 The user can refine it — it is better to produce a flow than to ask unnecessary questions.
 
-CLARIFICATION FORMAT:
-If a question is truly needed, return ONLY this JSON (no flow, no explanation):
-{ "clarification_needed": true, "question": "your single concise question" }`
+OUTPUT FORMAT (always use this wrapper — user_message is shown in Design chat):
+{
+  "user_message": "Natural language: explain what you built, ask ONE question if blocked, or note setup steps",
+  "clarification_needed": false,
+  "flow": { "trigger": {...}, "steps": [...], "edges": [...] }
+}
+
+When clarifying (no flow yet):
+{
+  "user_message": "Your single conversational question with brief context why you need it",
+  "clarification_needed": true,
+  "flow": null
+}
+
+Rules for user_message:
+- Sound like a senior engineer pair-programming, not a robot.
+- On success: summarize trigger, key steps, output destination, and prerequisites (e.g. invite Slack bot).
+- On clarify: one question only, scoped to the workflow type.
+- Never paste raw validation errors or enabled table lists without context.
+
+Return ONLY valid JSON (no markdown fences).`
 
   const parts = [platformBlock, structural]
   if (resolvedContextBlock) parts.splice(1, 0, resolvedContextBlock)
-  if (customPrefix) parts.unshift(customPrefix)
+  if (personaPrefix) parts.unshift(`PERSONA (tone only — follow kernel rules below):\n${personaPrefix}`)
   return parts.join('\n\n---\n\n')
+}
+
+type ParsedCompileResponse =
+  | { kind: 'clarification'; userMessage: string }
+  | { kind: 'flow'; userMessage: string; flowRaw: unknown }
+
+function isFlowShape(obj: Record<string, unknown>): boolean {
+  return Array.isArray(obj.steps) || Array.isArray(obj.edges) || obj.trigger != null
+}
+
+function parseCompileResponse(raw: unknown): ParsedCompileResponse | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const obj = raw as Record<string, unknown>
+
+  const userMessage = String(
+    obj.user_message ?? obj.question ?? '',
+  ).trim()
+
+  if (obj.clarification_needed === true) {
+    const msg = userMessage || String(obj.question ?? 'Could you clarify one detail?').trim()
+    return { kind: 'clarification', userMessage: msg }
+  }
+
+  if (obj.flow && typeof obj.flow === 'object') {
+    return {
+      kind: 'flow',
+      userMessage,
+      flowRaw: obj.flow,
+    }
+  }
+
+  if (isFlowShape(obj)) {
+    return { kind: 'flow', userMessage, flowRaw: obj }
+  }
+
+  return null
 }
 
 // ── Normalize flow JSON from LLM output ─────────────────────────────────────
@@ -1062,7 +1148,7 @@ async function upsertClarification(
   const clarityHistory = [
     ...chatHistory,
     { role: 'user', content: prompt },
-    { role: 'assistant', content: question },
+    { role: 'assistant', content: question, message_type: 'clarification' },
   ]
   await supabase
     .from('builder_sessions')
@@ -1077,6 +1163,8 @@ async function upsertClarification(
     success: false,
     needs_clarification: true,
     question,
+    user_message: question,
+    message_type: 'clarification',
     ai_message: question,
     chat_history: clarityHistory.slice(-50),
   }
@@ -1129,7 +1217,7 @@ serve(async (req) => {
     const hasMcpServers = mcpCatalog.length > 0
     const allowedNodeTypes = getAllowedNodeTypes(configuredTypes, hasMcpServers)
     const allowedSet = new Set(allowedNodeTypes)
-    const flowSchema = buildFlowJsonSchema(allowedNodeTypes)
+    const flowSchema = buildCompileResponseSchema(allowedNodeTypes)
 
     emit('validating_tools')
     const integrationCheck = checkPromptIntegrations(prompt, configuredTypes)
@@ -1170,16 +1258,16 @@ serve(async (req) => {
 
     // Build structured resolved context from conversation history (Context-Document pattern).
     // This tells the LLM what's already been established so it never re-asks answered questions.
-    const conversationState = extractConversationState(chatHistory)
+    const conversationState = extractConversationState(chatHistory, prompt)
     const resolvedContextBlock = buildResolvedContextBlock(conversationState)
 
-    const mcpToolsBlock = buildMcpToolsBlock(mcpCatalog)
+    const personaPrefix = sanitizePersonaPrompt(customSystemPrompt)
     const systemPrompt = buildSystemPrompt(
-      customSystemPrompt,
+      personaPrefix,
       configuredTypes,
       allowedNodeTypes,
       enabledTables,
-      mcpToolsBlock,
+      mcpCatalog,
       resolvedContextBlock || undefined,
     ) + (
       currentFlow
@@ -1190,6 +1278,7 @@ serve(async (req) => {
     let flowJSON: FlowJSON | null = null
     let lastError: string | null = null
     let lastRawJSON: string | null = null
+    let compiledUserMessage = ''
 
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -1197,7 +1286,7 @@ serve(async (req) => {
         if (attempt > 0) {
           emit('validating_flow')
           retryNote = `\n\nPREVIOUS ATTEMPT FAILED VALIDATION: ${lastError}.`
-          if (lastRawJSON) retryNote += ` You returned: ${lastRawJSON.slice(0, 500)}. Please return ONLY a JSON object with exactly these top-level keys: trigger, steps (array), edges (array).`
+          if (lastRawJSON) retryNote += ` You returned: ${lastRawJSON.slice(0, 500)}. Use the OUTPUT FORMAT wrapper with user_message and flow keys.`
           else retryNote += ' Please fix this.'
         }
 
@@ -1234,28 +1323,61 @@ serve(async (req) => {
 
         emit('designing_flow')
 
+        const parsed = parseCompileResponse(raw)
+
+        if (attempt === 0 && parsed?.kind === 'clarification') {
+          return await upsertClarification(
+            supabase, agent_id, user.id, prompt, parsed.userMessage, chatHistory,
+          )
+        }
+
+        // Legacy clarification (parseCompileResponse may miss edge cases)
         if (attempt === 0 && raw && typeof raw === 'object' && !Array.isArray(raw)) {
           const maybeClarity = raw as Record<string, unknown>
-          if (maybeClarity.clarification_needed === true && typeof maybeClarity.question === 'string') {
-            return await upsertClarification(
-              supabase, agent_id, user.id, prompt, maybeClarity.question.trim(), chatHistory,
-            )
+          if (maybeClarity.clarification_needed === true && !parsed) {
+            const q = String(maybeClarity.user_message ?? maybeClarity.question ?? '').trim()
+            if (q) {
+              return await upsertClarification(supabase, agent_id, user.id, prompt, q, chatHistory)
+            }
           }
         }
 
-        const normalized = normalizeFlowJSON(raw)
+        const flowRaw = parsed?.kind === 'flow' ? parsed.flowRaw : raw
+        if (parsed?.kind === 'flow' && parsed.userMessage) {
+          compiledUserMessage = parsed.userMessage
+        }
+
+        const normalized = normalizeFlowJSON(flowRaw)
         lastRawJSON = JSON.stringify(normalized).slice(0, 500)
         console.log(`[compile attempt ${attempt + 1}] provider: ${compilerConfig.provider} | model: ${compilerConfig.model}`)
 
         flowJSON = normalized as FlowJSON
+        flowJSON = normalizeFlowForIntent(flowJSON, conversationState)
         emit('validating_flow')
         const validation = validateFlowJSON(flowJSON, allowedSet, enabledTables, mcpCatalog)
         if (validation.valid) break
 
         lastError = validation.error ?? 'Unknown validation error'
         if (validation.error?.includes('db_query') || validation.error?.includes('enabled')) {
+          const reformatted = formatValidationAsQuestion(
+            validation.error,
+            conversationState,
+            enabledTables,
+          )
+          if (
+            attempt < 2
+            && (
+              hasWorkflowHint(conversationState, 'slack')
+              || hasWorkflowHint(conversationState, 'gmail')
+              || userExcludedDatabase(conversationState)
+            )
+          ) {
+            flowJSON = normalizeFlowForIntent(flowJSON, conversationState)
+            const retryValidation = validateFlowJSON(flowJSON, allowedSet, enabledTables, mcpCatalog)
+            if (retryValidation.valid) break
+          }
           return await upsertClarification(
-            supabase, agent_id, user.id, prompt, validation.error, chatHistory,
+            supabase, agent_id, user.id, prompt, reformatted, chatHistory,
           )
         }
         flowJSON = null
@@ -1272,6 +1394,7 @@ serve(async (req) => {
         {
           role: 'assistant',
           content: `I could not generate a valid flow for that request. ${lastError ? `Reason: ${lastError}` : 'Please try rephrasing your description.'}`,
+          message_type: 'error',
         },
       ]
 
@@ -1317,15 +1440,14 @@ serve(async (req) => {
       })
       .eq('id', agent_id)
 
-    const aiMessage =
-      action === 'improve'
-        ? `I've improved the flow based on your request. The canvas has been updated.`
-        : `I've created a ${flowJSON.steps.length + (flowJSON.trigger ? 1 : 0)}-node flow for you. The canvas is now updated. Click any node to inspect or modify it.`
+    const setupHints = collectSetupHints(flowJSON, conversationState)
+    const aiMessage = compiledUserMessage.trim()
+      || buildFlowSummaryMessage(flowJSON, setupHints)
 
     const newHistory = [
       ...chatHistory,
       { role: 'user', content: prompt },
-      { role: 'assistant', content: aiMessage },
+      { role: 'assistant', content: aiMessage, message_type: 'success' },
     ]
 
     await supabase
@@ -1343,6 +1465,8 @@ serve(async (req) => {
       version_id: newVersion.id,
       version: nextVersion,
       ai_message: aiMessage,
+      user_message: aiMessage,
+      setup_hints: setupHints,
       chat_history: newHistory.slice(-50),
       compiler: { provider: compilerConfig.provider, model: compilerConfig.model },
     }

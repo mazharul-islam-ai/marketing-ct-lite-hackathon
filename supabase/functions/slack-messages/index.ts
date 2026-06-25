@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { enrichRuntimeError, formatRuntimeErrorMessage } from "../_shared/runtime-errors.ts";
 
 async function slackApiPost(token: string, method: string, body: Record<string, string>) {
   const response = await fetch(`https://slack.com/api/${method}`, {
@@ -91,8 +92,15 @@ serve(async (req) => {
       });
 
       if (!history.ok) {
+        const errorCode = String(history.error ?? "conversations.history failed");
+        const enriched = enrichRuntimeError(errorCode, { channel: channelId });
         return new Response(
-          JSON.stringify({ error: history.error ?? "conversations.history failed" }),
+          JSON.stringify({
+            error: formatRuntimeErrorMessage(enriched),
+            error_code: enriched.error_code,
+            hint: enriched.hint,
+            channel: channelId,
+          }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }

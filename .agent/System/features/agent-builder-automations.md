@@ -1,8 +1,79 @@
 # i420 Studio & Automations
 
-Last updated: 2026-06-24
+Last updated: 2026-06-25
 
-## Overview
+## Smart IDE architecture
+
+i420 Design chat is a **platform-integrated Smart IDE** (Cursor/Lovable-style): it compiles natural language into `flow_json` using live workspace context from Settings and Integrations Hub.
+
+```
+Settings (persona, models, tools, MCP, data sources)
+Integrations Hub (Slack, Gmail, …)
+        ↓
+compile-agent-flow
+  ├── Persona prefix (agent_builder_prompts — tone only)
+  ├── Compiler kernel (code — node types, validation, OUTPUT FORMAT)
+  ├── Scoped context (enabled tables only when DB intent detected)
+  └── LLM → { user_message, clarification_needed?, flow }
+        ↓
+Design chat (user_message) + canvas (flow_json)
+        ↓
+trigger-flow-run → execute-agent-run (fail-fast on failed nodes)
+```
+
+### Persona vs kernel
+
+| Layer | Source | Editable? |
+|-------|--------|-----------|
+| Persona / tone | Settings → System Prompt (`agent_builder_prompts`) | Yes — v2 persona-only prompt seeded in `20260625100000_i420_persona_v2.sql` |
+| Node types, validation, compile protocol | `compile-agent-flow` kernel + `_shared/agent-builder-integrations.ts` | Code only |
+| Live workspace facts | Integrations, MCP catalog, enabled tables (scoped) | Settings tabs |
+
+Legacy v1 system prompts that embed JSON-only structural rules are **stripped** by `sanitizePersonaPrompt()` before compile.
+
+### Compile response protocol
+
+The compiler LLM returns:
+
+```json
+{
+  "user_message": "Natural language shown in Design chat",
+  "clarification_needed": false,
+  "flow": { "trigger": {}, "steps": [], "edges": [] }
+}
+```
+
+- **Clarify:** `clarification_needed: true`, `flow: null`, one scoped question in `user_message`
+- **Success:** `user_message` summarizes what was built + setup hints (e.g. invite Slack bot)
+- **Legacy:** bare `{ trigger, steps, edges }` still accepted; server generates summary via `buildFlowSummaryMessage()`
+
+Design chat message types: `clarification` | `success` | `error` | `hint` (see `ChatMessage.message_type`).
+
+### Decision engine (when to ask vs build)
+
+Implemented in `_shared/agent-builder-integrations.ts`:
+
+- **Workflow-type scoping** — Slack/Gmail flows never ask about DB tables
+- **Always-on workspace toolchain** — integrations, enabled tables, and MCP tools are always injected (compact inventory); visibility does not force usage
+- **Defaults** — dashboard for UI output; Asia/Dhaka 09:00 → cron `0 3 * * *` UTC
+- **Exclusions** — "no DB" strips `db_query`/`db_write` via `normalizeFlowForIntent()` (tables stay visible in toolchain)
+- **Hybrid prompts** — `workflowHints[]` collects all matching intents (e.g. slack + hubspot) so DB is not stripped incorrectly
+- **Validation → human question** — `formatValidationAsQuestion()` instead of raw errors
+- **Anti-hallucination** — LLM steps after fetch nodes get "never invent data" system prompt guard
+
+### Runtime fail-fast
+
+`execute-agent-run` aborts when any node returns `status: "failed"` (previously continued and allowed fake LLM output).
+
+Structured Slack errors: `supabase/functions/_shared/runtime-errors.ts` + `trigger/agent-flow/runtime-errors.ts` map `not_in_channel` → actionable hint.
+
+Runtime tab shows a red **Run failed** banner with step error before any output panel.
+
+### Cron timezone
+
+Automations scheduler (`computeNextRunAt`) interprets cron in **UTC**. Compiler maps Asia/Dhaka 09:00 → `0 3 * * *` and sets `config.timezone_label` on the trigger node for honest UI labels.
+
+---
 
 **i420 Studio** (`/i420`) is a first-class super-admin product for building agents and automations from natural language. It was formerly known as Agent Builder (`/adminpanel/agent-builder` — legacy URLs redirect to `/i420`).
 
@@ -40,12 +111,13 @@ Before generating flows, `compile-agent-flow`:
 
 ### Data source clarifications (DB queries)
 
-Before compiling flows that query the database, the compiler:
+Enabled tables from Settings → Data Sources are always listed in the **WORKSPACE TOOLCHAIN** block so the compiler can pick the right table (including hybrid flows like Slack + deals). Slack/Gmail-only flows still omit `db_query` via CLARIFICATION PRINCIPLES and `normalizeFlowForIntent()`. When the user says "no database", tables remain visible but RESOLVED CONTEXT forbids `db_query`/`db_write`.
 
-1. Loads `enabled_tables` from `organization_integrations` where `integration_type = 'agent_builder_data_sources'` (configured in i420 Studio → Settings → Data Sources)
-2. If the prompt mentions database/db/table/query without naming a specific enabled table → returns `needs_clarification` listing enabled tables
-3. If zero tables are enabled → asks user to enable data sources first
-4. Post-compile validation: every `db_query` node `config.table` must be in `enabled_tables`; invalid tables surface as clarification errors
+When DB access is required:
+
+1. Loads `enabled_tables` from `organization_integrations` where `integration_type = 'agent_builder_data_sources'`
+2. Post-compile validation: every `db_query` node `config.table` must be in `enabled_tables`
+3. Validation failures are rewritten as conversational questions via `formatValidationAsQuestion()`
 
 ## Manual runs & switch routing
 

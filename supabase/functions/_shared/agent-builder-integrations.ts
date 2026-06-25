@@ -161,11 +161,11 @@ export const KNOWN_DATA_TABLES = [
 // injects full platform state — so the LLM never re-asks what was answered.
 
 export interface ConversationState {
-  /** Detected workflow type hint, e.g. 'slack', 'gmail', 'db_query', 'api' */
+  /** All detected workflow intents (supports hybrid prompts) */
+  workflowHints: string[]
+  /** @deprecated First hint only — prefer workflowHints */
   workflowHint: string | null
-  /** Key→value pairs already confirmed in conversation, e.g. { channel_id: 'C0BCJ27' } */
   resolvedParams: Record<string, string>
-  /** Things the user explicitly said they don't want */
   userExclusions: string[]
 }
 
@@ -177,7 +177,11 @@ const WORKFLOW_HINT_PATTERNS: Array<{ pattern: RegExp; hint: string }> = [
   { pattern: /\b(activecollab|ac\s+tasks?)\b/i, hint: 'activecollab' },
   { pattern: /\b(google\s+analytics|ga\s+data)\b/i, hint: 'google_analytics' },
   { pattern: /\b(google\s+drive|gdrive)\b/i, hint: 'google_drive' },
+  { pattern: /\b(mcp\s+tool|mcp\s+server|external\s+mcp)\b/i, hint: 'mcp' },
+  { pattern: /\b(db_query|database|query\s+(the\s+)?table|from\s+(the\s+)?table)\b/i, hint: 'db' },
 ]
+
+const TIMEZONE_BD_RE = /\b(bd\s*(local\s*)?time|bangladesh|asia\/dhaka|utc\+6)\b/i
 
 const EXCLUSION_PATTERNS: Array<RegExp> = [
   /\b(no\s+need\s+(?:to\s+)?(?:store|save|use)?\s*(?:in\s+)?(?:db|database|table))\b/i,
@@ -196,22 +200,24 @@ const SCHEDULE_RE = /\b(\d{1,2}:\d{2}(?:\s*(?:am|pm))?(?:\s+(?:UTC|BD|EST|PST|GM
 
 export function extractConversationState(
   chatHistory: Array<{ role: string; content: string }>,
+  currentPrompt?: string,
 ): ConversationState {
   const state: ConversationState = {
+    workflowHints: [],
     workflowHint: null,
     resolvedParams: {},
     userExclusions: [],
   }
 
-  const allText = chatHistory.map((m) => m.content).join('\n')
+  const historyText = chatHistory.map((m) => m.content).join('\n')
+  const allText = currentPrompt ? `${historyText}\n${currentPrompt}` : historyText
 
-  // Detect workflow type from full history
   for (const { pattern, hint } of WORKFLOW_HINT_PATTERNS) {
-    if (pattern.test(allText)) {
-      state.workflowHint = hint
-      break
+    if (pattern.test(allText) && !state.workflowHints.includes(hint)) {
+      state.workflowHints.push(hint)
     }
   }
+  state.workflowHint = state.workflowHints[0] ?? null
 
   // Extract Slack channel ID if present anywhere in history
   const channelMatch = allText.match(SLACK_CHANNEL_RE)
@@ -225,6 +231,10 @@ export function extractConversationState(
     state.resolvedParams['schedule_time'] = scheduleMatch[1]
   }
 
+  if (TIMEZONE_BD_RE.test(allText)) {
+    state.resolvedParams['timezone'] = 'Asia/Dhaka'
+  }
+
   // Detect user exclusions (things user said they DON'T want)
   for (const pattern of EXCLUSION_PATTERNS) {
     for (const msg of chatHistory) {
@@ -233,16 +243,30 @@ export function extractConversationState(
         if (match) state.userExclusions.push(match[0].trim())
       }
     }
+    if (currentPrompt && pattern.test(currentPrompt)) {
+      const match = currentPrompt.match(pattern)
+      if (match) state.userExclusions.push(match[0].trim())
+    }
   }
 
   return state
+}
+
+export function hasWorkflowHint(state: ConversationState, hint: string): boolean {
+  return state.workflowHints.includes(hint)
+}
+
+export function hasDbRelatedIntent(state: ConversationState): boolean {
+  return state.workflowHints.some((h) => ['db', 'hubspot', 'activecollab'].includes(h))
 }
 
 /** Build the RESOLVED CONTEXT block injected into the system prompt */
 export function buildResolvedContextBlock(state: ConversationState): string {
   const lines: string[] = []
 
-  if (state.workflowHint) {
+  if (state.workflowHints.length > 0) {
+    lines.push(`- Workflow hints detected: ${state.workflowHints.join(', ')}`)
+  } else if (state.workflowHint) {
     lines.push(`- Workflow type detected: ${state.workflowHint}`)
   }
 
@@ -253,6 +277,10 @@ export function buildResolvedContextBlock(state: ConversationState): string {
 
   for (const exclusion of state.userExclusions) {
     lines.push(`- User explicitly said they do NOT want: "${exclusion}"`)
+  }
+
+  if (userExcludedDatabase(state)) {
+    lines.push('- User excluded database — do NOT add db_query/db_write even though tables are listed in WORKSPACE TOOLCHAIN.')
   }
 
   if (lines.length === 0) return ''
@@ -286,7 +314,7 @@ Concepts:
 - An AUTOMATION is a published agent with a schedule (cron_trigger → automations table).
 - Only use tools that appear in CONFIGURED INTEGRATIONS below.
 - If the user needs a missing integration, return clarification_needed asking them to configure it first.
-- If delivery channel (email vs Slack vs dashboard) or schedule time is unspecified, ask ONE clarifying question.
+- Use reasonable defaults for delivery (dashboard_write for UI) and schedule (09:00 Asia/Dhaka = cron 0 3 * * * UTC) rather than asking.
 
 CONFIGURED INTEGRATIONS (active in this workspace):
 ${configured || '(none — ask user to configure Integrations Hub first)'}
@@ -332,6 +360,57 @@ export function buildMcpToolsBlock(catalog: McpToolCatalogEntry[]): string {
 ${lines.join('\n')}`
 }
 
+const WORKSPACE_TABLE_CAP = 30
+
+export interface WorkspaceToolchainConfig {
+  configuredTypes: Set<string>
+  enabledTables: string[]
+  mcpCatalog: McpToolCatalogEntry[]
+}
+
+/** Compact always-on inventory of active integrations, tables, and MCP tools. */
+export function buildWorkspaceToolchainBlock(config: WorkspaceToolchainConfig): string {
+  const integrationLabels = INTEGRATION_DEFS
+    .filter((d) => config.configuredTypes.has(d.integrationType))
+    .map((d) => d.label)
+
+  const integrationsLine = integrationLabels.length > 0
+    ? integrationLabels.join(', ')
+    : '(none — connect in Integrations Hub)'
+
+  let tablesLine: string
+  if (config.enabledTables.length === 0) {
+    tablesLine = '(none enabled — i420 Settings → Data Sources)'
+  } else if (config.enabledTables.length <= WORKSPACE_TABLE_CAP) {
+    tablesLine = config.enabledTables.join(', ')
+  } else {
+    const extra = config.enabledTables.length - WORKSPACE_TABLE_CAP
+    tablesLine = `${config.enabledTables.slice(0, WORKSPACE_TABLE_CAP).join(', ')} … (+${extra} more)`
+  }
+
+  let mcpLine: string
+  if (config.mcpCatalog.length === 0) {
+    mcpLine = '(none registered — i420 Settings → MCP Servers)'
+  } else {
+    const byServer = new Map<string, string[]>()
+    for (const entry of config.mcpCatalog) {
+      const list = byServer.get(entry.server_name) ?? []
+      list.push(entry.tool_name)
+      byServer.set(entry.server_name, list)
+    }
+    mcpLine = [...byServer.entries()]
+      .map(([name, tools]) => `${name} → ${tools.join(', ')}`)
+      .join('; ')
+  }
+
+  return `WORKSPACE TOOLCHAIN (available — use only what the user intent requires):
+- Integrations: ${integrationsLine}
+- Enabled tables (${config.enabledTables.length}, db_query must use one of these): ${tablesLine}
+- MCP tools: ${mcpLine}
+
+Listing a table or tool means it is AVAILABLE, not REQUIRED. Match workflow type to params (see CLARIFICATION PRINCIPLES).`
+}
+
 export function validateMcpToolNodes(
   flow: { trigger: unknown; steps: Array<{ type: string; config: Record<string, unknown> }> },
   catalog: McpToolCatalogEntry[],
@@ -366,4 +445,233 @@ export function validateMcpToolNodes(
   }
 
   return { valid: true }
+}
+
+// ── Smart IDE: persona sanitization & scoped context ─────────────────────────
+
+const STRUCTURAL_PROMPT_MARKERS = [
+  'VALID NODE TYPES',
+  'STRUCTURAL RULES',
+  'OUTPUT FORMAT',
+  'you must respond with ONLY a valid JSON',
+  'Return ONLY the JSON object',
+]
+
+/** Strip legacy structural rules from Settings persona prompt (persona-only). */
+export function sanitizePersonaPrompt(text: string | null | undefined): string | null {
+  const trimmed = (text ?? '').trim()
+  if (!trimmed) return null
+
+  const upper = trimmed.toUpperCase()
+  const hasStructural = STRUCTURAL_PROMPT_MARKERS.some((m) => upper.includes(m.toUpperCase()))
+  if (!hasStructural) return trimmed
+
+  const lines = trimmed.split('\n')
+  const kept: string[] = []
+  let skipBlock = false
+
+  for (const line of lines) {
+    const lineUpper = line.toUpperCase()
+    if (STRUCTURAL_PROMPT_MARKERS.some((m) => lineUpper.includes(m.toUpperCase()))) {
+      skipBlock = true
+      continue
+    }
+    if (skipBlock && /^━+$/.test(line.trim())) {
+      skipBlock = false
+      continue
+    }
+    if (!skipBlock) kept.push(line)
+  }
+
+  const result = kept.join('\n').trim()
+  return result || null
+}
+
+export function formatValidationAsQuestion(
+  error: string,
+  state: ConversationState,
+  enabledTables: string[],
+): string {
+  const lower = error.toLowerCase()
+  const slackOnly = hasWorkflowHint(state, 'slack') && !hasDbRelatedIntent(state)
+
+  if (lower.includes('db_query') && slackOnly) {
+    return 'I removed database steps from this Slack workflow. Rebuilding without db_query — if you still see this, say "no database" again.'
+  }
+
+  if (lower.includes('missing config.table') || lower.includes('which enabled table')) {
+    if ((hasWorkflowHint(state, 'slack') || hasWorkflowHint(state, 'gmail')) && !hasDbRelatedIntent(state)) {
+      return 'This flow should not need a database table. Try rephrasing without mentioning DB, or tell me which table if you do want database data.'
+    }
+    if (enabledTables.length === 1) {
+      return `Should I query the "${enabledTables[0]}" table for this workflow?`
+    }
+    return `Which enabled data table should this workflow query? Options: ${enabledTables.slice(0, 8).join(', ')}${enabledTables.length > 8 ? '…' : ''}.`
+  }
+
+  if (lower.includes('enabled data sources')) {
+    return 'No data tables are enabled. Open i420 Settings → Data Sources, enable at least one table, then try again.'
+  }
+
+  if (lower.includes('mcp_tool') || lower.includes('mcp server')) {
+    return 'This flow needs an MCP tool. Register a server in i420 Settings → MCP Servers, or describe which tool you want to use.'
+  }
+
+  return `I couldn't validate the flow: ${error}. Can you clarify or rephrase?`
+}
+
+export function userExcludedDatabase(state: ConversationState): boolean {
+  return state.userExclusions.length > 0
+}
+
+function shouldStripDbNodes(state: ConversationState): boolean {
+  if (userExcludedDatabase(state)) return true
+  if (hasDbRelatedIntent(state)) return false
+  if (hasWorkflowHint(state, 'slack') || hasWorkflowHint(state, 'gmail') || hasWorkflowHint(state, 'mcp')) {
+    return true
+  }
+  return false
+}
+
+/** Remove db nodes when user/intent excludes database access. */
+export function stripNodesContradictingIntent<T extends {
+  trigger: { type: string; id: string } | null
+  steps: Array<{ id: string; type: string }>
+  edges: Array<{ source: string; target: string; id?: string }>
+}>(flow: T, state: ConversationState): T {
+  if (!shouldStripDbNodes(state)) return flow
+
+  const removedIds = new Set(
+    flow.steps.filter((s) => s.type === 'db_query' || s.type === 'db_write').map((s) => s.id),
+  )
+
+  if (removedIds.size === 0) return flow
+
+  const steps = flow.steps.filter((s) => !removedIds.has(s.id))
+  const edges = flow.edges.filter((e) => !removedIds.has(e.source) && !removedIds.has(e.target))
+
+  return { ...flow, steps, edges } as T
+}
+
+/** Map 09:00 Asia/Dhaka to UTC cron (scheduler uses UTC). */
+export function applyCronTimezoneDefaults<T extends {
+  trigger: { type: string; config?: Record<string, unknown>; label?: string } | null
+}>(flow: T, state: ConversationState): T {
+  if (!flow.trigger || flow.trigger.type !== 'cron_trigger') return flow
+
+  const config = { ...(flow.trigger.config ?? {}) }
+  const tz = state.resolvedParams.timezone ?? ''
+  const isBd = tz === 'Asia/Dhaka' || TIMEZONE_BD_RE.test(JSON.stringify(state.resolvedParams))
+
+  if (isBd) {
+    const schedule = String(config.schedule ?? config.cron_expression ?? '0 9 * * *')
+    if (schedule === '0 9 * * *' || !config.schedule) {
+      config.schedule = '0 3 * * *'
+      config.timezone_label = 'Asia/Dhaka 09:00 (cron 03:00 UTC)'
+    }
+  }
+
+  const label = flow.trigger.label ?? 'Scheduled trigger'
+  const trigger = {
+    ...flow.trigger,
+    config,
+    label: config.timezone_label ? `Daily ${config.timezone_label}` : label,
+  }
+
+  return { ...flow, trigger } as T
+}
+
+const FETCH_NODE_TYPES = new Set(['slack_fetch_messages', 'gmail_fetch_unread', 'db_query', 'api_call', 'mcp_tool'])
+const LLM_TYPES = new Set(['openai_llm', 'gemini_llm', 'anthropic_llm', 'custom_llm'])
+const ANTI_HALLUCINATION = 'Never invent data. If upstream messages, rows, or emails are empty or missing, output a short error report explaining the fetch failed — do not fabricate content.'
+
+export function applyLlmAntiHallucinationGuards<T extends {
+  steps: Array<{ type: string; config?: Record<string, unknown> }>
+  edges: Array<{ source: string; target: string }>
+}>(flow: T): T {
+  const upstreamOf = new Map<string, Set<string>>()
+  for (const edge of flow.edges) {
+    if (!upstreamOf.has(edge.target)) upstreamOf.set(edge.target, new Set())
+    upstreamOf.get(edge.target)!.add(edge.source)
+  }
+
+  const nodeById = new Map(flow.steps.map((s) => [(s as { id: string }).id, s]))
+
+  const steps = flow.steps.map((step) => {
+    if (!LLM_TYPES.has(step.type)) return step
+
+    const stepId = (step as { id: string }).id
+    const upstream = upstreamOf.get(stepId) ?? new Set()
+    let followsFetch = false
+    for (const upId of upstream) {
+      const upNode = nodeById.get(upId)
+      if (upNode && FETCH_NODE_TYPES.has(upNode.type)) {
+        followsFetch = true
+        break
+      }
+    }
+
+    if (!followsFetch) return step
+
+    const config = { ...(step.config ?? {}) }
+    const system = String(config.system_prompt ?? '')
+    if (!system.includes('Never invent')) {
+      config.system_prompt = system ? `${system}\n\n${ANTI_HALLUCINATION}` : ANTI_HALLUCINATION
+    }
+    return { ...step, config }
+  })
+
+  return { ...flow, steps } as T
+}
+
+export function normalizeFlowForIntent<T extends {
+  trigger: { type: string; config?: Record<string, unknown>; label?: string; id: string } | null
+  steps: Array<{ id: string; type: string; config?: Record<string, unknown> }>
+  edges: Array<{ source: string; target: string; id?: string }>
+}>(flow: T, state: ConversationState): T {
+  let result = stripNodesContradictingIntent(flow, state)
+  result = applyCronTimezoneDefaults(result, state)
+  result = applyLlmAntiHallucinationGuards(result)
+  return result
+}
+
+export function buildFlowSummaryMessage(
+  flow: { trigger: { type: string; label?: string } | null; steps: Array<{ type: string; label?: string }> },
+  setupHints: string[] = [],
+): string {
+  const nodeCount = flow.steps.length + (flow.trigger ? 1 : 0)
+  const parts: string[] = [`Built a ${nodeCount}-node flow on the canvas.`]
+
+  if (flow.trigger) {
+    parts.push(`Trigger: ${flow.trigger.label ?? flow.trigger.type}.`)
+  }
+
+  const tools = flow.steps.filter((s) =>
+    ['slack_fetch_messages', 'gmail_fetch_unread', 'db_query', 'mcp_tool', 'slack_notify', 'email_output'].includes(s.type),
+  )
+  if (tools.length) {
+    parts.push(`Steps: ${tools.map((t) => t.label ?? t.type).join(' → ')}.`)
+  }
+
+  if (setupHints.length) {
+    parts.push(`Before first run: ${setupHints.join(' ')}`)
+  }
+
+  parts.push('Click Run to test, or tell me what to change.')
+  return parts.join(' ')
+}
+
+export function collectSetupHints(
+  flow: { steps: Array<{ type: string }> },
+  state: ConversationState,
+): string[] {
+  const hints: string[] = []
+  const hasSlackFetch = flow.steps.some((s) => s.type === 'slack_fetch_messages')
+  if (hasSlackFetch) {
+    const ch = state.resolvedParams.slack_channel_id
+    hints.push(ch
+      ? `Invite your Slack bot to channel ${ch} (/invite @Bot).`
+      : 'Invite your Slack bot to the target Slack channel (/invite @Bot).')
+  }
+  return hints
 }

@@ -127,6 +127,8 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
+  /** Design chat message styling: clarification, success, error, hint */
+  message_type?: "clarification" | "success" | "error" | "hint" | "normal";
 }
 
 export interface AgentBuilderPrompt {

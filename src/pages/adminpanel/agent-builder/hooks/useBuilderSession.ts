@@ -43,7 +43,10 @@ type CompileResult = {
   version_id?: string;
   version?: number;
   ai_message?: string;
+  user_message?: string;
+  setup_hints?: string[];
   message?: string;
+  message_type?: ChatMessage["message_type"];
   chat_history?: ChatMessage[];
   needs_clarification?: boolean;
   question?: string;
@@ -129,7 +132,8 @@ function handleCompileResult(
     if (!result.chat_history?.length) {
       const aiMsg: ChatMessage = {
         role: "assistant",
-        content: result.ai_message ?? "Flow updated.",
+        content: result.user_message ?? result.ai_message ?? "Flow updated.",
+        message_type: result.message_type ?? "success",
         timestamp: new Date().toISOString(),
       };
       setChatHistory((prev) => [...prev, aiMsg]);
@@ -147,7 +151,8 @@ function handleCompileResult(
     if (!result.chat_history?.length) {
       const questionMsg: ChatMessage = {
         role: "assistant",
-        content: result.question,
+        content: result.user_message ?? result.question,
+        message_type: "clarification",
         timestamp: new Date().toISOString(),
       };
       setChatHistory((prev) => [...prev, questionMsg]);
@@ -155,11 +160,12 @@ function handleCompileResult(
     return null;
   }
 
-  const failMsg = result.message ?? result.ai_message ?? result.error ?? "Could not generate a valid flow. Please try rephrasing.";
+  const failMsg = result.message ?? result.user_message ?? result.ai_message ?? result.error ?? "Could not generate a valid flow. Please try rephrasing.";
   if (!result.chat_history?.length) {
     const failChatMsg: ChatMessage = {
       role: "assistant",
       content: failMsg,
+      message_type: "error",
       timestamp: new Date().toISOString(),
     };
     setChatHistory((prev) => [...prev, failChatMsg]);

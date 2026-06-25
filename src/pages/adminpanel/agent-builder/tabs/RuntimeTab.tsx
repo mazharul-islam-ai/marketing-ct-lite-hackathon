@@ -156,9 +156,22 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
       : null;
 
   const routingStopped = run.status === "completed" && detectSwitchRoutingStop(runSteps);
+  const failedStep = runSteps.find((s) => s.status === "failed");
 
   return (
     <div className={cn("flex flex-col h-full", ab.canvas)}>
+      {run.status === "failed" && (
+        <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 space-y-1">
+          <p className="font-semibold flex items-center gap-1.5">
+            <XCircle className="w-3.5 h-3.5 shrink-0" />
+            Run failed
+          </p>
+          {run.error_message && <p>{run.error_message}</p>}
+          {failedStep?.error && !run.error_message?.includes(failedStep.error) && (
+            <p className="text-red-700">{failedStep.label}: {failedStep.error}</p>
+          )}
+        </div>
+      )}
       <div className={cn("px-4 py-3", ab.toolbar)}>
         <div className="flex items-center justify-between">
           <div>
