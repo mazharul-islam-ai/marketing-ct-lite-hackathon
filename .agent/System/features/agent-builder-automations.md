@@ -116,9 +116,11 @@ Before generating flows, `compile-agent-flow`:
 
 1. Loads `organization_integrations` where `is_active = true`
 2. Builds allowed node list via `_shared/agent-builder-integrations.ts`
-3. Pre-checks prompt keywords (Gmail, Slack, email delivery, etc.)
-4. Returns `needs_clarification` if required integration is missing
+3. Injects CONFIGURED / NOT CONFIGURED integrations into the compiler kernel so the LLM can set `clarification_needed` when a flow truly requires a missing integration
+4. Post-compile validation rejects invalid node types, tables, and MCP references
 5. Streams real compile phases to Builder Chat via SSE (`stream: true`)
+
+Missing integrations are **not** blocked by regex pre-checks on prompt keywords. The LLM decides when Slack/Gmail/ActiveCollab/etc. are actually required for the workflow (e.g. "ActiveCollab" in Slack message text does not require the ActiveCollab integration).
 
 ### Data source clarifications (DB queries)
 
@@ -205,7 +207,6 @@ Draft agents do not appear on `/ai-agents` until published with Workspace visibi
 |-------|------------|
 | `checking_provider` | Checking AI provider… |
 | `loading_integrations` | Checking configured tools… |
-| `validating_tools` | Validating tool availability… |
 | `loading_context` | Loading flow context… |
 | `thinking` | Thinking… |
 | `designing_flow` | Designing workflow… |

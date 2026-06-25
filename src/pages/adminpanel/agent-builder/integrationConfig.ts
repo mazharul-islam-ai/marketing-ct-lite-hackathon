@@ -37,7 +37,6 @@ export const ALWAYS_AVAILABLE_NODE_TYPES: NodeType[] = [
 export const COMPILE_PHASE_LABELS: Record<string, string> = {
   checking_provider: "Checking AI provider…",
   loading_integrations: "Checking configured tools…",
-  validating_tools: "Validating tool availability…",
   loading_context: "Loading flow context…",
   thinking: "Thinking…",
   designing_flow: "Designing workflow…",
@@ -48,7 +47,6 @@ export const COMPILE_PHASE_LABELS: Record<string, string> = {
 export const COMPILE_PHASE_ORDER = [
   "checking_provider",
   "loading_integrations",
-  "validating_tools",
   "loading_context",
   "thinking",
   "designing_flow",

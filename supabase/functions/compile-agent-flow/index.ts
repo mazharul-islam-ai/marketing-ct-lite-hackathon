@@ -3,7 +3,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import {
   buildPlatformOverview,
-  checkPromptIntegrations,
   getAllowedNodeTypes,
   buildMcpToolsBlock,
   validateMcpToolNodes,
@@ -389,8 +388,8 @@ async function loadCustomSystemPrompt(
 //
 // Architecture: Context-Document + LLM-First (aligned with Cursor/Lovable patterns).
 // The LLM receives full structured context (platform state + resolved conversation
-// facts) and makes ALL clarification decisions. No regex pre-checks intercept before
-// this prompt reaches the model.
+// facts) and makes ALL clarification decisions, including missing integrations via
+// clarification_needed. Post-compile validation checks flow output, not input keywords.
 function buildSystemPrompt(
   personaPrefix: string | null | undefined,
   configuredTypes: Set<string>,
@@ -1225,15 +1224,6 @@ serve(async (req) => {
     const allowedNodeTypes = getAllowedNodeTypes(configuredTypes, hasMcpServers)
     const allowedSet = new Set(allowedNodeTypes)
     const flowSchema = buildCompileResponseSchema(allowedNodeTypes)
-
-    emit('validating_tools')
-    const integrationCheck = checkPromptIntegrations(prompt, configuredTypes)
-    if (integrationCheck) {
-      return await upsertClarification(
-        supabase, agent_id, user.id, prompt, integrationCheck.question,
-        (await supabase.from('builder_sessions').select('chat_history').eq('agent_id', agent_id).eq('user_id', user.id).maybeSingle()).data?.chat_history ?? [],
-      )
-    }
 
     emit('loading_context')
     const { data: session } = await supabase

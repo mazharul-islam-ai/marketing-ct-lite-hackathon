@@ -45,7 +45,6 @@ export const ALL_NODE_TYPES = [
 export const COMPILE_PHASES = {
   checking_provider: 'Checking AI provider…',
   loading_integrations: 'Checking configured tools…',
-  validating_tools: 'Validating tool availability…',
   loading_context: 'Loading flow context…',
   thinking: 'Thinking…',
   designing_flow: 'Designing workflow…',
@@ -54,45 +53,6 @@ export const COMPILE_PHASES = {
 } as const
 
 export type CompilePhase = keyof typeof COMPILE_PHASES
-
-/** Keyword → required integration_type */
-export const PROMPT_INTEGRATION_REQUIREMENTS: Array<{
-  patterns: RegExp
-  integrationType: string
-  label: string
-  configurePath: string
-}> = [
-  {
-    patterns: /\b(unread\s+email|read\s+(my\s+)?email|gmail\s+inbox|fetch\s+email|email\s+inbox)\b/i,
-    integrationType: 'gmail',
-    label: 'Gmail',
-    configurePath: '/adminpanel/integrations',
-  },
-  {
-    patterns: /\b(slack|post\s+to\s+slack|notify\s+.*slack|read\s+slack|fetch\s+slack|slack\s+messages?|slack\s+channel)\b/i,
-    integrationType: 'slack',
-    label: 'Slack',
-    configurePath: '/adminpanel/integrations',
-  },
-  {
-    patterns: /\b(send\s+(an?\s+)?email|email\s+(it|me|summary|report)|deliver\s+via\s+email)\b/i,
-    integrationType: 'sendgrid',
-    label: 'SendGrid or Resend',
-    configurePath: '/adminpanel/integrations',
-  },
-  {
-    patterns: /\b(activecollab|ac\s+tasks|project\s+tasks)\b/i,
-    integrationType: 'activecollab',
-    label: 'ActiveCollab',
-    configurePath: '/adminpanel/integrations',
-  },
-  {
-    patterns: /\b(hubspot|crm\s+deals|crm\s+contacts)\b/i,
-    integrationType: 'hubspot',
-    label: 'HubSpot',
-    configurePath: '/adminpanel/integrations',
-  },
-]
 
 export function getAllowedNodeTypes(configuredTypes: Set<string>, hasMcpServers = false): string[] {
   const allowed = new Set<string>(ALWAYS_AVAILABLE_NODE_TYPES)
@@ -114,34 +74,6 @@ export function getAllowedNodeTypes(configuredTypes: Set<string>, hasMcpServers 
   }
 
   return [...allowed]
-}
-
-export function checkPromptIntegrations(
-  prompt: string,
-  configuredTypes: Set<string>,
-): { missing: string; question: string } | null {
-  for (const req of PROMPT_INTEGRATION_REQUIREMENTS) {
-    if (!req.patterns.test(prompt)) continue
-
-    if (req.integrationType === 'sendgrid') {
-      if (!configuredTypes.has('sendgrid') && !configuredTypes.has('resend')) {
-        return {
-          missing: req.integrationType,
-          question: `${req.label} is not configured. Go to Admin → Integrations Hub (${req.configurePath}) and connect an email provider (SendGrid or Resend), then try again.`,
-        }
-      }
-      continue
-    }
-
-    if (!configuredTypes.has(req.integrationType)) {
-      return {
-        missing: req.integrationType,
-        question: `${req.label} is not configured. Go to Admin → Integrations Hub (${req.configurePath}) and connect ${req.label}, then try again.`,
-      }
-    }
-  }
-
-  return null
 }
 
 /** All queryable tables defined in Agent Builder Settings → Data Sources */
@@ -169,16 +101,33 @@ export interface ConversationState {
   userExclusions: string[]
 }
 
+/** Workflow-type hints — scan full conversation (history + current prompt). */
 const WORKFLOW_HINT_PATTERNS: Array<{ pattern: RegExp; hint: string }> = [
   { pattern: /\b(slack|channel)\b/i, hint: 'slack' },
   { pattern: /\b(gmail|email\s+inbox|unread\s+email)\b/i, hint: 'gmail' },
   { pattern: /\b(send\s+email|email\s+(report|summary|me))\b/i, hint: 'email_send' },
-  { pattern: /\b(hubspot|crm\s+(deals?|contacts?))\b/i, hint: 'hubspot' },
-  { pattern: /\b(activecollab|ac\s+tasks?)\b/i, hint: 'activecollab' },
-  { pattern: /\b(google\s+analytics|ga\s+data)\b/i, hint: 'google_analytics' },
-  { pattern: /\b(google\s+drive|gdrive)\b/i, hint: 'google_drive' },
   { pattern: /\b(mcp\s+tool|mcp\s+server|external\s+mcp)\b/i, hint: 'mcp' },
   { pattern: /\b(db_query|database|query\s+(the\s+)?table|from\s+(the\s+)?table)\b/i, hint: 'db' },
+]
+
+/** Integration-intent hints — current user prompt only (avoid false positives from pasted logs/content). */
+const INTEGRATION_HINT_PATTERNS: Array<{ pattern: RegExp; hint: string }> = [
+  {
+    pattern: /\b(?:sync|fetch|pull|connect|from|to|with|in)\s+(?:\w+\s+){0,4}(?:activecollab|ac\s+tasks?)\b|\bactivecollab\s+(?:sync|tasks|api|projects?)\b/i,
+    hint: 'activecollab',
+  },
+  {
+    pattern: /\b(?:sync|fetch|pull|connect|from|update)\s+(?:\w+\s+){0,4}hubspot\b|\bhubspot\s+(?:sync|deals|contacts)\b|\b(?:sync|fetch)\s+crm\s+(?:deals?|contacts?)\b/i,
+    hint: 'hubspot',
+  },
+  {
+    pattern: /\b(?:sync|fetch|pull|connect|from)\s+(?:\w+\s+){0,3}google\s+analytics\b|\b(?:ga\s+data|google\s+analytics\s+(?:sync|data|report))\b/i,
+    hint: 'google_analytics',
+  },
+  {
+    pattern: /\b(?:sync|fetch|pull|connect|from)\s+(?:\w+\s+){0,3}(?:google\s+drive|gdrive)\b|\b(?:google\s+drive|gdrive)\s+(?:sync|files?|folder)\b/i,
+    hint: 'google_drive',
+  },
 ]
 
 const TIMEZONE_BD_RE = /\b(bd\s*(local\s*)?time|bangladesh|asia\/dhaka|utc\+6)\b/i
@@ -211,10 +160,19 @@ export function extractConversationState(
 
   const historyText = chatHistory.map((m) => m.content).join('\n')
   const allText = currentPrompt ? `${historyText}\n${currentPrompt}` : historyText
+  const promptText = (currentPrompt ?? '').trim()
 
   for (const { pattern, hint } of WORKFLOW_HINT_PATTERNS) {
     if (pattern.test(allText) && !state.workflowHints.includes(hint)) {
       state.workflowHints.push(hint)
+    }
+  }
+
+  if (promptText) {
+    for (const { pattern, hint } of INTEGRATION_HINT_PATTERNS) {
+      if (pattern.test(promptText) && !state.workflowHints.includes(hint)) {
+        state.workflowHints.push(hint)
+      }
     }
   }
   state.workflowHint = state.workflowHints[0] ?? null
