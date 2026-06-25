@@ -445,6 +445,8 @@ STRUCTURAL RULES:
 16. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON.
 17. Cron schedules run in UTC — for Asia/Dhaka 09:00 daily use schedule "0 3 * * *" and timezone_label on the trigger.
 18. db_query config.table MUST be one of the enabled tables in WORKSPACE TOOLCHAIN when database access is needed.
+19. After slack_fetch_messages, the next LLM step prompt MUST include {{messages}} (use the fetch node id if needed, e.g. {{n2.messages}}). After gmail_fetch_unread, include {{emails}}. Never summarize Slack/Gmail without injecting fetched data into the LLM prompt.
+20. LLM nodes output a "result" field. In dashboard_write, report_generate, slack_notify, and email_output use {{nX.result}} (node-scoped) — never {{nX.output}}, {{nX.text}}, or bare {{result}} unless you also set upstream context explicitly.
 
 COMMON PATTERNS — use these exact node types:
 - "retrieve unread emails / Gmail inbox"              → gmail_fetch_unread

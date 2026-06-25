@@ -428,10 +428,10 @@ const CONFIG_GUIDELINES: Record<string, string> = {
   gmail_fetch_unread: '{ "max_results": 25 }',
   crm_update: '{ "table": "deals", "id_variable": "{{deal_id}}" }',
   mcp_tool: '{ "server_id": "<uuid>", "tool_name": "echo", "arguments": { "text": "{{input}}" } }',
-  dashboard_write: '{ "title": "Weekly Summary" }',
+  dashboard_write: '{ "title": "Weekly Summary", "content": "{{n3.result}}" }',
   email_output: '{ "to": "{{recipient}}", "subject": "Report" }',
   db_write: '{ "table": "audit_logs" }',
-  report_generate: '{ "title": "Agent Report" }',
+  report_generate: '{ "title": "Agent Report", "content": "{{n3.result}}" }',
 }
 
 const CATALOG_CATEGORY_ORDER = ['Triggers', 'Logic', 'AI', 'Tools', 'Outputs']
@@ -761,6 +761,71 @@ export function applyLlmAntiHallucinationGuards<T extends {
   return { ...flow, steps } as T
 }
 
+const OUTPUT_NODE_TYPES = new Set(['dashboard_write', 'report_generate'])
+const LLM_NODE_TYPES_SET = new Set(['openai_llm', 'gemini_llm', 'anthropic_llm', 'custom_llm'])
+const TEMPLATE_STRING_KEYS = ['content', 'message', 'body', 'title', 'prompt', 'system_prompt', 'subject'] as const
+
+/** Fix {{nX.output}}/{{nX.text}} → {{nX.result}}; auto-wire dashboard content from upstream LLM */
+export function normalizeOutputNodeTemplates<T extends {
+  steps: Array<{ id: string; type: string; config?: Record<string, unknown> }>
+  edges: Array<{ source: string; target: string }>
+}>(flow: T): T {
+  const upstreamOf = new Map<string, string[]>()
+  for (const edge of flow.edges) {
+    const list = upstreamOf.get(edge.target) ?? []
+    list.push(edge.source)
+    upstreamOf.set(edge.target, list)
+  }
+
+  const nodeById = new Map(flow.steps.map((s) => [s.id, s]))
+
+  const findUpstreamLlmId = (nodeId: string): string | null => {
+    const visited = new Set<string>()
+    const queue = [...(upstreamOf.get(nodeId) ?? [])]
+    let llmId: string | null = null
+    while (queue.length) {
+      const id = queue.shift()!
+      if (visited.has(id)) continue
+      visited.add(id)
+      const node = nodeById.get(id)
+      if (node && LLM_NODE_TYPES_SET.has(node.type)) llmId = id
+      queue.push(...(upstreamOf.get(id) ?? []))
+    }
+    return llmId
+  }
+
+  const fixTemplateString = (value: string): string =>
+    value
+      .replace(/\{\{([a-zA-Z0-9_]+)\.text\}\}/g, '{{$1.result}}')
+      .replace(/\{\{([a-zA-Z0-9_]+)\.output\}\}/g, '{{$1.result}}')
+      .replace(/\{\{([a-zA-Z0-9_]+)\.content\}\}/g, '{{$1.result}}')
+
+  const steps = flow.steps.map((step) => {
+    const config = { ...(step.config ?? {}) }
+
+    for (const key of TEMPLATE_STRING_KEYS) {
+      const val = config[key]
+      if (typeof val === 'string') {
+        config[key] = fixTemplateString(val)
+      }
+    }
+
+    if (OUTPUT_NODE_TYPES.has(step.type)) {
+      const content = config.content
+      const llmId = findUpstreamLlmId(step.id)
+      if (llmId && (content == null || String(content).trim() === '' || String(content).trim() === '{{result}}')) {
+        config.content = `{{${llmId}.result}}`
+      } else if (typeof content === 'string') {
+        config.content = fixTemplateString(content)
+      }
+    }
+
+    return { ...step, config }
+  })
+
+  return { ...flow, steps } as T
+}
+
 export function normalizeFlowForIntent<T extends {
   trigger: { type: string; config?: Record<string, unknown>; label?: string; id: string } | null
   steps: Array<{ id: string; type: string; config?: Record<string, unknown> }>
@@ -769,6 +834,7 @@ export function normalizeFlowForIntent<T extends {
   let result = stripNodesContradictingIntent(flow, state)
   result = applyCronTimezoneDefaults(result, state)
   result = applyLlmAntiHallucinationGuards(result)
+  result = normalizeOutputNodeTemplates(result)
   return result
 }
 

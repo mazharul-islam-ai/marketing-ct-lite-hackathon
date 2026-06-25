@@ -10,7 +10,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import type { AgentRun, RunStep } from "../types";
 import { ab } from "../agentBuilderTheme";
-import { extractRunOutput, detectSwitchRoutingStop } from "../runOutput";
+import { extractRunOutput, detectSwitchRoutingStop, findLatestLlmResult } from "../runOutput";
 
 interface RuntimeTabProps {
   currentRun: AgentRun | null;
@@ -236,7 +236,7 @@ export function RuntimeTab({ currentRun, onCancelRun }: RuntimeTabProps) {
           )}
 
           {runSteps.map((step, i) => (
-            <StepRow key={step.id} step={step} index={i + 1} />
+            <StepRow key={step.id} step={step} index={i + 1} runSteps={runSteps} />
           ))}
 
           {run.error_message && (
@@ -306,7 +306,7 @@ function OutputPanel({ run, runSteps }: { run: AgentRun; runSteps: RunStep[] }) 
   );
 }
 
-function StepRow({ step, index }: { step: RunStep; index: number }) {
+function StepRow({ step, index, runSteps }: { step: RunStep; index: number; runSteps: RunStep[] }) {
   const [expanded, setExpanded] = useState(false);
 
   const durationMs = step.duration_ms;
@@ -341,11 +341,15 @@ function StepRow({ step, index }: { step: RunStep; index: number }) {
             const out = step.output as Record<string, unknown>;
             // content field: render as markdown (report_generate / dashboard_write)
             if (out.content) {
-              const preview = String(out.content).slice(0, 400);
+              let preview = String(out.content);
+              if (/^\{\{[\w.]+\}\}$/.test(preview.trim()) || /\{\{[\w.]+\}\}/.test(preview)) {
+                preview = findLatestLlmResult(runSteps) ?? preview;
+              }
+              const display = preview.slice(0, 400);
               return (
                 <div className="mt-1 text-[11px] text-slate-600 max-h-28 overflow-y-auto prose prose-[11px] max-w-none [&_*]:text-[11px]">
                   <ReactMarkdown rehypePlugins={[rehypeRaw]}>
-                    {preview + (String(out.content).length > 400 ? "…" : "")}
+                    {display + (preview.length > 400 ? "…" : "")}
                   </ReactMarkdown>
                 </div>
               );

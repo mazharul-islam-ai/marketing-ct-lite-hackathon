@@ -110,6 +110,48 @@ export function enrichLlmContext(
     }
   }
 
+  // Slack fetch outputs { messages, count, channel } — wire for LLM {{messages}} templates
+  if (!Array.isArray(ctx.messages) || ctx.messages.length === 0) {
+    for (const val of Object.values(ctx)) {
+      if (
+        val &&
+        typeof val === "object" &&
+        !Array.isArray(val) &&
+        Array.isArray((val as Record<string, unknown>).messages)
+      ) {
+        ctx.messages = (val as Record<string, unknown>).messages;
+        if ((val as Record<string, unknown>).count != null) {
+          ctx.message_count = (val as Record<string, unknown>).count;
+        }
+        if ((val as Record<string, unknown>).channel != null) {
+          ctx.channel = (val as Record<string, unknown>).channel;
+        }
+        break;
+      }
+    }
+  }
+
+  if (!Array.isArray(ctx.messages) || ctx.messages.length === 0) {
+    for (const [key, val] of Object.entries(ctx)) {
+      if (
+        key.endsWith("_output") &&
+        val &&
+        typeof val === "object" &&
+        !Array.isArray(val) &&
+        Array.isArray((val as Record<string, unknown>).messages)
+      ) {
+        ctx.messages = (val as Record<string, unknown>).messages;
+        if ((val as Record<string, unknown>).count != null) {
+          ctx.message_count = (val as Record<string, unknown>).count;
+        }
+        if ((val as Record<string, unknown>).channel != null) {
+          ctx.channel = (val as Record<string, unknown>).channel;
+        }
+        break;
+      }
+    }
+  }
+
   return applyRowAliases(ctx);
 }
 
@@ -220,4 +262,30 @@ export function buildLlmUserPrompt(
   }
 
   return prompt;
+}
+
+/** Append Slack/email payload when the template omits standard placeholders. */
+export function ensureDataInLlmPrompt(
+  template: string,
+  ctx: Record<string, unknown>,
+): string {
+  const hasPlaceholder = /\{\{(messages|rows|data|records|emails)\}\}/.test(template);
+  if (hasPlaceholder) return template;
+
+  const messages = Array.isArray(ctx.messages) ? ctx.messages : [];
+  if (messages.length > 0) {
+    return `${template}\n\nSlack messages (JSON):\n${JSON.stringify(messages, null, 2)}`;
+  }
+
+  const rows = Array.isArray(ctx.rows) ? ctx.rows : [];
+  if (rows.length > 0) {
+    return `${template}\n\nData rows (JSON):\n${JSON.stringify(rows, null, 2)}`;
+  }
+
+  const emails = Array.isArray(ctx.emails) ? ctx.emails : [];
+  if (emails.length > 0) {
+    return `${template}\n\nEmails (JSON):\n${JSON.stringify(emails, null, 2)}`;
+  }
+
+  return template;
 }

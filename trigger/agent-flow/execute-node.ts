@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   enrichLlmContext,
   buildLlmUserPrompt,
+  ensureDataInLlmPrompt,
   runDbQuery,
   CHAT_LLM_PROMPT,
   CHAT_LLM_SYSTEM,
@@ -469,13 +470,27 @@ export const executeFlowNode = task({
         // Priority: explicit config.content → upstream LLM result → upstream content field → full input JSON.
         case "report_generate":
         case "dashboard_write": {
-          const title = String(node.config.title ?? "Agent Report");
+          const title = interpolateTemplate(String(node.config.title ?? "Agent Report"), input_data);
+          const llmFallback = findLatestLlmResultInContext(input_data);
           const rawContent =
             node.config.content ??
-            input_data.result ??
+            llmFallback ??
             input_data.content ??
             JSON.stringify(input_data, null, 2);
-          const content = String(rawContent);
+          let content = interpolateTemplate(String(rawContent), input_data);
+          if (hasUnresolvedTemplate(content)) {
+            content =
+              (typeof input_data.result === "string" ? input_data.result : null) ??
+              llmFallback ??
+              content;
+          }
+          logger.info("dashboard_write interpolated", {
+            nodeId: node.id,
+            titlePreview: title.slice(0, 80),
+            contentPreview: content.slice(0, 120),
+            hadTemplate: String(rawContent).includes("{{"),
+            usedFallback: hasUnresolvedTemplate(String(rawContent)),
+          });
           output = { generated: true, title, content, content_length: content.length };
           break;
         }
@@ -568,9 +583,20 @@ async function executeAINode(
   if (ctx.mode === "chat") {
     promptTemplate = CHAT_LLM_PROMPT;
     systemPrompt = CHAT_LLM_SYSTEM;
+  } else {
+    promptTemplate = ensureDataInLlmPrompt(promptTemplate, ctx);
   }
 
-  const prompt = interpolateTemplate(buildLlmUserPrompt(promptTemplate, ctx), ctx);
+  const builtPrompt = buildLlmUserPrompt(promptTemplate, ctx);
+  const prompt = interpolateTemplate(builtPrompt, ctx);
+  const debugLlm = {
+    messageCount: Array.isArray(ctx.messages) ? ctx.messages.length : 0,
+    rowCount: Array.isArray(ctx.rows) ? ctx.rows.length : 0,
+    promptTemplatePreview: promptTemplate.slice(0, 120),
+    promptPreview: prompt.slice(0, 300),
+    hasMessagesPlaceholder: /\{\{messages\}\}/.test(String(config.prompt ?? '')),
+  };
+  logger.info("executeAINode prompt built", debugLlm);
   const model = String(config.model ?? "gpt-4o-mini");
 
   // Resolve API key from DB (org integrations) with env var fallback
@@ -675,6 +701,29 @@ async function executeAINode(
   return { output: { result: "Provider not supported", provider }, tokens_used: 0, cost: 0 };
 }
 
+const LLM_RESULT_ALIASES = new Set(["output", "text", "content"]);
+
+function findLatestLlmResultInContext(data: Record<string, unknown>): string | null {
+  if (typeof data.result === "string" && data.result.trim()) {
+    return data.result;
+  }
+
+  let latest: string | null = null;
+  for (const [k, val] of Object.entries(data)) {
+    if (!k.endsWith("_output") || !val || typeof val !== "object" || Array.isArray(val)) continue;
+    const record = val as Record<string, unknown>;
+    const result = record.result;
+    if (typeof result === "string" && result.trim()) {
+      latest = result;
+    }
+  }
+  return latest;
+}
+
+function hasUnresolvedTemplate(value: string): boolean {
+  return /\{\{[\w.]+\}\}/.test(value);
+}
+
 // ── Simple mustache-style template interpolation ──────────────────────────
 function resolveTemplateValue(key: string, data: Record<string, unknown>): unknown {
   // Dot-path resolution e.g. "n3.result" → data["n3_output"]["result"]
@@ -695,7 +744,7 @@ function resolveTemplateValue(key: string, data: Record<string, unknown>): unkno
       if (cur !== undefined && cur !== null) return cur;
 
       const lastPart = rest.at(-1);
-      if (lastPart === "text" || lastPart === "output") {
+      if (lastPart && LLM_RESULT_ALIASES.has(lastPart)) {
         const fallback = outputRecord.result;
         if (fallback !== undefined && fallback !== null) return fallback;
       }
@@ -705,6 +754,10 @@ function resolveTemplateValue(key: string, data: Record<string, unknown>): unkno
 
   if (data[key] !== undefined && data[key] !== null) {
     return data[key];
+  }
+
+  if (key === "result") {
+    return findLatestLlmResultInContext(data);
   }
 
   if (key === "rows" || key === "clients" || key === "data" || key === "records") {
