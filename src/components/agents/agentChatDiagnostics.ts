@@ -1,14 +1,6 @@
 import type { RunStep } from "@/pages/adminpanel/agent-builder/types";
 
-const LLM_STEP_TYPES = ["openai_llm", "gemini_llm", "anthropic_llm", "custom_llm"];
-
-const FETCH_STEP_TYPES = [
-  "db_query",
-  "mcp_tool",
-  "slack_fetch_messages",
-  "gmail_fetch_unread",
-  "api_call",
-];
+import { FETCH_STEP_TYPES, LLM_STEP_TYPES } from "./agentChatActivity";
 
 export function looksLikeEmptyDataReply(content: string): boolean {
   const lower = content.toLowerCase();

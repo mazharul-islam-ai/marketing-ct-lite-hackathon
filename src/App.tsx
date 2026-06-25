@@ -117,6 +117,7 @@ import { LegacyAgentBuilderRedirect, LegacyAutomationsRedirect } from "./compone
 
 // AI Agents (Workspace + Public)
 import AIAgentsPage from "./pages/ai-agents";
+import AgentChatPage from "./pages/ai-agents/AgentChatPage";
 import AgentPublicPage from "./pages/public/AgentPublicPage";
 import ImageAnalyticsDashboard from "./pages/adminpanel/image-analytics/ImageAnalyticsDashboard";
 import EstimateListPage from "./pages/quotes/EstimateListPage";
@@ -287,6 +288,7 @@ const App = () => (
               } />
               <Route path="my-agents" element={<MyAgentsPage />} />
               <Route path="ai-agents" element={<AIAgentsPage />} />
+              <Route path="ai-agents/:agentId" element={<AgentChatPage />} />
               <Route path="weekly-client-email-summary" element={
                 <ProtectedRoute requiredMinimumRole="pm">
                   <WeeklyClientEmailSummary />

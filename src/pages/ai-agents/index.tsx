@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Bot, Play, MessageSquare, Clock, Search, Loader2, Inbox } from "lucide-react";
@@ -7,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BuilderAgentRunnerDialog } from "@/components/agents/BuilderAgentRunnerDialog";
-import { BuilderAgentChatDialog } from "@/components/agents/BuilderAgentChatDialog";
 import { getExecutionCapabilities } from "@/pages/adminpanel/agent-builder/flowCapabilities";
 import type { FlowJSON } from "@/pages/adminpanel/agent-builder/types";
 
@@ -20,12 +20,11 @@ interface WorkspaceAgent {
   flow_json: FlowJSON | null;
 }
 
-type DialogMode = "report" | "chat" | null;
-
 export default function AIAgentsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [selectedAgent, setSelectedAgent] = useState<WorkspaceAgent | null>(null);
-  const [dialogMode, setDialogMode] = useState<DialogMode>(null);
+  const [showReportDialog, setShowReportDialog] = useState(false);
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["builder-agents", "workspace"],
@@ -73,14 +72,18 @@ export default function AIAgentsPage() {
     );
   });
 
-  const openDialog = (agent: WorkspaceAgent, mode: DialogMode) => {
+  const openReportDialog = (agent: WorkspaceAgent) => {
     setSelectedAgent(agent);
-    setDialogMode(mode);
+    setShowReportDialog(true);
   };
 
-  const closeDialog = () => {
+  const closeReportDialog = () => {
     setSelectedAgent(null);
-    setDialogMode(null);
+    setShowReportDialog(false);
+  };
+
+  const openChat = (agent: WorkspaceAgent) => {
+    navigate(`/ai-agents/${agent.id}`);
   };
 
   return (
@@ -130,29 +133,20 @@ export default function AIAgentsPage() {
             <AgentCard
               key={agent.id}
               agent={agent}
-              onRunReport={() => openDialog(agent, "report")}
-              onChat={() => openDialog(agent, "chat")}
+              onRunReport={() => openReportDialog(agent)}
+              onChat={() => openChat(agent)}
             />
           ))}
         </div>
       )}
 
-      {selectedAgent && dialogMode === "report" && (
+      {selectedAgent && showReportDialog && (
         <BuilderAgentRunnerDialog
           agentId={selectedAgent.id}
           agentName={selectedAgent.name}
           versionId={selectedAgent.current_version_id}
           mode="report"
-          onClose={closeDialog}
-        />
-      )}
-
-      {selectedAgent && dialogMode === "chat" && (
-        <BuilderAgentChatDialog
-          agentId={selectedAgent.id}
-          agentName={selectedAgent.name}
-          versionId={selectedAgent.current_version_id}
-          onClose={closeDialog}
+          onClose={closeReportDialog}
         />
       )}
     </div>
