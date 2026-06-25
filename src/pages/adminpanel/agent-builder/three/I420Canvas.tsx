@@ -10,6 +10,8 @@ interface I420CanvasProps {
   fallbackVariant?: "dots" | "gradient";
   /** When true, keeps rendering even if tab is hidden */
   alwaysAnimate?: boolean;
+  /** overlay = absolute fill (default); embedded = relative fill for in-card viewports */
+  layout?: "overlay" | "embedded";
   camera?: { position: [number, number, number]; fov?: number };
 }
 
@@ -38,6 +40,7 @@ export function I420Canvas({
   className,
   fallbackVariant = "dots",
   alwaysAnimate = false,
+  layout = "overlay",
   camera = { position: [0, 0, 5], fov: 45 },
 }: I420CanvasProps) {
   const reducedMotion = useReducedMotion3d();
@@ -46,7 +49,13 @@ export function I420Canvas({
 
   if (reducedMotion) {
     return (
-      <div className={cn("absolute inset-0 overflow-hidden", className)}>
+      <div
+        className={cn(
+          layout === "embedded" ? "relative h-full w-full" : "absolute inset-0",
+          "overflow-hidden",
+          className,
+        )}
+      >
         {fallback}
       </div>
     );
@@ -55,15 +64,21 @@ export function I420Canvas({
   const frameloop = alwaysAnimate || pageVisible ? "always" : "demand";
 
   return (
-    <div className={cn("absolute inset-0 overflow-hidden pointer-events-none", className)}>
+    <div
+      className={cn(
+        layout === "embedded" ? "relative h-full w-full" : "absolute inset-0",
+        "overflow-hidden pointer-events-none [contain:strict]",
+        className,
+      )}
+    >
       <CanvasErrorBoundary fallback={fallback}>
         <Suspense fallback={fallback}>
           <Canvas
             dpr={[1, 1.5]}
             frameloop={frameloop}
             camera={camera}
-            gl={{ antialias: true, alpha: true }}
-            style={{ background: "transparent" }}
+            gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+            style={{ background: "transparent", display: "block" }}
           >
             {children}
           </Canvas>

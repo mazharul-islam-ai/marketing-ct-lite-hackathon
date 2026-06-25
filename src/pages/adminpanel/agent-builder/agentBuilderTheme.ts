@@ -68,6 +68,18 @@ export const ab = {
   /** Card shell — centered floating card on the canvas */
   cardShell:
     "bg-[hsl(40_25%_99%)] rounded-2xl border border-[hsl(35_15%_88%)] shadow-[0_8px_32px_hsl(30_20%_20%/0.08),0_2px_8px_hsl(30_20%_20%/0.04)]",
+  /** Fixed pixel grid for agent/automation artifact cards */
+  cardWidth: "w-full max-w-[520px]",
+  cardHeader: "min-h-[76px] px-5 pt-5 pb-4",
+  cardMetaStrip:
+    "h-8 px-5 flex items-center border-b border-[hsl(35_15%_88%/0.6)] text-[11px] shrink-0",
+  cardBody: "px-5 py-4 space-y-3",
+  cardModelsRow: "min-h-[44px]",
+  cardStatsRow: "min-h-[20px] text-[11px] text-slate-400",
+  cardFooter:
+    "h-14 px-5 flex items-center justify-between border-t border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] shrink-0",
+  cardTypePill:
+    "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-[hsl(40_20%_96%)] border-[hsl(35_15%_88%)] text-[hsl(30_6%_45%)]",
   /** Running glow ring around card */
   cardRunningGlow:
     "ring-2 ring-offset-2 ring-[hsl(18_52%_52%)] shadow-[0_0_24px_hsl(18_52%_52%/0.25)]",
@@ -97,6 +109,27 @@ export const ab = {
   /** Subtle node type chip on card body */
   nodeChip:
     "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[hsl(40_20%_96%)] border-[hsl(35_15%_88%)] text-[hsl(30_6%_40%)]",
+  /** 3D skeleton viewport inside agent/automation cards */
+  cardSkeletonViewport: "h-[200px] min-h-[200px] w-full",
+  /** Step strip — agent conversation path connectors */
+  stepStripAgentConnector: "text-[hsl(18_52%_52%)]",
+  /** Step strip — automation pipeline rail */
+  stepStripAutoRail: "bg-[hsl(35_15%_88%)]",
+  /** Step strip — overflow "+N more" chip */
+  stepStripOverflowChip:
+    "inline-flex items-center text-[10px] font-medium px-2 py-1 rounded-md border bg-[hsl(40_20%_96%)] border-[hsl(35_15%_88%)] text-[hsl(30_6%_45%)] shrink-0",
+  /** Step strip — running highlight on agent chips */
+  stepStripRunningAgent:
+    "ring-2 ring-[hsl(18_52%_52%)] ring-offset-1 shadow-[0_0_8px_hsl(18_52%_52%/0.2)]",
+  /** Step strip — automation progress dot (active) */
+  stepStripRunningAutoActive: "bg-[hsl(30_15%_55%)]",
+  /** Step strip — automation progress dot (done) */
+  stepStripRunningAutoDone: "text-emerald-600",
+  /** Step strip — automation progress dot (pending) */
+  stepStripRunningAutoPending: "border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)]",
+  /** Model name chip on card */
+  modelChip:
+    "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border bg-[hsl(40_20%_96%)] border-[hsl(35_15%_88%)] text-[hsl(30_6%_40%)] font-mono",
   /** Canvas toolbar (view toggle bar above canvas) */
   canvasToolbar:
     "flex items-center gap-1 px-3 h-9 border-b border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] shrink-0",
