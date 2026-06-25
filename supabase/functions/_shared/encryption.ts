@@ -78,6 +78,9 @@ export async function encryptValue(plaintext: string): Promise<string> {
     return btoa(String.fromCharCode(...combined));
   } catch (error) {
     console.error('Encryption error:', error);
+    if (error instanceof Error && error.message.includes('ENCRYPTION_KEY')) {
+      throw error;
+    }
     throw new Error('Failed to encrypt value');
   }
 }

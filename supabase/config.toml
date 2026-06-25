@@ -14,3 +14,6 @@ verify_jwt = true
 
 [functions.slack-messages]
 verify_jwt = false
+
+[functions.mcp-manage]
+verify_jwt = true

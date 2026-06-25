@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-import { encryptValue, decryptValue } from '../_shared/encryption.ts'
+import { encryptValue, decryptValue, isEncryptionConfigured } from '../_shared/encryption.ts'
 import { testMcpConnection, type McpServerConnection } from '../_shared/mcp-client.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -45,6 +45,16 @@ async function requireAdmin(req: Request) {
   }
 
   return { user, adminClient }
+}
+
+const ENCRYPTION_NOT_CONFIGURED =
+  'ENCRYPTION_KEY is not configured in Supabase Edge Function secrets. Set it via Dashboard → Edge Functions → Secrets, then redeploy mcp-manage.'
+
+async function encryptAuthToken(plaintext: string): Promise<string> {
+  if (!isEncryptionConfigured()) {
+    throw new Error(ENCRYPTION_NOT_CONFIGURED)
+  }
+  return encryptValue(plaintext)
 }
 
 async function connectionFromServer(server: McpServerRow): Promise<McpServerConnection> {
@@ -144,7 +154,7 @@ Deno.serve(async (req) => {
 
       let auth_token_encrypted: string | null = null
       if (auth_token && auth_type && auth_type !== 'none') {
-        auth_token_encrypted = await encryptValue(String(auth_token))
+        auth_token_encrypted = await encryptAuthToken(String(auth_token))
       }
 
       const { data: server, error } = await adminClient
@@ -247,7 +257,7 @@ Deno.serve(async (req) => {
       if (authType === 'none') {
         updates.auth_token_encrypted = null
       } else if (body.auth_token) {
-        updates.auth_token_encrypted = await encryptValue(String(body.auth_token))
+        updates.auth_token_encrypted = await encryptAuthToken(String(body.auth_token))
       }
 
       if (Object.keys(updates).length === 0) {
