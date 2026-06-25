@@ -411,6 +411,185 @@ export function buildWorkspaceToolchainBlock(config: WorkspaceToolchainConfig): 
 Listing a table or tool means it is AVAILABLE, not REQUIRED. Match workflow type to params (see CLARIFICATION PRINCIPLES).`
 }
 
+// ── Compiler kernel: node catalog, config guidelines, action modes ───────────
+
+type NodeCatalogEntry = { type: string; description: string; category: string }
+
+const NODE_CATALOG: NodeCatalogEntry[] = [
+  // Triggers
+  { type: 'cron_trigger', category: 'Triggers', description: 'Run on a recurring cron schedule' },
+  { type: 'webhook_trigger', category: 'Triggers', description: 'HTTP POST webhook starts the flow' },
+  { type: 'manual_trigger', category: 'Triggers', description: 'User starts the flow manually' },
+  { type: 'db_trigger', category: 'Triggers', description: 'Row INSERT / UPDATE / DELETE on a DB table' },
+  { type: 'crm_event_trigger', category: 'Triggers', description: 'CRM platform event (deal created, contact updated, etc.)' },
+  // Logic
+  { type: 'condition', category: 'Logic', description: 'Branch YES / NO based on a variable comparison' },
+  { type: 'switch', category: 'Logic', description: 'Route to multiple named branches based on a value' },
+  { type: 'loop', category: 'Logic', description: 'Iterate over an array variable' },
+  { type: 'delay', category: 'Logic', description: 'Pause execution for N seconds' },
+  // AI
+  { type: 'openai_llm', category: 'AI', description: 'Call OpenAI GPT models' },
+  { type: 'gemini_llm', category: 'AI', description: 'Call Google Gemini models' },
+  { type: 'anthropic_llm', category: 'AI', description: 'Call Anthropic Claude models' },
+  { type: 'custom_llm', category: 'AI', description: 'Call a custom LLM endpoint' },
+  // Tools
+  { type: 'db_query', category: 'Tools', description: 'SELECT rows from a Supabase table' },
+  { type: 'api_call', category: 'Tools', description: 'HTTP REST / GraphQL request to an external URL' },
+  { type: 'email_send', category: 'Tools', description: 'Send a transactional email' },
+  { type: 'slack_notify', category: 'Tools', description: 'Post a message to a Slack channel' },
+  { type: 'slack_fetch_messages', category: 'Tools', description: 'Fetch recent messages from a Slack channel' },
+  { type: 'gmail_fetch_unread', category: 'Tools', description: 'Fetch unread emails from Gmail inbox' },
+  { type: 'crm_update', category: 'Tools', description: 'UPDATE a CRM record (HubSpot, GoHighLevel, etc.)' },
+  { type: 'mcp_tool', category: 'Tools', description: 'Execute a registered MCP server tool' },
+  // Outputs
+  { type: 'dashboard_write', category: 'Outputs', description: 'Push metrics or data to the internal dashboard' },
+  { type: 'email_output', category: 'Outputs', description: 'Email a formatted report to recipients' },
+  { type: 'db_write', category: 'Outputs', description: 'INSERT / UPDATE rows in a Supabase table' },
+  { type: 'report_generate', category: 'Outputs', description: 'Generate a formatted PDF / markdown report' },
+]
+
+const CONFIG_GUIDELINES: Record<string, string> = {
+  cron_trigger: '{ "schedule": "0 3 * * *", "timezone_label": "Asia/Dhaka 09:00" }',
+  webhook_trigger: '{}',
+  manual_trigger: '{}',
+  db_trigger: '{ "table": "clients", "event": "INSERT" }',
+  crm_event_trigger: '{ "event_type": "deal.created" }',
+  condition: '{ "input_variable": "{{lead_score}}", "operator": ">=", "threshold": 80 }',
+  switch: '{ "input_variable": "mode", "cases": { "report": "report", "chat": "chat" } }',
+  loop: '{ "items_variable": "{{rows}}" }',
+  delay: '{ "seconds": 30 }',
+  openai_llm: '{ "model": "gpt-4o-mini", "system_prompt": "...", "prompt": "{{variable}}", "temperature": 0.3, "max_tokens": 1000 }',
+  gemini_llm: '{ "model": "gemini-1.5-flash", "prompt": "{{variable}}" }',
+  anthropic_llm: '{ "model": "claude-3-haiku-20240307", "prompt": "{{variable}}" }',
+  custom_llm: '{ "prompt": "{{variable}}" }',
+  db_query: '{ "table": "clients", "limit": 50 }',
+  api_call: '{ "url": "https://api.example.com/data", "method": "GET" }',
+  email_send: '{ "to": "{{recipient}}", "subject": "...", "body": "{{content}}" }',
+  slack_fetch_messages: '{ "channel": "C0BCJ27UQHG", "limit": 25 }',
+  slack_notify: '{ "channel": "#alerts", "message": "{{summary}}" }',
+  gmail_fetch_unread: '{ "max_results": 25 }',
+  crm_update: '{ "table": "deals", "id_variable": "{{deal_id}}" }',
+  mcp_tool: '{ "server_id": "<uuid>", "tool_name": "echo", "arguments": { "text": "{{input}}" } }',
+  dashboard_write: '{ "title": "Weekly Summary" }',
+  email_output: '{ "to": "{{recipient}}", "subject": "Report" }',
+  db_write: '{ "table": "audit_logs" }',
+  report_generate: '{ "title": "Agent Report" }',
+}
+
+const CATALOG_CATEGORY_ORDER = ['Triggers', 'Logic', 'AI', 'Tools', 'Outputs']
+
+/** Categorized node catalog filtered to workspace-allowed types. */
+export function buildNodeCatalogBlock(allowedNodeTypes: string[]): string {
+  const allowed = new Set(allowedNodeTypes)
+  const sections: string[] = []
+
+  for (const category of CATALOG_CATEGORY_ORDER) {
+    const entries = NODE_CATALOG.filter((n) => n.category === category && allowed.has(n.type))
+    if (entries.length === 0) continue
+    const lines = entries.map((n) => `  ${n.type.padEnd(22)} – ${n.description}`)
+    sections.push(`${category} (placed in "trigger" for triggers, "steps" for all others):\n${lines.join('\n')}`)
+  }
+
+  if (sections.length === 0) {
+    return 'VALID NODE TYPES: (none configured — connect integrations in Integrations Hub first)'
+  }
+
+  return `VALID NODE TYPES (use ONLY these exact type strings):\n\n${sections.join('\n\n')}`
+}
+
+/** Per-type config field examples for allowed node types. */
+export function buildConfigGuidelinesBlock(allowedNodeTypes: string[]): string {
+  const allowed = new Set(allowedNodeTypes)
+  const lines: string[] = []
+
+  for (const entry of NODE_CATALOG) {
+    if (!allowed.has(entry.type)) continue
+    const example = CONFIG_GUIDELINES[entry.type]
+    if (example) lines.push(`  ${entry.type.padEnd(22)} → ${example}`)
+  }
+
+  if (lines.length === 0) return ''
+
+  return `CONFIG FIELD GUIDELINES (each node needs id, type, label, config, position):
+Use {{variable_name}} for dynamic values referencing previous node outputs.
+
+${lines.join('\n')}`
+}
+
+/** Full Smart IDE wrapper + minimal flow shape example. */
+export function buildFlowShapeExampleBlock(): string {
+  return `OUTPUT FORMAT EXAMPLE (return ONLY valid JSON — no markdown fences):
+
+{
+  "user_message": "Built a daily Slack digest: cron at 09:00 Asia/Dhaka, fetches #general, summarizes with GPT, posts back to Slack.",
+  "clarification_needed": false,
+  "flow": {
+    "trigger": {
+      "id": "n1",
+      "type": "cron_trigger",
+      "label": "Daily 09:00 Asia/Dhaka",
+      "config": { "schedule": "0 3 * * *", "timezone_label": "Asia/Dhaka 09:00" },
+      "position": { "x": 0, "y": 200 }
+    },
+    "steps": [
+      {
+        "id": "n2",
+        "type": "slack_fetch_messages",
+        "label": "Fetch channel messages",
+        "config": { "channel": "C0BCJ27UQHG", "limit": 25 },
+        "position": { "x": 220, "y": 200 }
+      },
+      {
+        "id": "n3",
+        "type": "openai_llm",
+        "label": "Summarize messages",
+        "config": {
+          "model": "gpt-4o-mini",
+          "system_prompt": "Summarize Slack messages concisely.",
+          "prompt": "Messages:\\n{{messages}}",
+          "temperature": 0.3,
+          "max_tokens": 1000
+        },
+        "position": { "x": 440, "y": 200 }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "n1", "target": "n2" },
+      { "id": "e2", "source": "n2", "target": "n3" }
+    ]
+  }
+}
+
+When clarifying (no flow yet):
+{
+  "user_message": "Which Slack channel should I read from? (channel ID like C0ABC123 or #channel-name)",
+  "clarification_needed": true,
+  "flow": null
+}`
+}
+
+export type CompileActionMode = 'generate' | 'improve' | 'add_tool'
+
+/** Action mode instructions (generate / improve / add_tool). */
+export function buildActionModeBlock(action: CompileActionMode | string): string {
+  const mode = action === 'improve' || action === 'add_tool' ? action : 'generate'
+
+  const modes: Record<CompileActionMode, string> = {
+    generate: `ACTION MODE: generate
+Build a complete new flow from scratch based on the user's description.
+If CURRENT FLOW STATE is appended below, treat it as reference only unless the user asks to modify it.`,
+    improve: `ACTION MODE: improve
+Modify the CURRENT FLOW (appended below) to incorporate the user's requested change.
+Preserve all nodes and edges NOT mentioned in the request — only alter what was asked.
+Return the full updated flow inside the "flow" key.`,
+    add_tool: `ACTION MODE: add_tool
+Append a new tool/step node to the CURRENT FLOW at the most logical position.
+Do NOT remove existing nodes. Wire new edges correctly. Return the full updated flow.`,
+  }
+
+  return modes[mode]
+}
+
 export function validateMcpToolNodes(
   flow: { trigger: unknown; steps: Array<{ type: string; config: Record<string, unknown> }> },
   catalog: McpToolCatalogEntry[],

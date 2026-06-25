@@ -11,6 +11,10 @@ import {
   buildResolvedContextBlock,
   sanitizePersonaPrompt,
   buildWorkspaceToolchainBlock,
+  buildNodeCatalogBlock,
+  buildConfigGuidelinesBlock,
+  buildFlowShapeExampleBlock,
+  buildActionModeBlock,
   formatValidationAsQuestion,
   hasWorkflowHint,
   userExcludedDatabase,
@@ -394,9 +398,14 @@ function buildSystemPrompt(
   enabledTables: string[],
   mcpCatalog: McpToolCatalogEntry[],
   resolvedContextBlock: string | undefined,
+  action: string = 'generate',
 ): string {
   const platformBlock = buildPlatformOverview(configuredTypes)
   const allowedList = allowedNodeTypes.join(', ')
+  const nodeCatalogBlock = buildNodeCatalogBlock(allowedNodeTypes)
+  const configGuidelinesBlock = buildConfigGuidelinesBlock(allowedNodeTypes)
+  const actionModeBlock = buildActionModeBlock(action)
+  const flowExampleBlock = buildFlowShapeExampleBlock()
   const toolchainBlock = buildWorkspaceToolchainBlock({
     configuredTypes,
     enabledTables,
@@ -408,27 +417,35 @@ function buildSystemPrompt(
 
 Your job is to convert a user's natural language description into a structured JSON workflow AND a helpful user_message for Design chat.
 
-ALLOWED NODE TYPES FOR THIS WORKSPACE (you MUST only use these exact strings):
+ALLOWED NODE TYPES FOR THIS WORKSPACE (exact strings — comma list for validation):
 ${allowedList}
+
+${nodeCatalogBlock}
+
+${configGuidelinesBlock}
 
 ${toolchainBlock}
 ${mcpDetailBlock ? `\n${mcpDetailBlock}` : ''}
 
-RULES:
-1. NEVER invent node types outside the allowed list above.
-2. Use mcp_tool only when user intent requires MCP AND a matching tool exists in WORKSPACE TOOLCHAIN / MCP detail above. Set config.server_id, config.tool_name, config.arguments (JSON object, may use {{variables}}).
-3. NEVER use nodes that require integrations not in CONFIGURED INTEGRATIONS.
-4. If the user needs a missing integration, set clarification_needed true with user_message explaining what to connect in Integrations Hub.
-5. Assign sequential node IDs: "n1", "n2", "n3", ...
-6. Position nodes left-to-right with x increasing by 200 per step, y=200 for main path, y=400 for branches.
-7. Edges must reference valid node IDs only.
-8. For condition nodes, create two edges: one with condition="YES" and one with condition="NO".
-9. The trigger field should be a single trigger node (or null for manual/on-demand workflows).
-10. For report+chat dual mode, use input_variable "mode" on switch nodes; edge conditions must be "report" and "chat"; set cases: { "report": "report", "chat": "chat" }.
-11. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
-12. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON without asking user to supply missing data.
-13. Cron schedules run in UTC — for Asia/Dhaka 09:00 daily use schedule "0 3 * * *" and note the timezone in the trigger label.
-14. db_query config.table MUST be one of the enabled tables listed in WORKSPACE TOOLCHAIN when database access is needed.
+STRUCTURAL RULES:
+1. NEVER use node types outside the allowed list above. If the user requests something unavailable, map to the closest valid type and note it in the node label, or set clarification_needed with user_message.
+2. The trigger node is always "n1". Steps continue "n2", "n3", … Assign sequential IDs.
+3. The "trigger" field holds exactly one trigger node object (or null for ad-hoc manual flows).
+4. "steps" holds every non-trigger node as an ordered array.
+5. "edges" defines directed connections using "source" and "target" (node IDs). Every edge needs "id", "source", "target".
+6. For every "condition" node, create TWO outgoing edges: condition="YES" and condition="NO".
+7. For "loop" nodes: edge from loop to first step inside the loop; edge from last step back to loop with label="loop_back".
+8. Maximum 20 nodes total (trigger + steps). If the request needs more, build a sensible subset and note omissions in user_message.
+9. Position nodes left-to-right: x increases by 220 per step; y=200 main path; y=400 YES branches; y=0 NO branches; y=600 loop bodies.
+10. Each node MUST include: id, type, label, config (object), position { x, y }.
+11. Use mcp_tool only when user intent requires MCP AND a matching tool exists in WORKSPACE TOOLCHAIN. Set config.server_id, config.tool_name, config.arguments.
+12. NEVER use nodes requiring integrations not in CONFIGURED INTEGRATIONS.
+13. If the user needs a missing integration, set clarification_needed true with user_message explaining what to connect in Integrations Hub.
+14. For report+chat dual mode: switch with input_variable "mode"; edge conditions "report" and "chat"; cases { "report": "report", "chat": "chat" }.
+15. CHAT BRANCH (condition="chat"): MUST include db_query on the SAME table as the report branch, then openai_llm (or gemini/anthropic). Do NOT put report_generate on the chat path.
+16. Chat-path LLM config MUST use: prompt "User question: {{message}}\\n\\nData:\\n{{rows}}" and system_prompt instructing to answer from message + rows JSON.
+17. Cron schedules run in UTC — for Asia/Dhaka 09:00 daily use schedule "0 3 * * *" and timezone_label on the trigger.
+18. db_query config.table MUST be one of the enabled tables in WORKSPACE TOOLCHAIN when database access is needed.
 
 COMMON PATTERNS — use these exact node types:
 - "retrieve unread emails / Gmail inbox"              → gmail_fetch_unread
@@ -442,6 +459,8 @@ COMMON PATTERNS — use these exact node types:
 - "notify via Slack"                                  → slack_notify
 - "read / fetch Slack messages / channel history"     → slack_fetch_messages
 - "call MCP tool / external MCP server"               → mcp_tool
+
+${actionModeBlock}
 
 CLARIFICATION PRINCIPLES (follow these exactly — this is the most important section):
 Ask a clarifying question ONLY when a required parameter for the SPECIFIC workflow type
@@ -465,19 +484,7 @@ Make reasonable defaults rather than asking:
 When in doubt, build the flow with your best interpretation.
 The user can refine it — it is better to produce a flow than to ask unnecessary questions.
 
-OUTPUT FORMAT (always use this wrapper — user_message is shown in Design chat):
-{
-  "user_message": "Natural language: explain what you built, ask ONE question if blocked, or note setup steps",
-  "clarification_needed": false,
-  "flow": { "trigger": {...}, "steps": [...], "edges": [...] }
-}
-
-When clarifying (no flow yet):
-{
-  "user_message": "Your single conversational question with brief context why you need it",
-  "clarification_needed": true,
-  "flow": null
-}
+${flowExampleBlock}
 
 Rules for user_message:
 - Sound like a senior engineer pair-programming, not a robot.
@@ -1269,6 +1276,7 @@ serve(async (req) => {
       enabledTables,
       mcpCatalog,
       resolvedContextBlock || undefined,
+      action ?? 'generate',
     ) + (
       currentFlow
         ? `\n\n---\n\nCURRENT FLOW STATE (for context):\n${JSON.stringify(currentFlow, null, 2)}`

@@ -12,8 +12,8 @@ Integrations Hub (Slack, Gmail, …)
         ↓
 compile-agent-flow
   ├── Persona prefix (agent_builder_prompts — tone only)
-  ├── Compiler kernel (code — node types, validation, OUTPUT FORMAT)
-  ├── Scoped context (enabled tables only when DB intent detected)
+  ├── Compiler kernel (code — node catalog, config guidelines, structural rules, OUTPUT FORMAT)
+  ├── Always-on workspace toolchain (integrations, enabled tables, MCP tools)
   └── LLM → { user_message, clarification_needed?, flow }
         ↓
 Design chat (user_message) + canvas (flow_json)
@@ -25,11 +25,22 @@ trigger-flow-run → execute-agent-run (fail-fast on failed nodes)
 
 | Layer | Source | Editable? |
 |-------|--------|-----------|
-| Persona / tone | Settings → System Prompt (`agent_builder_prompts`) | Yes — v2 persona-only prompt seeded in `20260625100000_i420_persona_v2.sql` |
-| Node types, validation, compile protocol | `compile-agent-flow` kernel + `_shared/agent-builder-integrations.ts` | Code only |
-| Live workspace facts | Integrations, MCP catalog, enabled tables (scoped) | Settings tabs |
+| Persona / tone | Settings → System Prompt (`agent_builder_prompts`) | Yes — v2.1 persona-only prompt seeded in `20260625110000_i420_persona_v2_1.sql` |
+| Node catalog, config guidelines, structural rules, compile protocol | `compile-agent-flow` kernel + `_shared/agent-builder-integrations.ts` | Code only |
+| Live workspace facts | Integrations, MCP catalog, enabled tables (always-on toolchain) | Settings tabs |
 
 Legacy v1 system prompts that embed JSON-only structural rules are **stripped** by `sanitizePersonaPrompt()` before compile.
+
+### Compiler kernel depth
+
+The code-owned kernel (not the Settings prompt) injects v1-grade structural guidance:
+
+- **`buildNodeCatalogBlock()`** — categorized Triggers / Logic / AI / Tools / Outputs, filtered to allowed workspace types
+- **`buildConfigGuidelinesBlock()`** — per-type config examples with `{{variable}}` convention
+- **`buildFlowShapeExampleBlock()`** — full Smart IDE wrapper example with id, label, config, position, edges
+- **`buildActionModeBlock()`** — generate / improve / add_tool instructions wired to compile `action` param
+- **Structural rules** — n1 trigger IDs, max 20 nodes, condition YES/NO edges, loop_back, canvas positions (x+=220)
+- **`buildWorkspaceToolchainBlock()`** — integrations, enabled tables, MCP summary (always visible)
 
 ### Compile response protocol
 

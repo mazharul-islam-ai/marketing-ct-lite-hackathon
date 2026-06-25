@@ -912,11 +912,26 @@ export default function AgentBuilderSettings() {
         {activeTab === "system_prompt" && (
           <div className="max-w-3xl space-y-6">
             <p className="text-xs text-slate-500">
-              Define the global <strong>persona and tone</strong> for i420 Design chat. Flow structure,
-              valid node types, validation rules, and workspace context are injected automatically by the
-              compiler kernel — do not paste JSON schema or node lists here. Saving creates a new
-              immutable version; activate any past version to make it live.
+              Define the global <strong>persona and tone</strong> for i420 Design chat only. The compiler
+              kernel (in code) automatically injects node catalog, config field guidelines, JSON output
+              schema, workspace toolchain, and validation rules — do not paste those here. Saving creates
+              a new immutable version; activate any past version to make it live.
             </p>
+
+            <details className="rounded-xl border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] shadow-sm overflow-hidden group">
+              <summary className="px-4 py-3 cursor-pointer text-xs font-semibold text-slate-600 hover:bg-[hsl(40_20%_97%)] list-none flex items-center gap-2">
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-open:rotate-90 transition-transform" />
+                What the compiler adds automatically
+              </summary>
+              <ul className="px-4 pb-4 pt-1 text-[11px] text-slate-500 space-y-1.5 list-disc list-inside border-t border-[hsl(35_15%_88%)]">
+                <li>Categorized node catalog (Triggers, Logic, AI, Tools, Outputs) filtered to your workspace</li>
+                <li>Per-node config field examples (cron schedule, db_query.table, slack channel, MCP args, etc.)</li>
+                <li>Smart IDE JSON wrapper: user_message + clarification_needed + flow</li>
+                <li>Action modes: generate, improve (patch current flow), add_tool (append step)</li>
+                <li>Always-on workspace toolchain: integrations, enabled tables, MCP tools</li>
+                <li>CLARIFICATION PRINCIPLES and post-compile validation</li>
+              </ul>
+            </details>
 
             {/* Editor */}
             <div className="rounded-xl border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] shadow-sm overflow-hidden">
