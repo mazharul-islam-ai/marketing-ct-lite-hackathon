@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   Plus, Play, Copy, Archive, Edit2, Search, Bot,
   CheckCircle2, Clock, XCircle, Loader2, MoreHorizontal,
-  Trash2, AlertTriangle, Sparkles, ArrowRight, Settings2, Check,
-  Mail, Users, Radar, ListTodo, BarChart3, Linkedin,
+  Trash2, Sparkles, ArrowRight, Settings2, Check,
+  Mail, Users, Radar, ListTodo, BarChart3, Linkedin, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { ab } from "./agentBuilderTheme";
 import { I420 } from "./i420Brand";
 import { CanvasBackground } from "./three/CanvasBackground";
+import { useAgentLifecycle } from "./hooks/useAgentLifecycle";
 import type { LucideIcon } from "lucide-react";
 import type { Agent, AgentRun } from "./types";
 
@@ -88,16 +89,18 @@ interface AgentWithStats extends Agent {
   cost_today?: number;
 }
 
+type LifecycleAction = "unpublish" | "archive" | "delete";
+
 export default function AgentBuilderList() {
   const navigate = useNavigate();
+  const { unpublishAgent, archiveAgent, deleteAgent, cloneAgent } = useAgentLifecycle();
   const [agents, setAgents] = useState<AgentWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "published" | "draft" | "archived">("all");
-  const [deleteTarget, setDeleteTarget] = useState<AgentWithStats | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [lifecycleTarget, setLifecycleTarget] = useState<{ agent: AgentWithStats; action: LifecycleAction } | null>(null);
+  const [isLifecyclePending, setIsLifecyclePending] = useState(false);
 
-  // Chatbox state
   const [chatInput, setChatInput] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -109,8 +112,8 @@ export default function AgentBuilderList() {
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    const minH = 72; // 3 lines
-    const maxH = 144; // 6 lines
+    const minH = 72;
+    const maxH = 144;
     el.style.height = "auto";
     el.style.height = `${Math.max(minH, Math.min(el.scrollHeight, maxH))}px`;
   }, [chatInput]);
@@ -153,76 +156,22 @@ export default function AgentBuilderList() {
     }
   }
 
-  async function cloneAgent(agent: Agent) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: newAgent } = await supabase
-      .from("agents" as never)
-      .insert({
-        name: `${agent.name} (copy)`,
-        description: agent.description,
-        status: "draft",
-        created_by: user.id,
-      })
-      .select("id")
-      .single() as { data: { id: string } | null };
-
-    if (!newAgent) { toast.error("Clone failed"); return; }
-
-    if (agent.current_version_id) {
-      const { data: version } = await supabase
-        .from("agent_versions" as never)
-        .select("flow_json")
-        .eq("id", agent.current_version_id)
-        .single() as { data: { flow_json: unknown } | null };
-
-      if (version) {
-        const { data: newVersion } = await supabase
-          .from("agent_versions" as never)
-          .insert({ agent_id: newAgent.id, version: 1, flow_json: version.flow_json, published_by: user.id })
-          .select("id")
-          .single() as { data: { id: string } | null };
-
-        if (newVersion) {
-          await supabase
-            .from("agents" as never)
-            .update({ current_version_id: newVersion.id })
-            .eq("id", newAgent.id);
-        }
-      }
-    }
-
-    toast.success("Agent cloned");
-    loadAgents();
-  }
-
-  async function archiveAgent(agentId: string) {
-    await supabase
-      .from("agents" as never)
-      .update({ status: "archived", updated_at: new Date().toISOString() })
-      .eq("id", agentId);
-    toast.success("Agent archived");
-    loadAgents();
-  }
-
-  async function deleteAgent() {
-    if (!deleteTarget) return;
-    setIsDeleting(true);
+  async function confirmLifecycleAction() {
+    if (!lifecycleTarget) return;
+    setIsLifecyclePending(true);
     try {
-      const { error } = await supabase
-        .from("agents" as never)
-        .delete()
-        .eq("id", deleteTarget.id) as { error: unknown };
+      const { agent, action } = lifecycleTarget;
+      let ok = false;
+      if (action === "unpublish") ok = await unpublishAgent(agent.id);
+      else if (action === "archive") ok = await archiveAgent(agent.id);
+      else if (action === "delete") ok = await deleteAgent(agent.id);
 
-      if (error) throw new Error("Delete failed");
-      toast.success(`"${deleteTarget.name}" permanently deleted`);
-      setDeleteTarget(null);
-      loadAgents();
-    } catch {
-      toast.error("Failed to delete agent");
+      if (ok) {
+        setLifecycleTarget(null);
+        loadAgents();
+      }
     } finally {
-      setIsDeleting(false);
+      setIsLifecyclePending(false);
     }
   }
 
@@ -259,6 +208,30 @@ export default function AgentBuilderList() {
     const matchesFilter = filter === "all" || a.status === filter;
     return matchesSearch && matchesFilter;
   });
+
+  const lifecycleCopy = lifecycleTarget?.action === "unpublish"
+    ? {
+        title: "Move to draft?",
+        body: "This removes the agent from /ai-agents and invalidates any public link. Scheduled runs are paused. You can keep editing in i420.",
+        confirm: "Move to draft",
+        icon: Undo2,
+        destructive: false,
+      }
+    : lifecycleTarget?.action === "archive"
+    ? {
+        title: "Archive this workflow?",
+        body: "It will move to the Archived filter only. You can delete it permanently later.",
+        confirm: "Archive",
+        icon: Archive,
+        destructive: false,
+      }
+    : {
+        title: "Delete permanently?",
+        body: "This cannot be undone. All versions, run history, and configuration will be lost.",
+        confirm: "Delete permanently",
+        icon: Trash2,
+        destructive: true,
+      };
 
   return (
     <div className={cn(ab.page, ab.canvas, "rounded-xl p-1 -m-1 relative overflow-hidden")}>
@@ -421,52 +394,68 @@ export default function AgentBuilderList() {
                 agent={agent}
                 onOpen={() => navigate(I420_ROUTES.agent(agent.id))}
                 onRun={() => runAgent(agent)}
-                onClone={() => cloneAgent(agent)}
-                onArchive={() => archiveAgent(agent.id)}
-                onDelete={() => setDeleteTarget(agent)}
+                onClone={() => cloneAgent(agent).then(() => loadAgents())}
+                onUnpublish={() => setLifecycleTarget({ agent, action: "unpublish" })}
+                onArchive={() => setLifecycleTarget({ agent, action: "archive" })}
+                onDelete={() => setLifecycleTarget({ agent, action: "delete" })}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* ── Delete Danger Modal ────────────────────────────────────── */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <Dialog open={!!lifecycleTarget} onOpenChange={(open) => !open && setLifecycleTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                lifecycleCopy.destructive ? "bg-red-100" : "bg-amber-100",
+              )}>
+                {lifecycleTarget && (
+                  <lifecycleCopy.icon className={cn("w-5 h-5", lifecycleCopy.destructive ? "text-red-600" : "text-amber-700")} />
+                )}
               </div>
-              <DialogTitle className="text-base">Delete agent permanently?</DialogTitle>
+              <DialogTitle className="text-base">{lifecycleCopy.title}</DialogTitle>
             </div>
           </DialogHeader>
 
-          <p className="text-sm text-slate-600 mt-1">
-            You are about to permanently delete{" "}
-            <span className="font-semibold text-slate-900">"{deleteTarget?.name}"</span>.
-          </p>
-          <p className="text-sm text-red-600 mt-2 bg-red-50 rounded-lg px-3 py-2 border border-red-100">
-            This action cannot be undone. All versions, run history, and configuration will be lost.
-          </p>
+          {lifecycleTarget && (
+            <>
+              <p className="text-sm text-slate-600 mt-1">
+                <span className="font-semibold text-slate-900">"{lifecycleTarget.agent.name}"</span>
+                {" — "}
+                {lifecycleCopy.body}
+              </p>
+              {lifecycleCopy.destructive && (
+                <p className="text-sm text-red-600 mt-2 bg-red-50 rounded-lg px-3 py-2 border border-red-100">
+                  Permanent deletion requires super admin permissions.
+                </p>
+              )}
+            </>
+          )}
 
           <DialogFooter className="mt-4 gap-2">
             <Button
               variant="outline"
-              onClick={() => setDeleteTarget(null)}
-              disabled={isDeleting}
+              onClick={() => setLifecycleTarget(null)}
+              disabled={isLifecyclePending}
               className="rounded-lg"
             >
               Cancel
             </Button>
             <Button
-              variant="destructive"
-              onClick={deleteAgent}
-              disabled={isDeleting}
-              className="gap-2 rounded-lg"
+              variant={lifecycleCopy.destructive ? "destructive" : "default"}
+              className={cn("gap-2 rounded-lg", !lifecycleCopy.destructive && ab.accentBtn)}
+              onClick={confirmLifecycleAction}
+              disabled={isLifecyclePending}
             >
-              {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              Delete permanently
+              {isLifecyclePending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <lifecycleCopy.icon className="w-3.5 h-3.5" />
+              )}
+              {lifecycleCopy.confirm}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -475,13 +464,12 @@ export default function AgentBuilderList() {
   );
 }
 
-// ── AgentCard ──────────────────────────────────────────────────────────────
-
 function AgentCard({
   agent,
   onOpen,
   onRun,
   onClone,
+  onUnpublish,
   onArchive,
   onDelete,
 }: {
@@ -489,11 +477,13 @@ function AgentCard({
   onOpen: () => void;
   onRun: () => void;
   onClone: () => void;
+  onUnpublish: () => void;
   onArchive: () => void;
   onDelete: () => void;
 }) {
   const lastRun = agent.last_run;
   const lastRunTime = lastRun ? formatRelativeTime(lastRun.created_at) : null;
+  const isArchived = agent.status === "archived";
 
   return (
     <div className={cn(
@@ -501,7 +491,6 @@ function AgentCard({
       ab.agentCard,
       ab.listCard3d,
     )}>
-      {/* Top gradient bar per status */}
       <div
         className={cn(
           "h-1 w-full",
@@ -512,7 +501,6 @@ function AgentCard({
       />
 
       <div className="p-4">
-        {/* Header row */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <button className="text-left flex-1 min-w-0" onClick={onOpen}>
             <p className={cn("text-sm font-semibold group-hover:text-[hsl(18_45%_38%)] transition-colors truncate", ab.textForeground)}>
@@ -525,7 +513,6 @@ function AgentCard({
           <StatusBadge status={agent.status} />
         </div>
 
-        {/* Meta row */}
         <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
           {lastRun && (
             <div className="flex items-center gap-1">
@@ -540,7 +527,6 @@ function AgentCard({
           )}
         </div>
 
-        {/* Action row */}
         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[hsl(35_15%_88%)]">
           <Button
             variant="outline"
@@ -551,16 +537,18 @@ function AgentCard({
             <Edit2 className="w-3 h-3" />
             Open
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 h-7 text-xs gap-1 rounded-lg hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700"
-            onClick={onRun}
-            disabled={!agent.current_version_id}
-          >
-            <Play className="w-3 h-3" />
-            Run
-          </Button>
+          {!isArchived && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-7 text-xs gap-1 rounded-lg hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700"
+              onClick={onRun}
+              disabled={!agent.current_version_id}
+            >
+              <Play className="w-3 h-3" />
+              Run
+            </Button>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -572,7 +560,15 @@ function AgentCard({
               <DropdownMenuItem onClick={onClone} className="gap-2">
                 <Copy className="w-3.5 h-3.5" /> Clone
               </DropdownMenuItem>
-              {agent.status !== "archived" && (
+              {agent.status === "published" && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onUnpublish} className="gap-2">
+                    <Undo2 className="w-3.5 h-3.5" /> Move to draft
+                  </DropdownMenuItem>
+                </>
+              )}
+              {agent.status === "draft" && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onArchive} className="gap-2 text-slate-500">

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Play, Square, Loader2, Globe, ChevronRight,
-  CheckCircle2, MoreHorizontal, Archive, Copy,
+  CheckCircle2, MoreHorizontal, Archive, Copy, Trash2, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,13 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +28,7 @@ import { LogsTab } from "./tabs/LogsTab";
 import { VersionsTab } from "./tabs/VersionsTab";
 import { useFlowRun } from "./hooks/useFlowRun";
 import { useAutoSaveDraft } from "./hooks/useAutoSaveDraft";
+import { useAgentLifecycle } from "./hooks/useAgentLifecycle";
 import { PublishModal } from "./PublishModal";
 import { ab } from "./agentBuilderTheme";
 import { I420, flowHasContent } from "./i420Brand";
@@ -30,6 +38,7 @@ import { I420_ROUTES } from "@/lib/i420Routes";
 import { extractCronFromFlow, computeNextRunAt } from "@/lib/automationSchedule";
 
 type StudioTab = "design" | "runtime" | "json" | "logs" | "versions";
+type LifecycleAction = "unpublish" | "archive" | "delete";
 
 export default function AgentBuilderStudio() {
   const { agentId: agentIdParam } = useParams<{ agentId: string }>();
@@ -50,7 +59,10 @@ export default function AgentBuilderStudio() {
   const [currentNodeId] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [currentVersionNumber, setCurrentVersionNumber] = useState<number | null>(null);
+  const [lifecycleAction, setLifecycleAction] = useState<LifecycleAction | null>(null);
+  const [isLifecyclePending, setIsLifecyclePending] = useState(false);
 
+  const { unpublishAgent, archiveAgent, deleteAgent, cloneAgent } = useAgentLifecycle();
   const { currentRun, isTriggering, triggerRun, cancelRun, clearRun } = useFlowRun();
 
   const initialPromptRef = useRef<string | null>(
@@ -210,19 +222,34 @@ export default function AgentBuilderStudio() {
     return visibility === "public" && data ? { publicToken: data.public_token } : undefined;
   }, [liveAgentId, currentFlow]);
 
-  const handleArchive = useCallback(async () => {
-    if (!liveAgentId) return;
-    await supabase
-      .from("agents" as never)
-      .update({ status: "archived", updated_at: new Date().toISOString() })
-      .eq("id", liveAgentId);
-    await supabase
-      .from("automations" as never)
-      .update({ is_active: false })
-      .eq("agent_id", liveAgentId);
-    toast.success("Archived");
-    navigate(I420_ROUTES.root);
-  }, [liveAgentId, navigate]);
+  const confirmLifecycleAction = useCallback(async () => {
+    if (!liveAgentId || !lifecycleAction) return;
+    setIsLifecyclePending(true);
+    try {
+      let ok = false;
+      if (lifecycleAction === "unpublish") {
+        ok = await unpublishAgent(liveAgentId);
+        if (ok) {
+          setAgent((prev) => prev ? { ...prev, status: "draft", visibility: "admin_only" } : prev);
+        }
+      } else if (lifecycleAction === "archive") {
+        ok = await archiveAgent(liveAgentId);
+        if (ok) navigate(I420_ROUTES.root);
+      } else if (lifecycleAction === "delete") {
+        ok = await deleteAgent(liveAgentId);
+        if (ok) navigate(I420_ROUTES.root);
+      }
+      if (ok) setLifecycleAction(null);
+    } finally {
+      setIsLifecyclePending(false);
+    }
+  }, [liveAgentId, lifecycleAction, unpublishAgent, archiveAgent, deleteAgent, navigate]);
+
+  const handleDuplicate = useCallback(async () => {
+    if (!agent) return;
+    const newId = await cloneAgent(agent);
+    if (newId) navigate(I420_ROUTES.agent(newId));
+  }, [agent, cloneAgent, navigate]);
 
   const handleRollback = useCallback((version: AgentVersion) => {
     setCurrentFlow(version.flow_json);
@@ -237,6 +264,31 @@ export default function AgentBuilderStudio() {
 
   const isRunActive = currentRun?.status === "running" || currentRun?.status === "queued";
   const agentStatus = agent?.status ?? "draft";
+  const isArchived = agentStatus === "archived";
+
+  const lifecycleCopy = lifecycleAction === "unpublish"
+    ? {
+        title: "Move to draft?",
+        body: "This removes the agent from /ai-agents and invalidates any public link. Scheduled runs are paused. You can keep editing in i420.",
+        confirm: "Move to draft",
+        icon: Undo2,
+        destructive: false,
+      }
+    : lifecycleAction === "archive"
+    ? {
+        title: "Archive this workflow?",
+        body: "It will move to the Archived filter only. You can delete it permanently later.",
+        confirm: "Archive",
+        icon: Archive,
+        destructive: false,
+      }
+    : {
+        title: "Delete permanently?",
+        body: "This cannot be undone. All versions, run history, and configuration will be lost.",
+        confirm: "Delete permanently",
+        icon: Trash2,
+        destructive: true,
+      };
 
   const hasFlow = flowHasContent(currentFlow);
   const isAutomationType =
@@ -365,7 +417,7 @@ export default function AgentBuilderStudio() {
                   size="sm"
                   className={cn("h-7 px-2.5 text-[11px] gap-1", ab.accentBtn)}
                   onClick={handleRun}
-                  disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId || !hasFlow}
+                  disabled={isTriggering || isCompiling || !currentVersionId || !liveAgentId || !hasFlow || isArchived}
                 >
                   {isTriggering ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                   Run
@@ -388,29 +440,54 @@ export default function AgentBuilderStudio() {
               variant="secondary"
               className="h-7 px-2.5 text-[11px] gap-1"
               onClick={() => setShowPublishModal(true)}
-              disabled={!currentVersionId || !liveAgentId || !hasFlow}
+              disabled={!currentVersionId || !liveAgentId || !hasFlow || isArchived}
             >
               <Globe className="w-3 h-3" />
               Publish
             </Button>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <MoreHorizontal className="w-3.5 h-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="text-xs min-w-[140px]">
-              <DropdownMenuItem className="gap-2">
-                <Copy className="w-3.5 h-3.5" /> Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleArchive} className="gap-2 text-muted-foreground">
-                <Archive className="w-3.5 h-3.5" /> Archive
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {liveAgentId && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="text-xs min-w-[140px]">
+                <DropdownMenuItem onClick={handleDuplicate} className="gap-2" disabled={!agent}>
+                  <Copy className="w-3.5 h-3.5" /> Duplicate
+                </DropdownMenuItem>
+                {agentStatus === "published" && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setLifecycleAction("unpublish")} className="gap-2">
+                      <Undo2 className="w-3.5 h-3.5" /> Move to draft
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {agentStatus === "draft" && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setLifecycleAction("archive")} className="gap-2 text-muted-foreground">
+                      <Archive className="w-3.5 h-3.5" /> Archive
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {agentStatus === "archived" && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setLifecycleAction("delete")}
+                      className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete permanently
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -500,6 +577,61 @@ export default function AgentBuilderStudio() {
           onClose={() => setShowPublishModal(false)}
         />
       )}
+
+      <Dialog open={!!lifecycleAction} onOpenChange={(open) => !open && setLifecycleAction(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                lifecycleCopy.destructive ? "bg-red-100" : "bg-amber-100",
+              )}>
+                <lifecycleCopy.icon className={cn("w-5 h-5", lifecycleCopy.destructive ? "text-red-600" : "text-amber-700")} />
+              </div>
+              <DialogTitle className="text-base">{lifecycleCopy.title}</DialogTitle>
+            </div>
+          </DialogHeader>
+
+          {lifecycleAction && (
+            <>
+              <p className="text-sm text-slate-600 mt-1">
+                <span className="font-semibold text-slate-900">"{agentName || displayName}"</span>
+                {" — "}
+                {lifecycleCopy.body}
+              </p>
+              {lifecycleCopy.destructive && (
+                <p className="text-sm text-red-600 mt-2 bg-red-50 rounded-lg px-3 py-2 border border-red-100">
+                  Permanent deletion requires super admin permissions.
+                </p>
+              )}
+            </>
+          )}
+
+          <DialogFooter className="mt-4 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setLifecycleAction(null)}
+              disabled={isLifecyclePending}
+              className="rounded-lg"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={lifecycleCopy.destructive ? "destructive" : "default"}
+              className={cn("gap-2 rounded-lg", !lifecycleCopy.destructive && ab.accentBtn)}
+              onClick={confirmLifecycleAction}
+              disabled={isLifecyclePending}
+            >
+              {isLifecyclePending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <lifecycleCopy.icon className="w-3.5 h-3.5" />
+              )}
+              {lifecycleCopy.confirm}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -201,6 +201,28 @@ Studio Design chat is for **editing the flow**; workspace chat is for **end-user
 
 Draft agents do not appear on `/ai-agents` until published with Workspace visibility.
 
+## Agent lifecycle (status transitions)
+
+Workflow cards on `/i420` and the studio header 3-dot menu share **`useAgentLifecycle`** (`src/pages/adminpanel/agent-builder/hooks/useAgentLifecycle.ts`).
+
+| Current status | Menu action | Effect |
+|----------------|-------------|--------|
+| **published** | Move to draft | Unpublish — hidden from `/ai-agents`, public link invalidated, scheduler paused |
+| **draft** | Archive | Soft-hide — appears under Archived filter only |
+| **archived** | Delete permanently | Hard delete (super admin RLS); cascades versions, runs, automations |
+
+**Published cards show only “Move to draft”** (no direct Archive). Unpublish first, then archive from draft.
+
+**Unpublish** sets `agents.status = draft`, `visibility = admin_only`, rotates `public_token` (column is NOT NULL), and sets `automations.is_active = false`. Public and workspace access are blocked by status/visibility even before token rotation.
+
+**Archive** sets `agents.status = archived` and pauses automations.
+
+**Delete** removes the `agents` row (CASCADE). Requires super admin per `agents_delete_admin` RLS.
+
+Lifecycle actions invalidate React Query keys `builder-agents`, `ai-agents`, and `i420-dashboard-stats` so `/ai-agents` and the dashboard hero refresh without a full reload.
+
+Confirm dialogs explain side effects before unpublish, archive, or delete. Archived agents cannot Run or Publish from the studio.
+
 ### Compile status phases
 
 | Phase | User label |
@@ -326,6 +348,7 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 | Integration mapping | `supabase/functions/_shared/agent-builder-integrations.ts` |
 | Frontend mapping | `src/pages/adminpanel/agent-builder/integrationConfig.ts` |
 | UI theme tokens | `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` |
+| Lifecycle mutations | `src/pages/adminpanel/agent-builder/hooks/useAgentLifecycle.ts` |
 | Run output helpers | `src/pages/adminpanel/agent-builder/runOutput.ts` |
 | Flow capabilities | `src/pages/adminpanel/agent-builder/flowCapabilities.ts` |
 | Chat context runtime | `trigger/agent-flow/chat-context.ts` |
