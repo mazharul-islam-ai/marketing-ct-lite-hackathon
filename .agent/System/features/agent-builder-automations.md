@@ -268,12 +268,13 @@ See **Unified Chat + Run execution model** above. Dual-mode flows must fetch dat
 
 | Symptom | Fix |
 |---------|-----|
+| Multi-stage compile: HTML 404 / `i420-compile-multi-run` not found | Run `npx trigger.dev@latest deploy`; set `TRIGGER_SECRET_KEY` on Supabase edge secrets; edge functions use REST `POST /api/v1/tasks/{taskId}/trigger` (not `/api/v3/`) |
 | "I don't have information about the first client" | Redeploy Trigger.dev; runtime prefetch + forced chat templates fix this for existing agents |
 | Chat run has only 2–3 steps (no `db_query`) | Recompile agent or rely on runtime prefetch after Trigger.dev deploy |
 | Empty `rows` in LLM step input | Enable table in i420 Studio → Settings → Data Sources; verify table has rows |
 | Report works, chat does not | Report path runs `db_query` in flow; chat needs Trigger.dev deploy for prefetch back-compat |
 
-**Deploy:** compiler → `supabase functions deploy i420-compile i420-compile-single i420-compile-multi-start i420-compile-ask`; multi-stage → `npx trigger.dev@latest deploy`; runtime → `i420-run-start` + `i420-run-execute`.
+**Deploy:** compiler → `supabase functions deploy i420-compile i420-compile-single i420-compile-multi-start i420-compile-ask`; multi-stage → `npx trigger.dev@latest deploy` (requires `TRIGGER_SECRET_KEY` on `i420-compile-multi-start`); Trigger REST trigger path → `/api/v1/tasks/{taskId}/trigger`; runtime → `i420-run-start` + `i420-run-execute`.
 
 Studio Design chat is for **editing the flow**; workspace chat is for **end-user interaction** with published agents.
 

@@ -8,7 +8,29 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const TRIGGER_SECRET_KEY = Deno.env.get('TRIGGER_SECRET_KEY') ?? ''
-const TRIGGER_COMPILE_URL = 'https://api.trigger.dev/api/v3/tasks/i420-compile-multi-run/trigger'
+const TRIGGER_COMPILE_URL = 'https://api.trigger.dev/api/v1/tasks/i420-compile-multi-run/trigger'
+
+function formatTriggerDevError(status: number, body: string, taskId: string): string {
+  const trimmed = body.trim()
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as { error?: string; message?: string }
+      return parsed.error ?? parsed.message ?? `Trigger.dev error (${status})`
+    } catch {
+      // fall through
+    }
+  }
+  if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.includes('404: Page not found')) {
+    if (status === 404) {
+      return `Trigger.dev task "${taskId}" not found (HTTP 404). Deploy tasks with: npx trigger.dev@latest deploy`
+    }
+    return `Trigger.dev returned an unexpected HTML error (HTTP ${status}). Check TRIGGER_SECRET_KEY and task deployment.`
+  }
+  if (trimmed.length > 500) {
+    return `Trigger.dev error (HTTP ${status}): ${trimmed.slice(0, 500)}…`
+  }
+  return `Trigger.dev error (HTTP ${status}): ${trimmed || 'empty response'}`
+}
 
 function stageToLabel(stageId: string | null): string {
   if (!stageId) return COMPILE_PHASES.thinking
@@ -159,11 +181,12 @@ serve(async (req) => {
 
     if (!triggerRes.ok) {
       const errText = await triggerRes.text()
+      const errMessage = formatTriggerDevError(triggerRes.status, errText, 'i420-compile-multi-run')
       await supabase.from('compile_jobs').update({
         status: 'failed',
-        error_message: errText,
+        error_message: errMessage,
       }).eq('id', jobId)
-      throw new Error(`Trigger.dev error: ${errText}`)
+      throw new Error(errMessage)
     }
 
     const runCompile = async (emit: (phase: string, label: string) => void) => {

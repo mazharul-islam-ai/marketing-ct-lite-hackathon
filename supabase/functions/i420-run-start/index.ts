@@ -6,7 +6,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const TRIGGER_SECRET_KEY = Deno.env.get('TRIGGER_SECRET_KEY') ?? ''
-const TRIGGER_API_URL = 'https://api.trigger.dev/api/v3/tasks/i420-run-execute/trigger'
+const TRIGGER_API_URL = 'https://api.trigger.dev/api/v1/tasks/i420-run-execute/trigger'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
