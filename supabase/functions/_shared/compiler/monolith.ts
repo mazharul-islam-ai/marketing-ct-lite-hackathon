@@ -1216,7 +1216,7 @@ async function callAnthropic(
 }
 
 // ── Unified LLM dispatcher ───────────────────────────────────────────────────
-async function callLLM(
+export async function callLLM(
   provider: string,
   model: string,
   apiKey: string,

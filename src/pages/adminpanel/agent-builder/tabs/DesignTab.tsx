@@ -93,7 +93,7 @@ export function DesignTab({
   flowJsonRef.current = flowJson;
 
   const firedInitialPromptRef = useRef(false);
-  const sendPromptRef = useRef<(prompt: string, action?: "generate" | "improve" | "add_tool") => Promise<FlowJSON | null>>(async () => null);
+  const sendPromptRef = useRef<(prompt: string, options?: { chatMode: "build" | "ask"; compilerMode: "single" | "multi_stage" }) => Promise<FlowJSON | null>>(async () => null);
   const leftPanelRef = useRef<ImperativePanelHandle>(null);
 
   const handleFlowUpdate = useCallback(
@@ -115,6 +115,10 @@ export function DesignTab({
     compareUnseen,
     clearCompileDiffSession,
     markCompareSeen,
+    chatMode,
+    compilerMode,
+    setChatMode,
+    setCompilerMode,
   } = useBuilderSession(
     agentId,
     handleFlowUpdate,
@@ -159,7 +163,7 @@ export function DesignTab({
 
     firedInitialPromptRef.current = true;
     onInitialPromptConsumed?.();
-    sendPromptRef.current(initialPrompt, "generate");
+    sendPromptRef.current(initialPrompt, { chatMode: "build", compilerMode });
   }, [initialPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearCompareState = useCallback(() => {
@@ -251,9 +255,9 @@ export function DesignTab({
 
   const handleExampleClick = useCallback(
     (prompt: string) => {
-      void sendPrompt(prompt, "generate");
+      void sendPrompt(prompt, { chatMode: "build", compilerMode });
     },
-    [sendPrompt],
+    [sendPrompt, compilerMode],
   );
 
   const cardSharedProps = {
@@ -322,6 +326,10 @@ export function DesignTab({
                 error={error}
                 onClearError={clearError}
                 onSendPrompt={sendPrompt}
+                chatMode={chatMode}
+                onChatModeChange={setChatMode}
+                compilerMode={compilerMode}
+                onCompilerModeChange={setCompilerMode}
                 agentName={agentName}
               />
               <button

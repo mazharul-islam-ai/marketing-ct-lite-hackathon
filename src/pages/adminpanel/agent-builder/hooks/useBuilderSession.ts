@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatMessage, FlowJSON } from "../types";
+import type { CompilerMode, DesignChatMode, SendPromptOptions } from "../integrationConfig";
 import { diffFlows } from "../flowDiff";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -28,6 +29,8 @@ interface BuilderSessionState {
   lastVersion: number | null;
   compileDiffSession: CompileDiffSession | null;
   compareUnseen: boolean;
+  chatMode: DesignChatMode;
+  compilerMode: CompilerMode;
 }
 
 export interface UseBuilderSessionOptions {
@@ -38,11 +41,41 @@ export interface UseBuilderSessionOptions {
 }
 
 interface UseBuilderSessionReturn extends BuilderSessionState {
-  sendPrompt: (prompt: string, action?: "generate" | "improve" | "add_tool") => Promise<FlowJSON | null>;
+  sendPrompt: (prompt: string, options?: SendPromptOptions) => Promise<FlowJSON | null>;
+  setChatMode: (mode: DesignChatMode) => void;
+  setCompilerMode: (mode: CompilerMode) => void;
   updateCanvasFlow: (flow: FlowJSON) => void;
   clearError: () => void;
   clearCompileDiffSession: () => void;
   markCompareSeen: () => void;
+}
+
+function chatModeStorageKey(agentId: string | null) {
+  return agentId ? `i420-chat-mode-${agentId}` : "i420-chat-mode-new";
+}
+
+function compilerModeStorageKey(agentId: string | null) {
+  return agentId ? `i420-compiler-mode-${agentId}` : "i420-compiler-mode-new";
+}
+
+function readStoredChatMode(agentId: string | null): DesignChatMode {
+  try {
+    const v = sessionStorage.getItem(chatModeStorageKey(agentId));
+    return v === "ask" ? "ask" : "build";
+  } catch {
+    return "build";
+  }
+}
+
+function readStoredCompilerMode(agentId: string | null): CompilerMode | null {
+  try {
+    const v = sessionStorage.getItem(compilerModeStorageKey(agentId));
+    if (v === "multi_stage") return "multi_stage";
+    if (v === "single") return "single";
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function nameFromPrompt(prompt: string): string {
@@ -66,12 +99,13 @@ type CompileResult = {
   error?: string;
 };
 
-async function compileWithStream(
+async function streamEdgeFunction(
+  endpoint: string,
   token: string,
   body: Record<string, unknown>,
   onStatus: (phase: string, label: string) => void,
 ): Promise<CompileResult> {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/i420-compile`, {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/${endpoint}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -83,7 +117,7 @@ async function compileWithStream(
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(errText || `Compile failed (${response.status})`);
+    throw new Error(errText || `Request failed (${response.status})`);
   }
 
   const contentType = response.headers.get("Content-Type") ?? "";
@@ -187,6 +221,45 @@ function handleCompileResult(
   return null;
 }
 
+function handleAskResult(
+  result: CompileResult,
+  setChatHistory: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  setError: (msg: string | null) => void,
+): void {
+  if (result.chat_history?.length) {
+    setChatHistory(result.chat_history);
+    return;
+  }
+
+  if (result.success) {
+    const reply = result.user_message ?? result.ai_message ?? "";
+    if (reply) {
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: reply,
+          message_type: "normal",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    }
+    return;
+  }
+
+  const failMsg = result.message ?? result.error ?? "Could not get an answer. Please try again.";
+  setChatHistory((prev) => [
+    ...prev,
+    {
+      role: "assistant",
+      content: failMsg,
+      message_type: "error",
+      timestamp: new Date().toISOString(),
+    },
+  ]);
+  setError(failMsg);
+}
+
 export function useBuilderSession(
   agentId: string | null,
   onFlowUpdate: (flow: FlowJSON) => void,
@@ -205,10 +278,15 @@ export function useBuilderSession(
   const [lastVersion, setLastVersion] = useState<number | null>(null);
   const [compileDiffSession, setCompileDiffSession] = useState<CompileDiffSession | null>(null);
   const [compareUnseen, setCompareUnseen] = useState(false);
+  const [chatMode, setChatModeState] = useState<DesignChatMode>(() => readStoredChatMode(agentId));
+  const [compilerMode, setCompilerModeState] = useState<CompilerMode>(() => readStoredCompilerMode(agentId) ?? "single");
+
   const resolvedAgentIdRef = useRef<string | null>(agentId);
   const completedPhasesRef = useRef<string[]>([]);
   const isCompilingRef = useRef(false);
   const lastVersionRef = useRef<number | null>(null);
+  const chatModeRef = useRef(chatMode);
+  const compilerModeRef = useRef(compilerMode);
 
   useEffect(() => {
     lastVersionRef.current = lastVersion;
@@ -217,6 +295,61 @@ export function useBuilderSession(
   useEffect(() => {
     resolvedAgentIdRef.current = agentId;
   }, [agentId]);
+
+  useEffect(() => {
+    chatModeRef.current = chatMode;
+  }, [chatMode]);
+
+  useEffect(() => {
+    compilerModeRef.current = compilerMode;
+  }, [compilerMode]);
+
+  useEffect(() => {
+    setChatModeState(readStoredChatMode(agentId));
+    const stored = readStoredCompilerMode(agentId);
+    if (stored) setCompilerModeState(stored);
+  }, [agentId]);
+
+  useEffect(() => {
+    async function loadOrgCompilerDefault() {
+      if (readStoredCompilerMode(agentId)) return;
+      try {
+        const { data } = await supabase
+          .from("organization_integrations" as never)
+          .select("config")
+          .eq("integration_type" as never, "agent_builder_compiler")
+          .eq("is_active" as never, true)
+          .limit(1)
+          .maybeSingle() as { data: { config?: { mode?: string } } | null };
+
+        const mode = data?.config?.mode;
+        if (mode === "multi_stage" || mode === "single") {
+          setCompilerModeState(mode);
+        }
+      } catch {
+        // keep default
+      }
+    }
+    loadOrgCompilerDefault();
+  }, [agentId]);
+
+  const setChatMode = useCallback((mode: DesignChatMode) => {
+    setChatModeState(mode);
+    try {
+      sessionStorage.setItem(chatModeStorageKey(resolvedAgentIdRef.current), mode);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const setCompilerMode = useCallback((mode: CompilerMode) => {
+    setCompilerModeState(mode);
+    try {
+      sessionStorage.setItem(compilerModeStorageKey(resolvedAgentIdRef.current), mode);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     if (!agentId) return;
@@ -273,18 +406,22 @@ export function useBuilderSession(
   const sendPrompt = useCallback(
     async (
       prompt: string,
-      action: "generate" | "improve" | "add_tool" = "generate",
+      options?: SendPromptOptions,
     ): Promise<FlowJSON | null> => {
       if (!prompt.trim()) return null;
       if (isCompilingRef.current) return null;
+
+      const effectiveChatMode = options?.chatMode ?? chatModeRef.current;
+      const effectiveCompilerMode = options?.compilerMode ?? compilerModeRef.current;
+      const isAsk = effectiveChatMode === "ask";
 
       isCompilingRef.current = true;
       setIsCompiling(true);
       setError(null);
       completedPhasesRef.current = [];
-      setCompileStatus({ phase: "checking_provider", label: "Starting…", completedPhases: [] });
+      setCompileStatus({ phase: isAsk ? "loading_context" : "checking_provider", label: "Starting…", completedPhases: [] });
 
-      const beforeFlow = getCurrentFlow?.() ?? null;
+      const beforeFlow = isAsk ? null : (getCurrentFlow?.() ?? null);
       const versionBeforeCompile = lastVersionRef.current;
 
       const userMsg: ChatMessage = { role: "user", content: prompt, timestamp: new Date().toISOString() };
@@ -325,19 +462,38 @@ export function useBuilderSession(
           throw new Error("No agent ID available");
         }
 
-        const result = await compileWithStream(
+        const onStatus = (phase: string, label: string) => {
+          setCompileStatus((prev) => {
+            const done = [...(prev?.completedPhases ?? [])];
+            if (prev?.phase && prev.phase !== phase && !done.includes(prev.phase)) {
+              done.push(prev.phase);
+            }
+            completedPhasesRef.current = done;
+            return { phase, label, completedPhases: done };
+          });
+        };
+
+        if (isAsk) {
+          const result = await streamEdgeFunction(
+            "i420-compile-ask",
+            token,
+            { prompt, agent_id: effectiveAgentId },
+            onStatus,
+          );
+          handleAskResult(result, setChatHistory, setError);
+          return null;
+        }
+
+        const result = await streamEdgeFunction(
+          "i420-compile",
           token,
-          { prompt, agent_id: effectiveAgentId, action },
-          (phase, label) => {
-            setCompileStatus((prev) => {
-              const done = [...(prev?.completedPhases ?? [])];
-              if (prev?.phase && prev.phase !== phase && !done.includes(prev.phase)) {
-                done.push(prev.phase);
-              }
-              completedPhasesRef.current = done;
-              return { phase, label, completedPhases: done };
-            });
+          {
+            prompt,
+            agent_id: effectiveAgentId,
+            action: "generate",
+            compiler_mode: effectiveCompilerMode,
           },
+          onStatus,
         );
 
         const newFlow = handleCompileResult(
@@ -404,6 +560,10 @@ export function useBuilderSession(
     lastVersion,
     compileDiffSession,
     compareUnseen,
+    chatMode,
+    compilerMode,
+    setChatMode,
+    setCompilerMode,
     sendPrompt,
     updateCanvasFlow,
     clearCompileDiffSession,

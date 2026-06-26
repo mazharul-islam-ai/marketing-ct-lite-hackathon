@@ -10,9 +10,10 @@ i420 Design chat is a **platform-integrated Smart IDE** (Cursor/Lovable-style): 
 
 | Mode | Entry edge function | Execution |
 |------|---------------------|-----------|
-| **Router (default)** | `i420-compile` | Reads `agent_builder_compiler.mode` → dispatches below |
+| **Router (default)** | `i420-compile` | Reads `agent_builder_compiler.mode` (org default); per-request `compiler_mode` in body overrides |
 | **Single-stage** | `i420-compile-single` | One LLM call via `_shared/compiler/monolith.ts` |
 | **Multi-stage (beta)** | `i420-compile-multi-start` | Trigger.dev pipeline `i420-compile-multi-run` → stages 01–06 |
+| **Ask (Q&A only)** | `i420-compile-ask` | Context-only LLM via `_shared/compiler/ask.ts` — no `flow_json`, no version saves |
 
 Legacy alias: `compile-agent-flow` proxies to `i420-compile-single`.
 
@@ -75,7 +76,21 @@ The compiler LLM returns:
 - **Success:** `user_message` summarizes what was built + setup hints (e.g. invite Slack bot)
 - **Legacy:** bare `{ trigger, steps, edges }` still accepted; server generates summary via `buildFlowSummaryMessage()`
 
-Design chat message types: `clarification` | `success` | `error` | `hint` (see `ChatMessage.message_type`).
+Design chat message types: `clarification` | `success` | `error` | `hint` | `normal` (Ask mode replies).
+
+### Design chat modes (Build vs Ask)
+
+Design chat footer controls (`BuilderChat.tsx` + `useBuilderSession.ts`):
+
+| Control | Scope |
+|---------|--------|
+| **Build** | Compiles or updates `flow_json` via `i420-compile` (SSE progress) |
+| **Ask** | Q&A only via `i420-compile-ask` — workspace context (integrations, tables, MCP catalog, current flow, chat history); no live DB/MCP queries, no canvas/version mutations |
+| **Single / Multi** | Per-compile override of org default (`agent_builder_compiler.mode` in Settings); visible only in Build mode; sent as `compiler_mode` on `i420-compile` body |
+
+Preferences (`chatMode`, `compilerMode`) persist in `sessionStorage` per agent. Org compiler default loads on mount when no session override exists.
+
+Removed UI: Generate / Improve / Add Tool buttons — Build mode always sends `action: 'generate'` (backend infers improve when a current flow exists).
 
 ### Decision engine (when to ask vs build)
 
@@ -242,7 +257,7 @@ See **Unified Chat + Run execution model** above. Dual-mode flows must fetch dat
 
 | Step | Command |
 |------|---------|
-| Compiler | `supabase functions deploy i420-compile i420-compile-single i420-compile-multi-start` |
+| Compiler | `supabase functions deploy i420-compile i420-compile-single i420-compile-multi-start i420-compile-ask` |
 | Multi stages | `npx trigger.dev@latest deploy` |
 | Runtime | `supabase functions deploy i420-run-start` + Trigger redeploy |
 | Runtime | `npx trigger.dev@latest deploy` |
@@ -258,7 +273,7 @@ See **Unified Chat + Run execution model** above. Dual-mode flows must fetch dat
 | Empty `rows` in LLM step input | Enable table in i420 Studio → Settings → Data Sources; verify table has rows |
 | Report works, chat does not | Report path runs `db_query` in flow; chat needs Trigger.dev deploy for prefetch back-compat |
 
-**Deploy:** compiler → `supabase functions deploy i420-compile i420-compile-single i420-compile-multi-start`; multi-stage → `npx trigger.dev@latest deploy`; runtime → `i420-run-start` + `i420-run-execute`.
+**Deploy:** compiler → `supabase functions deploy i420-compile i420-compile-single i420-compile-multi-start i420-compile-ask`; multi-stage → `npx trigger.dev@latest deploy`; runtime → `i420-run-start` + `i420-run-execute`.
 
 Studio Design chat is for **editing the flow**; workspace chat is for **end-user interaction** with published agents.
 
@@ -316,6 +331,7 @@ Default: `single`. Enable `multi_stage` for staged Trigger.dev pipeline.
 | Area | Path |
 |------|------|
 | Compile router | `supabase/functions/i420-compile/index.ts` |
+| Ask compile | `supabase/functions/i420-compile-ask/index.ts` + `_shared/compiler/ask.ts` |
 | Single compile | `supabase/functions/i420-compile-single/index.ts` |
 | Multi compile entry | `supabase/functions/i420-compile-multi-start/index.ts` |
 | Shared compiler | `supabase/functions/_shared/compiler/*` |

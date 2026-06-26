@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Sparkles, Zap, Wrench, CheckCircle2, HelpCircle, AlertCircle } from "lucide-react";
+import { Send, Loader2, Sparkles, CheckCircle2, HelpCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,6 +8,9 @@ import type { ChatMessage } from "../types";
 import {
   COMPILE_PHASE_LABELS,
   COMPILE_PHASE_ORDER,
+  type CompilerMode,
+  type DesignChatMode,
+  type SendPromptOptions,
 } from "../integrationConfig";
 import type { CompileStatus } from "../hooks/useBuilderSession";
 import { ab } from "../agentBuilderTheme";
@@ -19,8 +22,46 @@ interface BuilderChatProps {
   compileStatus?: CompileStatus | null;
   error?: string | null;
   onClearError?: () => void;
-  onSendPrompt: (prompt: string, action?: "generate" | "improve" | "add_tool") => void;
+  onSendPrompt: (prompt: string, options: SendPromptOptions) => void;
+  chatMode: DesignChatMode;
+  onChatModeChange: (mode: DesignChatMode) => void;
+  compilerMode: CompilerMode;
+  onCompilerModeChange: (mode: CompilerMode) => void;
   agentName?: string;
+}
+
+function SegmentedControl<T extends string>({
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className={cn("inline-flex rounded-lg border p-0.5 gap-0.5", ab.borderSoft, ab.surfaceElevated)}>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            "px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors",
+            value === opt.value
+              ? cn(ab.accentBtn, "text-white shadow-sm")
+              : cn(ab.textMuted, "hover:bg-[hsl(18_35%_95%)]"),
+            disabled && "opacity-50 cursor-not-allowed",
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** Compact inline 5-dot progress row shown in the chat message stream during compile. */
@@ -29,7 +70,6 @@ function CompileInlineProgress({ status }: { status: CompileStatus }) {
   const activeIndex = COMPILE_PHASE_ORDER.indexOf(
     status.phase as (typeof COMPILE_PHASE_ORDER)[number],
   );
-  // Map 8 phases → 5 visual dots
   const DOT_COUNT = 5;
   const activeDot = activeIndex < 0 ? 0 : Math.min(DOT_COUNT - 1, Math.floor((activeIndex / total) * DOT_COUNT));
   const doneDotCount = Math.min(DOT_COUNT - 1, Math.floor(
@@ -102,6 +142,10 @@ export function BuilderChat({
   error,
   onClearError,
   onSendPrompt,
+  chatMode,
+  onChatModeChange,
+  compilerMode,
+  onCompilerModeChange,
   agentName,
 }: BuilderChatProps) {
   const [input, setInput] = useState("");
@@ -112,18 +156,22 @@ export function BuilderChat({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, isCompiling, compileStatus?.phase]);
 
-  const handleSend = (action: "generate" | "improve" | "add_tool" = "generate") => {
+  const handleSend = () => {
     if (!input.trim() || isCompiling) return;
-    onSendPrompt(input.trim(), action);
+    onSendPrompt(input.trim(), { chatMode, compilerMode });
     setInput("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend("generate");
+      handleSend();
     }
   };
+
+  const placeholder = chatMode === "ask"
+    ? "Ask about your workspace, tools, or current flow…"
+    : "Describe or modify the workflow…";
 
   return (
     <div className={cn("flex flex-col h-full border-r", ab.chatPanel)}>
@@ -144,9 +192,13 @@ export function BuilderChat({
       <ScrollArea className="flex-1 px-3 py-3">
         {chatHistory.length === 0 && !isCompiling && (
           <div className="py-6 text-center">
-            <p className={cn("text-xs font-medium", ab.textForeground)}>Describe your workflow</p>
+            <p className={cn("text-xs font-medium", ab.textForeground)}>
+              {chatMode === "ask" ? "Ask about your workspace" : "Describe your workflow"}
+            </p>
             <p className={cn("text-[11px] mt-1", ab.textMuted)}>
-              See the canvas for examples and hints
+              {chatMode === "ask"
+                ? "Questions about tools, tables, and your current flow"
+                : "See the canvas for examples and hints"}
             </p>
           </div>
         )}
@@ -219,13 +271,37 @@ export function BuilderChat({
             )}
           </div>
         )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            value={chatMode}
+            options={[
+              { value: "build", label: "Build" },
+              { value: "ask", label: "Ask" },
+            ]}
+            onChange={onChatModeChange}
+            disabled={isCompiling}
+          />
+          {chatMode === "build" && (
+            <SegmentedControl
+              value={compilerMode}
+              options={[
+                { value: "single", label: "Single" },
+                { value: "multi_stage", label: "Multi" },
+              ]}
+              onChange={onCompilerModeChange}
+              disabled={isCompiling}
+            />
+          )}
+        </div>
+
         <div className="relative">
           <Textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Describe or modify the flow…"
+            placeholder={placeholder}
             className={cn("resize-none text-xs pr-10 min-h-[4.5rem] max-h-36 leading-6 rounded-xl", ab.input)}
             rows={3}
             disabled={isCompiling}
@@ -233,7 +309,7 @@ export function BuilderChat({
           <Button
             size="icon"
             className={cn("absolute bottom-1.5 right-1.5 h-7 w-7 rounded-lg", ab.accentBtn)}
-            onClick={() => handleSend("generate")}
+            onClick={handleSend}
             disabled={!input.trim() || isCompiling}
           >
             {isCompiling ? (
@@ -241,39 +317,6 @@ export function BuilderChat({
             ) : (
               <Send className="w-3.5 h-3.5" />
             )}
-          </Button>
-        </div>
-
-        <div className="flex gap-1.5">
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(18_35%_95%)]", ab.textMuted)}
-            onClick={() => handleSend("generate")}
-            disabled={!input.trim() || isCompiling}
-          >
-            <Sparkles className="w-3 h-3" />
-            Generate
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(18_35%_95%)]", ab.textMuted)}
-            onClick={() => handleSend("improve")}
-            disabled={!input.trim() || isCompiling}
-          >
-            <Zap className="w-3 h-3" />
-            Improve
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn("flex-1 text-[11px] h-7 gap-1 rounded-lg hover:bg-[hsl(18_35%_95%)]", ab.textMuted)}
-            onClick={() => handleSend("add_tool")}
-            disabled={!input.trim() || isCompiling}
-          >
-            <Wrench className="w-3 h-3" />
-            Add Tool
           </Button>
         </div>
       </div>

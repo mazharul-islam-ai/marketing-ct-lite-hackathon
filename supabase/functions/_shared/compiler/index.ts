@@ -1,5 +1,6 @@
 export * from './types.ts'
-export { runMonolithCompile, resolveCompilerConfig } from './monolith.ts'
+export { runMonolithCompile, resolveCompilerConfig, callLLM } from './monolith.ts'
+export { runAskCompile } from './ask.ts'
 export { loadCompilerMode, saveCompilerMode } from './compiler-config.ts'
 export { loadStageContext } from './context-loader.ts'
 export * from './job-store.ts'

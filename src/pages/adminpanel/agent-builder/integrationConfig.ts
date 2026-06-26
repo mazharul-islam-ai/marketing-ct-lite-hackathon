@@ -34,6 +34,14 @@ export const ALWAYS_AVAILABLE_NODE_TYPES: NodeType[] = [
   "dashboard_write", "report_generate",
 ];
 
+export type DesignChatMode = "build" | "ask";
+export type CompilerMode = "single" | "multi_stage";
+
+export interface SendPromptOptions {
+  chatMode: DesignChatMode;
+  compilerMode: CompilerMode;
+}
+
 export const COMPILE_PHASE_LABELS: Record<string, string> = {
   checking_provider: "Checking AI provider…",
   loading_integrations: "Checking configured tools…",
@@ -42,15 +50,25 @@ export const COMPILE_PHASE_LABELS: Record<string, string> = {
   designing_flow: "Designing workflow…",
   validating_flow: "Validating flow structure…",
   saving_version: "Saving new version…",
+  extracting_intent: "Understanding requirements…",
+  planning_architecture: "Planning workflow structure…",
+  decomposing_tasks: "Breaking into steps…",
+  assembling_flow: "Building workflow…",
+  repairing_flow: "Fixing validation issues…",
 };
 
 export const COMPILE_PHASE_ORDER = [
   "checking_provider",
   "loading_integrations",
   "loading_context",
+  "extracting_intent",
+  "planning_architecture",
+  "decomposing_tasks",
+  "assembling_flow",
   "thinking",
   "designing_flow",
   "validating_flow",
+  "repairing_flow",
   "saving_version",
 ] as const;
 
