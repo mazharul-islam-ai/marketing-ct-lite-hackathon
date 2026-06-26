@@ -1,4 +1,4 @@
-export const TOUR_VERSION = "v1";
+export const TOUR_VERSION = "v2";
 
 export function tourCompletedKey(userId: string): string {
   return `i420-tour-completed-${TOUR_VERSION}:${userId}`;

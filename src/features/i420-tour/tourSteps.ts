@@ -1,25 +1,38 @@
 import type { DriveStep } from "driver.js";
 import { I420_ROUTES } from "@/lib/i420Routes";
 import {
+  dispatchCanvasView,
+  dispatchClosePublishModal,
+  dispatchExpandChatPanel,
+  dispatchOpenPublishModal,
   dispatchOpenSettingsTab,
   dispatchOpenStudioTab,
+  dispatchSelectFirstNode,
+  dispatchTourCleanup,
 } from "./tourEvents";
 import { tourSelector, waitForTourTarget } from "./waitForTourTarget";
 
 export const I420_DEMO_AGENT_ID = "9cc32d7c-f6ee-4512-aa97-630c007e6c22";
+export const I420_WORKSPACE_CHAT_AGENT_ID = "1a4ba421-f3cb-4501-9fe1-3fef53d10d84";
 
-export const I420_TOUR_SET_CANVAS_VIEW = "i420-tour:set-canvas-view";
-
-export type TourSection = "full" | "dashboard" | "settings" | "studio" | "automations" | "debug";
+export type TourSection =
+  | "full"
+  | "dashboard"
+  | "settings"
+  | "studio"
+  | "workspace"
+  | "automations"
+  | "debug";
 
 export const TOUR_SECTION_START: Record<Exclude<TourSection, "full" | "debug">, number> = {
   dashboard: 0,
   settings: 5,
-  studio: 11,
-  automations: 18,
+  studio: 10,
+  workspace: 21,
+  automations: 24,
 };
 
-const DEBUG_STEP_INDEX = 20;
+const DEBUG_STEP_INDEX = 26;
 
 export interface TourStepContext {
   navigate: (path: string) => void;
@@ -53,7 +66,7 @@ async function goToSettings(ctx: TourStepContext, driver: { moveNext: () => void
   try {
     await waitForTourTarget("i420-tour-settings-tabs");
   } catch {
-    // continue — step may still render centered
+    // continue
   }
   driver.moveNext();
 }
@@ -67,10 +80,32 @@ async function goToStudio(ctx: TourStepContext, driver: { moveNext: () => void }
     try {
       await waitForTourTarget("i420-tour-builder-chat", { timeout: 8000 });
     } catch {
-      // studio may be empty — tour continues
+      // studio may be empty
     }
   }
   dispatchOpenStudioTab("design");
+  dispatchExpandChatPanel();
+  driver.moveNext();
+}
+
+async function goToWorkspace(ctx: TourStepContext, driver: { moveNext: () => void }) {
+  dispatchClosePublishModal();
+  ctx.navigate("/ai-agents");
+  try {
+    await waitForTourTarget("i420-tour-workspace-agents", { timeout: 10000 });
+  } catch {
+    // empty list still has page anchor
+  }
+  driver.moveNext();
+}
+
+async function goToWorkspaceChat(ctx: TourStepContext, driver: { moveNext: () => void }) {
+  ctx.navigate(`/ai-agents/${I420_WORKSPACE_CHAT_AGENT_ID}`);
+  try {
+    await waitForTourTarget("i420-tour-workspace-chat", { timeout: 12000 });
+  } catch {
+    // agent may not exist — tour continues with centered step if needed
+  }
   driver.moveNext();
 }
 
@@ -79,15 +114,25 @@ async function goToAutomations(ctx: TourStepContext, driver: { moveNext: () => v
   try {
     await waitForTourTarget("i420-tour-automations-list");
   } catch {
-    // empty list still has anchor on container
+    // continue
   }
   driver.moveNext();
 }
 
-function dispatchCanvasView(mode: "card" | "flow" | "compare") {
-  window.dispatchEvent(
-    new CustomEvent(I420_TOUR_SET_CANVAS_VIEW, { detail: { mode } }),
-  );
+async function openPublishModal(driver: { refresh: () => void; moveNext: () => void }) {
+  dispatchOpenPublishModal();
+  await new Promise((r) => window.setTimeout(r, 150));
+  try {
+    await waitForTourTarget("i420-tour-publish-visibility", { timeout: 5000 });
+  } catch {
+    try {
+      await waitForTourTarget("i420-tour-publish-modal", { timeout: 3000 });
+    } catch {
+      // modal may not open without version — step still shows centered
+    }
+  }
+  driver.refresh();
+  driver.moveNext();
 }
 
 export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
@@ -97,7 +142,7 @@ export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
       popover: {
         title: "Welcome to i420 Studio",
         description:
-          "Build AI agents and scheduled automations from natural language. This guided tour walks through the dashboard, settings, studio editor, automations, and troubleshooting tips.",
+          "Build AI agents and scheduled automations from natural language. This guided tour walks through the dashboard, settings, studio editor, workspace, automations, and troubleshooting tips.",
         popoverClass: popoverClass(),
         showButtons: ["next", "close"],
         side: "over" as const,
@@ -223,7 +268,10 @@ export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
     // ── Phase C: Studio ──
     {
       element: tourSelector("i420-tour-builder-chat"),
-      onHighlightStarted: () => dispatchOpenStudioTab("design"),
+      onHighlightStarted: () => {
+        dispatchOpenStudioTab("design");
+        dispatchExpandChatPanel();
+      },
       popover: {
         title: "Design chat",
         description:
@@ -246,9 +294,48 @@ export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
       element: tourSelector("i420-tour-canvas-toolbar"),
       onHighlightStarted: () => dispatchCanvasView("card"),
       popover: {
-        title: "Canvas views",
+        title: "Card view",
         description:
-          "Card shows a summary preview. Flow reveals the node graph. Compare highlights changes after a recompile.",
+          "The Card view shows a live preview of your agent — status, node count, and quick actions. Switch views from this toolbar.",
+        side: "bottom",
+        popoverClass: popoverClass(),
+      },
+    },
+    {
+      element: tourSelector("i420-tour-agent-card"),
+      onHighlightStarted: () => {
+        dispatchCanvasView("card");
+        dispatchExpandChatPanel();
+      },
+      popover: {
+        title: "Agent card preview",
+        description:
+          "The card summarizes your workflow: type badge, publish status, pipeline strip, and model chips. This is what teammates see at a glance.",
+        side: "left",
+        popoverClass: popoverClass(),
+      },
+    },
+    {
+      element: tourSelector("i420-tour-card-actions"),
+      onHighlightStarted: () => dispatchCanvasView("card"),
+      popover: {
+        title: "Edit, Chat, and Run",
+        description:
+          "Edit opens the node editor drawer on the card. Chat launches an inline chat preview for conversational agents. Run executes report mode and shows output in the Runtime tab.",
+        side: "top",
+        popoverClass: popoverClass(),
+      },
+    },
+    {
+      element: tourSelector("i420-tour-canvas-flow"),
+      onHighlightStarted: (_el, _step, { driver }) => {
+        dispatchCanvasView("flow");
+        requestAnimationFrame(() => driver.refresh());
+      },
+      popover: {
+        title: "Flow view",
+        description:
+          "Switch to Flow to see the full node graph — triggers, fetch steps, LLM calls, and outputs connected by execution edges.",
         side: "bottom",
         popoverClass: popoverClass(),
       },
@@ -262,7 +349,22 @@ export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
       popover: {
         title: "Flow canvas",
         description:
-          "Nodes represent steps (fetch, LLM, send). Click a node to inspect or edit. Edges show execution order.",
+          "Each node is a step in your automation. Click any node to open the inspector on the right. Drag to pan; scroll to zoom.",
+        side: "left",
+        popoverClass: popoverClass(),
+      },
+    },
+    {
+      element: tourSelector("i420-tour-node-inspector"),
+      onHighlightStarted: (_el, _step, { driver }) => {
+        dispatchCanvasView("flow");
+        dispatchSelectFirstNode();
+        requestAnimationFrame(() => driver.refresh());
+      },
+      popover: {
+        title: "Edit a node",
+        description:
+          "The inspector lets you rename nodes and edit config fields (prompts, filters, channels). Save applies changes to the current draft. Test runs a single node when supported.",
         side: "left",
         popoverClass: popoverClass(),
       },
@@ -280,10 +382,63 @@ export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
     {
       element: tourSelector("i420-tour-run-publish"),
       popover: {
-        title: "Run and publish",
+        title: "Run and Publish",
         description:
-          "Run tests the flow manually. Publish exposes the agent on /ai-agents or activates a cron schedule for automations.",
+          "Run tests the flow manually (output in Runtime). Publish makes the agent available to your team — click Publish to choose who can access it.",
         side: "bottom",
+        popoverClass: popoverClass(),
+        onNextClick: (_el, _step, { driver }) => {
+          void openPublishModal(driver);
+        },
+      },
+    },
+    {
+      element: tourSelector("i420-tour-publish-visibility"),
+      popover: {
+        title: "Publish access levels",
+        description:
+          "Workspace Users — appears on /ai-agents for all members.\n\nAdmin Only — visible in AI Control for admins/managers.\n\nPublic — generates a shareable link with no login required.",
+        side: "left",
+        popoverClass: popoverClass(),
+        disableActiveInteraction: false,
+        onNextClick: (_el, _step, { driver }) => {
+          dispatchClosePublishModal();
+          void goToWorkspace(ctx, driver);
+        },
+      },
+    },
+
+    // ── Phase F: Workspace ──
+    {
+      element: tourSelector("i420-tour-workspace-agents"),
+      popover: {
+        title: "AI Agents workspace",
+        description:
+          "Agents published with Workspace visibility appear here for every authenticated team member — not just i420 admins.",
+        side: "bottom",
+        popoverClass: popoverClass(),
+      },
+    },
+    {
+      element: tourSelector("i420-tour-workspace-agent-card"),
+      popover: {
+        title: "Workspace agent cards",
+        description:
+          "Each card shows Chat and Run Report actions based on the agent's capabilities. Chat opens a dedicated conversation page.",
+        side: "top",
+        popoverClass: popoverClass(),
+        onNextClick: (_el, _step, { driver }) => {
+          void goToWorkspaceChat(ctx, driver);
+        },
+      },
+    },
+    {
+      element: tourSelector("i420-tour-workspace-chat"),
+      popover: {
+        title: "Chat with your agent",
+        description:
+          "This is the end-user chat experience. Use starter prompts or type freely — the agent runs its chat branch (fetch + LLM) on each message.",
+        side: "top",
         popoverClass: popoverClass(),
         onNextClick: (_el, _step, { driver }) => {
           void goToAutomations(ctx, driver);
@@ -322,7 +477,7 @@ export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
           "Empty chat replies — recompile with fetch nodes; enable tables in Settings.",
           "MCP failures — Settings → MCP Servers; verify ENCRYPTION_KEY in Trigger.dev.",
           "Run failures — studio Logs + Runtime tabs for step-by-step errors.",
-          "Need help anytime — click the Help button in the header.",
+          "Need help anytime — click the Help button in the i420 header.",
         ].join("\n\n"),
         side: "over" as const,
         align: "center" as const,
@@ -348,8 +503,7 @@ export function getTourConfig(ctx: TourStepContext) {
     ...baseConfig(ctx),
     steps: buildTourSteps(ctx),
     onDestroyed: () => {
-      dispatchOpenStudioTab("design");
-      dispatchCanvasView("card");
+      dispatchTourCleanup();
     },
   };
 }

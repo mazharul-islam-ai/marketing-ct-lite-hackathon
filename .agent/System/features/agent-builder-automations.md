@@ -465,6 +465,19 @@ Legacy `/adminpanel/agent-builder/*` and `/adminpanel/automations/*` URLs redire
 
 Super admins also reach i420 Studio from the root sidebar (**i420 Studio** button above Admin Panel) and the dashboard hero on `/`.
 
+## Guided site tour (onboarding)
+
+Multi-route **driver.js** tour for super admins (`src/features/i420-tour/`). Provider lives in `App.tsx` so the tour survives navigation to `/ai-agents`.
+
+| Trigger | Behavior |
+|---------|----------|
+| First visit `/i420` | Auto-starts once per user (`localStorage` key `i420-tour-completed-v2:{userId}`) |
+| Help button | i420 layout + studio headers — full tour, section jumps, troubleshooting guide |
+
+**Phases:** Dashboard → Settings → Studio (card Edit/Chat/Run, Flow view, node inspector, publish modal) → Workspace (`/ai-agents`, chat at demo agent `1a4ba421-f3cb-4501-9fe1-3fef53d10d84`) → Automations → Troubleshooting finale.
+
+Studio demo agent for tour: `9cc32d7c-f6ee-4512-aa97-630c007e6c22`. Tour uses custom events (`i420-tour:*` in `tourEvents.ts`) to switch settings tabs, canvas views, open publish modal, and select nodes without user clicks.
+
 ## UI Conventions
 
 i420 Studio uses a **Claude-inspired warm cream + terracotta palette** via `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` (`ab` tokens). Brand copy lives in `i420Brand.ts`; route constants in `src/lib/i420Routes.ts`. Layout chrome is `src/layouts/I420StudioLayout.tsx` (standalone, not AdminLayout). Headings use **Source Serif 4** scoped to the i420 layout; body text uses Inter.

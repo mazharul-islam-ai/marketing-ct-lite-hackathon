@@ -54,6 +54,10 @@ async function prepareSectionRoute(
         await waitForTourTarget("i420-tour-builder-chat").catch(() => undefined);
       }
       break;
+    case "workspace":
+      navigate("/ai-agents");
+      await waitForTourTarget("i420-tour-workspace-agents").catch(() => undefined);
+      break;
     case "automations":
       navigate(I420_ROUTES.automations);
       await waitForTourTarget("i420-tour-automations-list").catch(() => undefined);
@@ -130,9 +134,10 @@ export function I420TourProvider({ children }: I420TourProviderProps) {
     setCompleted(false);
   }, [user?.id]);
 
-  // Auto-start on first visit to /i420 dashboard
+  // Auto-start on first visit to /i420 dashboard (super_admin only)
   useEffect(() => {
-    if (!user?.id || autoStartedRef.current || isTourCompleted(user.id)) return;
+    if (!user?.id || user.role !== "super_admin") return;
+    if (autoStartedRef.current || isTourCompleted(user.id)) return;
     if (location.pathname !== I420_ROUTES.root) return;
 
     autoStartedRef.current = true;

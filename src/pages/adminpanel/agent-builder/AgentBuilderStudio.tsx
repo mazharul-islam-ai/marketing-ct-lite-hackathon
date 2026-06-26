@@ -40,6 +40,8 @@ import { getExecutionCapabilities } from "./flowCapabilities";
 import { I420TourHelpButton } from "@/components/i420/I420TourHelpButton";
 import {
   I420_TOUR_OPEN_STUDIO_TAB,
+  I420_TOUR_OPEN_PUBLISH_MODAL,
+  I420_TOUR_CLOSE_PUBLISH_MODAL,
   type I420StudioTourTab,
 } from "@/features/i420-tour/tourEvents";
 
@@ -130,6 +132,17 @@ export default function AgentBuilderStudio() {
     };
     window.addEventListener(I420_TOUR_OPEN_STUDIO_TAB, handler);
     return () => window.removeEventListener(I420_TOUR_OPEN_STUDIO_TAB, handler);
+  }, []);
+
+  useEffect(() => {
+    const open = () => setShowPublishModal(true);
+    const close = () => setShowPublishModal(false);
+    window.addEventListener(I420_TOUR_OPEN_PUBLISH_MODAL, open);
+    window.addEventListener(I420_TOUR_CLOSE_PUBLISH_MODAL, close);
+    return () => {
+      window.removeEventListener(I420_TOUR_OPEN_PUBLISH_MODAL, open);
+      window.removeEventListener(I420_TOUR_CLOSE_PUBLISH_MODAL, close);
+    };
   }, []);
 
   const handleAgentCreated = useCallback((newAgentId: string, name: string) => {

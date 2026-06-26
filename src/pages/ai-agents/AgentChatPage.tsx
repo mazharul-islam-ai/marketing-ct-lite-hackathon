@@ -128,7 +128,7 @@ export default function AgentChatPage() {
         showRunReport={capabilities.hasReport}
         onRunReport={() => setShowReportDialog(true)}
         footer={
-          <>
+          <div data-tour="i420-tour-workspace-chat">
             {chatError && (
               <p className="text-xs text-red-600 mb-2">{chatError}</p>
             )}
@@ -138,7 +138,7 @@ export default function AgentChatPage() {
               onSend={() => void sendMessage()}
               disabled={!canSend}
             />
-          </>
+          </div>
         }
       >
         {showEmpty && (

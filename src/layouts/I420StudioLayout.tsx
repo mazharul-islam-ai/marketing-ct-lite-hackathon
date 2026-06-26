@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { I420 } from "@/pages/adminpanel/agent-builder/i420Brand";
 import { ab } from "@/pages/adminpanel/agent-builder/agentBuilderTheme";
 import { I420_ROUTES, isI420StudioEditorPath } from "@/lib/i420Routes";
-import { I420TourProvider } from "@/features/i420-tour/I420TourProvider";
 import { I420TourHelpButton } from "@/components/i420/I420TourHelpButton";
 
 export default function I420StudioLayout() {
@@ -14,16 +13,13 @@ export default function I420StudioLayout() {
 
   if (isEditor) {
     return (
-      <I420TourProvider>
-        <div className={cn("min-h-screen i420-studio", ab.pageBg, ab.fontBody)}>
-          <Outlet />
-        </div>
-      </I420TourProvider>
+      <div className={cn("min-h-screen i420-studio", ab.pageBg, ab.fontBody)}>
+        <Outlet />
+      </div>
     );
   }
 
   return (
-    <I420TourProvider>
     <div className={cn("min-h-screen flex flex-col i420-studio", ab.pageBg, ab.fontBody)}>
       <header className={cn(ab.studioHeader, "justify-between gap-4")}>
         <div className="flex items-center gap-3 min-w-0">
@@ -77,6 +73,5 @@ export default function I420StudioLayout() {
         </div>
       </main>
     </div>
-    </I420TourProvider>
   );
 }

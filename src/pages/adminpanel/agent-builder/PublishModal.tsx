@@ -129,7 +129,7 @@ export function PublishModal({ agent, currentVersionId, onPublish, onClose }: Pu
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" data-tour="i420-tour-publish-modal">
       <div className={cn("rounded-xl shadow-2xl w-[400px] border", ab.surfaceElevated)}>
         {/* Header */}
         <div className={cn("flex items-center justify-between px-5 py-4 border-b", ab.borderSoft)}>
@@ -148,7 +148,7 @@ export function PublishModal({ agent, currentVersionId, onPublish, onClose }: Pu
           <Field label="Version" value={currentVersionId ? "Auto-incremented" : "No version yet"} />
           <Field label="Status" value="Will be set to Published" />
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-tour="i420-tour-publish-visibility">
             <Label className="text-xs font-medium text-slate-600">Access Level</Label>
             <Select value={visibility} onValueChange={(v) => setVisibility(v as AgentVisibility)}>
               <SelectTrigger className="h-9 text-sm">

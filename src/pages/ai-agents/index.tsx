@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BuilderAgentRunnerDialog } from "@/components/agents/BuilderAgentRunnerDialog";
 import { getExecutionCapabilities } from "@/pages/adminpanel/agent-builder/flowCapabilities";
 import type { FlowJSON } from "@/pages/adminpanel/agent-builder/types";
+import { I420_WORKSPACE_CHAT_AGENT_ID } from "@/features/i420-tour/tourSteps";
 
 interface WorkspaceAgent {
   id: string;
@@ -87,7 +88,7 @@ export default function AIAgentsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6" data-tour="i420-tour-workspace-agents">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -129,10 +130,14 @@ export default function AIAgentsPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((agent) => (
+          {filtered.map((agent, index) => (
             <AgentCard
               key={agent.id}
               agent={agent}
+              tourAnchor={
+                agent.id === I420_WORKSPACE_CHAT_AGENT_ID ||
+                (index === 0 && !filtered.some((a) => a.id === I420_WORKSPACE_CHAT_AGENT_ID))
+              }
               onRunReport={() => openReportDialog(agent)}
               onChat={() => openChat(agent)}
             />
@@ -155,10 +160,12 @@ export default function AIAgentsPage() {
 
 function AgentCard({
   agent,
+  tourAnchor = false,
   onRunReport,
   onChat,
 }: {
   agent: WorkspaceAgent;
+  tourAnchor?: boolean;
   onRunReport: () => void;
   onChat: () => void;
 }) {
@@ -166,7 +173,10 @@ function AgentCard({
   const { hasChat, hasReport, isDualMode } = getExecutionCapabilities(agent.flow_json);
 
   return (
-    <Card className="flex flex-col hover:shadow-md transition-shadow">
+    <Card
+      className="flex flex-col hover:shadow-md transition-shadow"
+      {...(tourAnchor ? { "data-tour": "i420-tour-workspace-agent-card" } : {})}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 shrink-0">

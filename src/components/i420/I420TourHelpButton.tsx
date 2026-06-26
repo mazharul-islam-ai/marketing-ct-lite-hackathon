@@ -84,6 +84,14 @@ export function I420TourHelpButton({
         </DropdownMenuItem>
         <DropdownMenuItem
           className="gap-2 text-xs cursor-pointer"
+          onClick={() => start("workspace")}
+          disabled={tour.isRunning}
+        >
+          <Map className="h-3.5 w-3.5" />
+          Workspace /ai-agents
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="gap-2 text-xs cursor-pointer"
           onClick={() => start("automations")}
           disabled={tour.isRunning}
         >
