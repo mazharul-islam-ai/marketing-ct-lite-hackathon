@@ -141,7 +141,12 @@ export default function AutomationsList() {
                     {automation?.cron_expression ?? "—"}
                   </span>
                   {automation?.next_run_at && (
-                    <span>Next: {new Date(automation.next_run_at).toLocaleString()}</span>
+                    <span className={cn(
+                      new Date(automation.next_run_at) < new Date() && automation.is_active && "text-amber-600 font-medium",
+                    )}>
+                      Next: {new Date(automation.next_run_at).toLocaleString()}
+                      {new Date(automation.next_run_at) < new Date() && automation.is_active && " (overdue)"}
+                    </span>
                   )}
                 </div>
               </div>
@@ -157,7 +162,7 @@ export default function AutomationsList() {
                     {lastRun.status === "completed" && <CheckCircle2 className="w-3 h-3" />}
                     {lastRun.status === "failed" && <XCircle className="w-3 h-3" />}
                     {(lastRun.status === "running" || lastRun.status === "queued") && <Loader2 className="w-3 h-3 animate-spin" />}
-                    {lastRun.status}
+                    {lastRun.trigger_type === "cron" ? "Scheduled" : "Manual"} · {lastRun.status}
                   </span>
                 )}
 

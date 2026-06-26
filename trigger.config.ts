@@ -24,8 +24,16 @@ export default defineConfig({
     extensions: [
       syncEnvVars(async () => {
         const vars: { name: string; value: string }[] = [];
-        if (process.env.ENCRYPTION_KEY) {
-          vars.push({ name: "ENCRYPTION_KEY", value: process.env.ENCRYPTION_KEY });
+        const keys = [
+          "ENCRYPTION_KEY",
+          "SUPABASE_URL",
+          "SUPABASE_SERVICE_ROLE_KEY",
+          "TRIGGER_SECRET_KEY",
+          "TRIGGER_API_KEY",
+        ] as const;
+        for (const name of keys) {
+          const value = process.env[name];
+          if (value) vars.push({ name, value });
         }
         return vars;
       }),

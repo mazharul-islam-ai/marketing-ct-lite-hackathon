@@ -449,6 +449,49 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via i420 Stu
 - **Archive** → sets `automations.is_active = false`
 - **Trigger.dev** `automation-scheduler` runs every minute, triggers due automations
 
+### Scheduler requirements
+
+For a cron automation to run without manual **Run**:
+
+| Requirement | Where |
+|-------------|--------|
+| Agent `status = published` | `agents` table |
+| Flow contains `cron_trigger` | `agent_versions.flow_json` |
+| `automations.is_active = true`, `trigger_type = cron` | `automations` table |
+| `next_run_at <= now` | Set on publish; advanced after each successful scheduler tick |
+| Trigger.dev prod env vars | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TRIGGER_SECRET_KEY`, `ENCRYPTION_KEY` |
+| `automation-scheduler` deployed | `trigger/automation-scheduler.ts` |
+
+Cron context (`automation_id`) is passed in the **`input_context`** field on the `i420-run-execute` payload — not as an `agent_runs` column.
+
+### Scheduler troubleshooting (ops checklist)
+
+| Symptom | Likely cause | Action |
+|---------|--------------|--------|
+| **Automation Logs** empty | No `agent_runs` with `trigger_type = cron` | Check Trigger.dev `automation-scheduler` runs |
+| **Next run** overdue (past date) | Scheduler never completed for that automation | Fix scheduler; `next_run_at` only updates after successful tick |
+| Card shows **Manual · completed** but logs empty | Last run was manual, not scheduled | Use **Scheduled** badge on Automations list; check Logs page |
+| Trigger.dev run **Queued** / Never started | Worker backlog or deployment | Cancel stale queued runs; redeploy latest version |
+| Log: `Automation trigger failed` | Per-automation error in scheduler loop | Read `error` property (should be readable message after fix) |
+| Log: `Failed to create run record` | Invalid `agent_runs` insert or RLS | Compare insert fields with `i420-run-start` |
+| Log: `Trigger.dev API error` | Bad `TRIGGER_SECRET_KEY` or task name | Verify secret matches Supabase edge functions |
+| Log: `pgmq_send error` | PGMQ not installed or RPC failure | Fallback path; check `poll-agent-run-queue` task |
+
+**Deploy scheduler changes:**
+
+```bash
+npx trigger.dev@latest deploy
+```
+
+`trigger.config.ts` syncs `ENCRYPTION_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `TRIGGER_SECRET_KEY` when present in the deploy environment.
+
+**Verify after deploy (within ~2 min):**
+
+1. Trigger.dev: `automation-scheduler` → **COMPLETED**, output `{ triggered: N }`
+2. Supabase: new `agent_runs` row with `trigger_type = 'cron'`
+3. `automations.next_run_at` advanced
+4. `/i420/automations/logs` shows the run
+
 ## UI Routes
 
 | Route | Page |

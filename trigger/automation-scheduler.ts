@@ -6,6 +6,13 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const TRIGGER_SECRET_KEY = process.env.TRIGGER_SECRET_KEY ?? process.env.TRIGGER_API_KEY ?? "";
 const TRIGGER_API_URL = "https://api.trigger.dev/api/v1/tasks/i420-run-execute/trigger";
 
+function formatError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  const msg = (err as { message?: string })?.message;
+  if (msg) return msg;
+  return JSON.stringify(err);
+}
+
 function computeNextRunAt(cronExpression: string, from = new Date()): Date {
   const parts = cronExpression.trim().split(/\s+/);
   if (parts.length !== 5) return new Date(from.getTime() + 60 * 60 * 1000);
@@ -23,6 +30,12 @@ export const automationScheduler = schedules.task({
   cron: "* * * * *",
   maxDuration: 55,
   run: async () => {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error(
+        "Missing required environment variables: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY.",
+      );
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const now = new Date().toISOString();
 
@@ -70,7 +83,6 @@ export const automationScheduler = schedules.task({
             version_id: agent.current_version_id,
             status: "queued",
             trigger_type: "cron",
-            input_data: { automation_id: automation.id },
             budget_limit: 5.0,
             step_count: 0,
             total_cost: 0,
@@ -79,7 +91,9 @@ export const automationScheduler = schedules.task({
           .select("id")
           .single();
 
-        if (runError || !run) throw runError ?? new Error("Failed to create run");
+        if (runError || !run) {
+          throw new Error(`Failed to create run record: ${formatError(runError ?? "unknown")}`);
+        }
 
         const taskPayload = {
           run_id: run.id,
@@ -111,14 +125,33 @@ export const automationScheduler = schedules.task({
                 .update({ trigger_dev_run_id: triggerDevRunId })
                 .eq("id", run.id);
             }
+          } else {
+            const errText = await tdRes.text();
+            logger.error("Trigger.dev API error", {
+              automation_id: automation.id,
+              status: tdRes.status,
+              body: errText,
+            });
           }
         }
 
         if (!triggerDevRunId) {
-          await supabase.rpc("pgmq_send", {
+          const { data: msgId, error: mqError } = await supabase.rpc("pgmq_send", {
             queue_name: "agent_runs",
             msg: { ...taskPayload, enqueued_at: new Date().toISOString() },
           });
+
+          if (mqError) {
+            logger.error("pgmq_send error", {
+              automation_id: automation.id,
+              error: mqError.message,
+            });
+          } else if (msgId) {
+            await supabase
+              .from("agent_runs")
+              .update({ pgmq_msg_id: msgId })
+              .eq("id", run.id);
+          }
         }
 
         const nextRun = computeNextRunAt(automation.cron_expression ?? "0 8 * * *");
@@ -131,7 +164,7 @@ export const automationScheduler = schedules.task({
       } catch (err) {
         logger.error("Automation trigger failed", {
           automation_id: automation.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: formatError(err),
         });
       }
     }
