@@ -9,10 +9,22 @@ import type {
 } from "./types";
 import { getServiceClient, logPlatformUsage, mergeJobArtifacts } from "./supabase";
 import { callLlmJson, resolveCompilerApiKey } from "./llm";
+import { extractFlowPayload, normalizeFlowJSON } from "./normalize-flow";
+import {
+  buildAssembleSystemPrompt,
+  buildExtractIntentSystemPrompt,
+  buildPlanArchitectureSystemPrompt,
+  buildRepairSystemPrompt,
+} from "./kernel-prompts";
+import {
+  extractConversationState,
+  type ConversationState,
+} from "./conversation-state";
+import {
+  validateChatAgentRules,
+  validateDbQueryTables,
+} from "./finalize-flow";
 
-function toolchainSummary(configured: string[], tables: string[]): string {
-  return `Integrations: ${configured.join(", ") || "none"}\nTables: ${tables.join(", ") || "none"}`;
-}
 
 export async function runExtractIntent(payload: PipelinePayload): Promise<StageResult<WorkflowSpec>> {
   const supabase = getServiceClient();
@@ -32,7 +44,19 @@ export async function runExtractIntent(payload: PipelinePayload): Promise<StageR
     .maybeSingle();
   const tables = (ds?.config as { enabled_tables?: string[] })?.enabled_tables ?? [];
 
-  const system = `Extract WorkflowSpec JSON from user request. Toolchain:\n${toolchainSummary(configured, tables)}`;
+  const { data: session } = await supabase
+    .from("builder_sessions")
+    .select("chat_history")
+    .eq("agent_id", payload.agent_id)
+    .eq("user_id", payload.user_id)
+    .maybeSingle();
+  const chatHistory = (session?.chat_history ?? []) as Array<{ role: string; content: string }>;
+  const conversationState = extractConversationState(chatHistory, payload.prompt);
+  const resolvedContext = conversationState.workflowHints.length > 0 || conversationState.userExclusions.length > 0
+    ? `Workflow hints: ${conversationState.workflowHints.join(", ") || "none"}\nExclusions: ${conversationState.userExclusions.join("; ") || "none"}`
+    : undefined;
+
+  const system = buildExtractIntentSystemPrompt(configured, tables, resolvedContext);
   const { result, usage } = await callLlmJson<WorkflowSpec>(
     llm.provider, llm.model, llm.apiKey, system, payload.prompt,
   );
@@ -63,7 +87,7 @@ export async function runPlanArchitecture(
 ): Promise<StageResult<FlowBlueprint>> {
   const supabase = getServiceClient();
   const llm = await resolveCompilerApiKey(supabase);
-  const system = `Plan FlowBlueprint JSON. Allowed nodes: ${allowedNodes.join(", ")}`;
+  const system = buildPlanArchitectureSystemPrompt(spec, allowedNodes);
   const { result, usage } = await callLlmJson<FlowBlueprint>(
     llm.provider, llm.model, llm.apiKey, system, JSON.stringify(spec, null, 2),
   );
@@ -117,10 +141,13 @@ export async function runAssembleFlow(
   tasks: CompileTask[],
   allowedNodes: string[],
   currentFlow: FlowJSON | null,
+  spec: WorkflowSpec,
+  enabledTables: string[],
+  conversationState?: ConversationState,
 ): Promise<StageResult<{ flow: FlowJSON; user_message: string }>> {
   const supabase = getServiceClient();
   const llm = await resolveCompilerApiKey(supabase);
-  const system = `Assemble flow_json. Allowed: ${allowedNodes.join(", ")}. Return { user_message, flow }`;
+  const system = buildAssembleSystemPrompt(spec, allowedNodes, enabledTables, conversationState);
   const userContent = JSON.stringify({
     blueprint,
     tasks,
@@ -128,7 +155,7 @@ export async function runAssembleFlow(
     prompt: payload.prompt,
     action: payload.action,
   });
-  const { result, usage } = await callLlmJson<{ flow: FlowJSON; user_message: string }>(
+  const { result, usage } = await callLlmJson<Record<string, unknown>>(
     llm.provider, llm.model, llm.apiKey, system, userContent,
   );
 
@@ -143,17 +170,23 @@ export async function runAssembleFlow(
     compile_job_id: payload.compile_job_id,
   });
 
-  return { ok: true, data: result, usage };
+  const { flow, user_message } = extractFlowPayload(result);
+  return { ok: true, data: { flow, user_message }, usage };
 }
 
-export function runValidateFlow(flow: FlowJSON, allowedNodes: string[]): StageResult<FlowJSON> {
-  if (!flow || typeof flow !== "object") {
+export function runValidateFlow(
+  flow: FlowJSON,
+  allowedNodes: string[],
+  options?: { spec?: WorkflowSpec; enabledTables?: string[] },
+): StageResult<FlowJSON> {
+  const normalized = normalizeFlowJSON(flow);
+  if (!normalized || typeof normalized !== "object") {
     return { ok: false, error: "Flow must be an object" };
   }
-  if (!Array.isArray(flow.steps)) return { ok: false, error: "steps must be an array" };
-  if (!Array.isArray(flow.edges)) return { ok: false, error: "edges must be an array" };
+  if (!Array.isArray(normalized.steps)) return { ok: false, error: "steps must be an array" };
+  if (!Array.isArray(normalized.edges)) return { ok: false, error: "edges must be an array" };
 
-  const allNodes = [...(flow.trigger ? [flow.trigger] : []), ...flow.steps];
+  const allNodes = [...(normalized.trigger ? [normalized.trigger] : []), ...normalized.steps];
   if (allNodes.length > 20) return { ok: false, error: "Flow exceeds maximum of 20 nodes" };
 
   const allowed = new Set(allowedNodes);
@@ -168,13 +201,23 @@ export function runValidateFlow(flow: FlowJSON, allowedNodes: string[]): StageRe
   }
 
   const nodeIds = new Set(allNodes.map((n) => String(n.id)));
-  for (const edge of flow.edges) {
+  for (const edge of normalized.edges) {
     if (!nodeIds.has(String(edge.source)) || !nodeIds.has(String(edge.target))) {
       return { ok: false, error: `Edge references unknown node: ${edge.source} → ${edge.target}` };
     }
   }
 
-  return { ok: true, data: flow };
+  if (options?.enabledTables) {
+    const dbCheck = validateDbQueryTables(normalized, options.enabledTables);
+    if (!dbCheck.valid) return { ok: false, error: dbCheck.error };
+  }
+
+  if (options?.spec) {
+    const chatCheck = validateChatAgentRules(normalized, options.spec);
+    if (!chatCheck.valid) return { ok: false, error: chatCheck.error };
+  }
+
+  return { ok: true, data: normalized };
 }
 
 export async function runRepairFlow(
@@ -182,12 +225,14 @@ export async function runRepairFlow(
   blueprint: FlowBlueprint,
   flow: FlowJSON,
   validationError: string,
+  allowedNodes: string[] = [],
+  spec?: WorkflowSpec,
 ): Promise<StageResult<FlowJSON>> {
   const supabase = getServiceClient();
   const llm = await resolveCompilerApiKey(supabase);
-  const system = `Fix workflow JSON. Error: ${validationError}. Return { flow: {...} }`;
-  const { result, usage } = await callLlmJson<{ flow: FlowJSON }>(
-    llm.provider, llm.model, llm.apiKey, system, JSON.stringify({ blueprint, flow }),
+  const system = buildRepairSystemPrompt(validationError, allowedNodes, spec);
+  const { result, usage } = await callLlmJson<Record<string, unknown>>(
+    llm.provider, llm.model, llm.apiKey, system, JSON.stringify({ blueprint, flow, validation_error: validationError }),
   );
 
   await logPlatformUsage({
@@ -201,7 +246,8 @@ export async function runRepairFlow(
     compile_job_id: payload.compile_job_id,
   });
 
-  return { ok: true, data: result.flow, usage };
+  const { flow: repairedFlow } = extractFlowPayload(result);
+  return { ok: true, data: repairedFlow, usage };
 }
 
 export async function loadPipelineContext(payload: PipelinePayload) {
@@ -211,6 +257,14 @@ export async function loadPipelineContext(payload: PipelinePayload) {
     .select("integration_type")
     .eq("is_active", true);
   const configured = new Set((integrations ?? []).map((r: { integration_type: string }) => r.integration_type));
+
+  const { data: ds } = await supabase
+    .from("organization_integrations")
+    .select("config")
+    .eq("integration_type", "agent_builder_data_sources")
+    .eq("is_active", true)
+    .maybeSingle();
+  const enabledTables = (ds?.config as { enabled_tables?: string[] })?.enabled_tables ?? [];
 
   const ALWAYS = [
     "cron_trigger", "webhook_trigger", "manual_trigger", "db_trigger", "crm_event_trigger",
@@ -251,9 +305,22 @@ export async function loadPipelineContext(payload: PipelinePayload) {
     .eq("id", payload.compile_job_id)
     .single();
 
+  const { data: session } = await supabase
+    .from("builder_sessions")
+    .select("chat_history")
+    .eq("agent_id", payload.agent_id)
+    .eq("user_id", payload.user_id)
+    .maybeSingle();
+  const chatHistory = (session?.chat_history ?? []) as Array<{ role: string; content: string }>;
+  const conversationState = extractConversationState(chatHistory, payload.prompt);
+
   return {
     supabase,
     allowedNodes: [...allowed],
+    configuredTypes: configured,
+    enabledTables,
+    chatHistory,
+    conversationState,
     currentFlow,
     artifacts: (job?.compile_artifacts ?? {}) as CompileArtifacts,
   };

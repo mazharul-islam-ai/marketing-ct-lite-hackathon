@@ -5,6 +5,7 @@ import {
   loadPipelineContext,
   saveCompiledVersion,
 } from "./lib/stages";
+import { finalizeCompiledFlow, buildFlowSummaryMessage } from "./lib/finalize-flow";
 import { i420CompileMulti01ExtractIntent } from "./multi-01-extract-intent";
 import { i420CompileMulti02PlanArchitecture } from "./multi-02-plan-architecture";
 import { i420CompileMulti03DecomposeTasks } from "./multi-03-decompose-tasks";
@@ -65,6 +66,9 @@ export const i420CompileMultiRun = task({
       tasks,
       allowed_nodes: ctx.allowedNodes,
       current_flow: ctx.currentFlow,
+      spec,
+      enabled_tables: ctx.enabledTables,
+      conversation_state: ctx.conversationState,
     });
     if (!assembleResult.ok) throw new Error(`Stage 04 failed: ${assembleResult.error}`);
     let flow = assembleResult.output.flow as FlowJSON;
@@ -85,6 +89,8 @@ export const i420CompileMultiRun = task({
         compile_job_id: payload.compile_job_id,
         flow,
         allowed_nodes: ctx.allowedNodes,
+        spec,
+        enabled_tables: ctx.enabledTables,
       });
       if (!validateResult.ok) throw new Error(`Stage 05 failed: ${validateResult.error}`);
 
@@ -108,10 +114,21 @@ export const i420CompileMultiRun = task({
         blueprint,
         flow,
         validation_error: validateResult.output.error ?? "Invalid flow",
+        allowed_nodes: ctx.allowedNodes,
+        spec,
       });
       if (!repairResult.ok) throw new Error(`Stage 06 failed: ${repairResult.error}`);
       flow = repairResult.output.flow as FlowJSON;
     }
+
+    flow = finalizeCompiledFlow(flow, {
+      spec,
+      enabledTables: ctx.enabledTables,
+      allowedNodes: ctx.allowedNodes,
+      conversationState: ctx.conversationState,
+      configuredIntegrations: ctx.configuredTypes,
+    });
+    userMessage = buildFlowSummaryMessage(flow);
 
     const artifacts: CompileArtifacts = {
       spec,
