@@ -7,6 +7,7 @@ import { NodeEditTabs } from "../panels/NodeEditTabs";
 import { AgentCard } from "../panels/AgentCard";
 import { AutomationCard } from "../panels/AutomationCard";
 import { StudioWelcomeCanvas } from "../panels/StudioWelcomeCanvas";
+import { AskModeCanvas } from "../panels/AskModeCanvas";
 import { CanvasToolbar, type CanvasViewMode } from "../panels/CanvasToolbar";
 import { CompareCanvas } from "../panels/CompareCanvas";
 import { useBuilderSession } from "../hooks/useBuilderSession";
@@ -14,7 +15,7 @@ import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FlowJSON, FlowNode, AgentRun } from "../types";
 import { ab } from "../agentBuilderTheme";
-import { I420 } from "../i420Brand";
+import { I420, flowHasContent } from "../i420Brand";
 import { CanvasBackground } from "../three/CanvasBackground";
 import { useReducedMotion3d } from "../three/useReducedMotion3d";
 import { diffFlows, diffHighlightSets } from "../flowDiff";
@@ -137,13 +138,20 @@ export function DesignTab({
   }, [isCompiling, onCompilingChange]);
 
   useEffect(() => {
-    if (prevCompilingRef.current && !isCompiling && compileDiffSession) {
+    if (prevCompilingRef.current && !isCompiling && compileDiffSession && chatMode === "build") {
       setJustRevealed(true);
       const t = window.setTimeout(() => setJustRevealed(false), 400);
       return () => window.clearTimeout(t);
     }
     prevCompilingRef.current = isCompiling;
-  }, [isCompiling, compileDiffSession]);
+  }, [isCompiling, compileDiffSession, chatMode]);
+
+  useEffect(() => {
+    if (chatMode === "ask") {
+      setCardEditOpen(false);
+      setSelectedNode(null);
+    }
+  }, [chatMode]);
 
   useEffect(() => {
     if (initialFlowJson) {
@@ -247,9 +255,12 @@ export function DesignTab({
   const handleRun = () => onRun?.();
   const handleStop = () => onStop?.();
 
+  const hasFlow = flowHasContent(flowJson);
+  const showAskEmptyCanvas = chatMode === "ask" && !hasFlow;
+
   const isEmptyStudio =
-    !flowJson?.trigger &&
-    (flowJson?.steps?.length ?? 0) === 0 &&
+    chatMode === "build" &&
+    !hasFlow &&
     chatHistory.length === 0 &&
     !isCompiling;
 
@@ -276,8 +287,8 @@ export function DesignTab({
     onRun: handleRun,
     onStop: handleStop,
     versionNumber,
-    isCompiling,
-    justRevealed,
+    isCompiling: chatMode === "build" && isCompiling,
+    justRevealed: chatMode === "build" && justRevealed,
     reducedMotion,
     chatOpen: cardChatOpen,
     onOpenChat: onOpenCardChat,
@@ -351,68 +362,78 @@ export function DesignTab({
         </PanelResizeHandle>
 
         <Panel defaultSize={78} minSize={30} className="flex flex-col overflow-hidden min-w-0">
-          <CanvasToolbar
-            mode={canvasViewMode}
-            onModeChange={handleCanvasViewModeChange}
-            isRunActive={isRunActive}
-            showCompare={!!compileDiffSession}
-            compareUnseen={compareUnseen}
-          />
+          {!showAskEmptyCanvas && (
+            <CanvasToolbar
+              mode={canvasViewMode}
+              onModeChange={handleCanvasViewModeChange}
+              isRunActive={isRunActive}
+              showCompare={!!compileDiffSession}
+              compareUnseen={compareUnseen}
+            />
+          )}
 
           <div className={cn("flex-1 overflow-hidden relative", ab.canvas)}>
             <CanvasBackground
               variant="studio"
-              running={isRunActive}
+              running={isRunActive && !showAskEmptyCanvas}
               className="absolute inset-0 z-0"
             />
 
-            {canvasViewMode === "compare" && compileDiffSession && (
-              <CompareCanvas
-                session={compileDiffSession}
-                onOpenInFlow={handleOpenCompareInFlow}
-                onDismiss={handleDismissCompare}
-              />
-            )}
-
-            {canvasViewMode === "card" && (
-              <div className="absolute inset-0 overflow-auto h-full z-[1]">
-                {isRunActive && (
-                  <div className="absolute inset-0 pointer-events-none bg-[hsl(18_52%_52%/0.02)] animate-pulse" />
+            {showAskEmptyCanvas ? (
+              <div className="absolute inset-0 z-[1]">
+                <AskModeCanvas />
+              </div>
+            ) : (
+              <>
+                {canvasViewMode === "compare" && compileDiffSession && (
+                  <CompareCanvas
+                    session={compileDiffSession}
+                    onOpenInFlow={handleOpenCompareInFlow}
+                    onDismiss={handleDismissCompare}
+                  />
                 )}
-                <div className="h-full min-h-0 flex flex-col">
-                  {isEmptyStudio ? (
-                    <StudioWelcomeCanvas onExampleClick={handleExampleClick} />
-                  ) : (
-                    <div className="flex flex-col items-center justify-start pt-6 pb-8 px-8 min-h-full">
-                      {isAutomation ? (
-                        <AutomationCard {...cardSharedProps} />
+
+                {canvasViewMode === "card" && (
+                  <div className="absolute inset-0 overflow-auto h-full z-[1]">
+                    {isRunActive && (
+                      <div className="absolute inset-0 pointer-events-none bg-[hsl(18_52%_52%/0.02)] animate-pulse" />
+                    )}
+                    <div className="h-full min-h-0 flex flex-col">
+                      {isEmptyStudio ? (
+                        <StudioWelcomeCanvas onExampleClick={handleExampleClick} />
                       ) : (
-                        <AgentCard {...cardSharedProps} />
+                        <div className="flex flex-col items-center justify-start pt-6 pb-8 px-8 min-h-full">
+                          {isAutomation ? (
+                            <AutomationCard {...cardSharedProps} />
+                          ) : (
+                            <AgentCard {...cardSharedProps} />
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </div>
-            )}
+                  </div>
+                )}
 
-            {canvasViewMode === "flow" && (
-              <div className="absolute inset-0 z-[1]">
-                <AgentFlowCanvas
-                  flowJson={flowJson}
-                  onFlowChange={handleCanvasFlowChange}
-                  onNodeSelect={setSelectedNode}
-                  nodeRunStatuses={nodeRunStatuses}
-                  currentNodeId={currentNodeId}
-                  isRunActive={isRunActive}
-                  compareHighlights={compareHighlights}
-                />
-              </div>
+                {canvasViewMode === "flow" && (
+                  <div className="absolute inset-0 z-[1]">
+                    <AgentFlowCanvas
+                      flowJson={flowJson}
+                      onFlowChange={handleCanvasFlowChange}
+                      onNodeSelect={setSelectedNode}
+                      nodeRunStatuses={nodeRunStatuses}
+                      currentNodeId={currentNodeId}
+                      isRunActive={isRunActive}
+                      compareHighlights={compareHighlights}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </Panel>
       </PanelGroup>
 
-      {canvasViewMode === "card" && (
+      {canvasViewMode === "card" && chatMode === "build" && (
         <>
           {cardEditOpen && (
             <div className="absolute inset-0 z-10" onClick={handleCardEditClose} />
@@ -436,7 +457,7 @@ export function DesignTab({
         </>
       )}
 
-      {canvasViewMode === "flow" && (
+      {canvasViewMode === "flow" && chatMode === "build" && (
         <>
           {selectedNode && (
             <div className="absolute inset-0 z-10" onClick={() => setSelectedNode(null)} />

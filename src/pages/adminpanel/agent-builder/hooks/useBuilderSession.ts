@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatMessage, FlowJSON } from "../types";
 import type { CompilerMode, DesignChatMode, SendPromptOptions } from "../integrationConfig";
+import { I420 } from "../i420Brand";
 import { diffFlows } from "../flowDiff";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -387,6 +388,7 @@ export function useBuilderSession(
           filter: `agent_id=eq.${agentId}`,
         },
         (payload) => {
+          if (chatModeRef.current === "ask") return;
           const newVersion = payload.new as { flow_json: FlowJSON; id: string; version: number };
           if (newVersion.flow_json) {
             onFlowUpdate(newVersion.flow_json);
@@ -437,7 +439,7 @@ export function useBuilderSession(
         let effectiveAgentId = resolvedAgentIdRef.current;
 
         if (!effectiveAgentId && user) {
-          const agentName = nameFromPrompt(prompt);
+          const agentName = isAsk ? I420.newWorkflowLabel : nameFromPrompt(prompt);
           const { data: newAgent, error: createError } = await supabase
             .from("agents" as never)
             .insert({
