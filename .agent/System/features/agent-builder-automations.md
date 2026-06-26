@@ -303,6 +303,35 @@ Studio Design chat is for **editing the flow**; workspace chat is for **end-user
 
 Draft agents do not appear on `/ai-agents` until published with Workspace visibility.
 
+## Public agent links
+
+Publishing with visibility **Public (anyone with link)** generates a shareable URL:
+
+`/public/agents/{public_token}`
+
+- Implemented in [`PublishModal.tsx`](src/pages/adminpanel/agent-builder/PublishModal.tsx); rendered by [`AgentPublicPage.tsx`](src/pages/public/AgentPublicPage.tsx) (no login).
+- Requires `agents.status = published` and `agents.visibility = public`. Anon read is allowed via RLS migration `20260617000000_agent_visibility.sql`.
+- **Automations** (cron schedules) have no separate public page — they run server-side. The public link always targets the **agent runner** UI.
+
+### Hosting SPA fallback (fixes `404 NOT_FOUND`)
+
+Direct navigation to `/public/agents/{uuid}` hits the static host first. Without a rewrite, the host returns **404 NOT_FOUND** before React Router loads.
+
+| File | Platform |
+|------|----------|
+| [`vercel.json`](vercel.json) | Vercel / many Lovable deployments |
+| [`public/_redirects`](public/_redirects) | Netlify / Cloudflare Pages (copied into `dist/` on build) |
+
+After adding or changing these files, rebuild and redeploy the frontend (`npm run build`).
+
+### Public link troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Hosting `404 NOT_FOUND` on public URL | Redeploy frontend with `vercel.json` + `public/_redirects` SPA fallback |
+| In-app **Agent Not Found** | Republish with Public visibility; confirm agent is `published`; copy fresh link from publish modal |
+| Old link stopped working | Unpublish rotates `public_token` — share the new link after re-publishing |
+
 ## Agent lifecycle (status transitions)
 
 Workflow cards on `/i420` and the studio header 3-dot menu share **`useAgentLifecycle`** (`src/pages/adminpanel/agent-builder/hooks/useAgentLifecycle.ts`).
