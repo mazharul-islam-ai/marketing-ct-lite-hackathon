@@ -40,9 +40,10 @@ interface FlowEdge {
   condition?: string;
 }
 
-// ── Main agent run executor ──────────────────────────────────────────────────
-export const executeAgentRun = task({
-  id: "execute-agent-run",
+// ── Main agent run executor (canonical: i420-run-execute) ───────────────────
+function createAgentRunTask(taskId: string) {
+  return task({
+  id: taskId,
   maxDuration: 3600,
   queue: {
     concurrencyLimit: 10,
@@ -83,7 +84,7 @@ export const executeAgentRun = task({
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    logger.info("execute-agent-run starting", { run_id, agent_id });
+    logger.info(`${taskId} starting`, { run_id, agent_id });
 
     // Idempotency guard: only proceed if the run is still in 'queued' state.
     // This prevents double-execution when a pgmq fallback triggers a second instance
@@ -330,7 +331,7 @@ export const executeAgentRun = task({
     metadata.set("tokensUsed", totalTokens);
     metadata.set("stepCount", stepCount);
 
-    logger.info("execute-agent-run completed", { run_id, totalCost, totalTokens, stepCount });
+    logger.info(`${taskId} completed`, { run_id, totalCost, totalTokens, stepCount });
 
     return {
       run_id,
@@ -341,6 +342,11 @@ export const executeAgentRun = task({
     };
   },
 });
+}
+
+export const i420RunExecute = createAgentRunTask("i420-run-execute");
+/** @deprecated Use i420RunExecute — kept for backward compatibility */
+export const executeAgentRun = createAgentRunTask("execute-agent-run");
 
 // ── Build outgoing edge lookup map ───────────────────────────────────────────
 function buildEdgeMap(edges: FlowEdge[]): Map<string, FlowEdge[]> {

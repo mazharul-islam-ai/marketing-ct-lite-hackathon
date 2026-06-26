@@ -50,9 +50,23 @@ export const COMPILE_PHASES = {
   designing_flow: 'Designing workflow…',
   validating_flow: 'Validating flow structure…',
   saving_version: 'Saving new version…',
+  extracting_intent: 'Understanding requirements…',
+  planning_architecture: 'Planning workflow structure…',
+  decomposing_tasks: 'Breaking into steps…',
+  assembling_flow: 'Building workflow…',
+  repairing_flow: 'Fixing validation issues…',
 } as const
 
 export type CompilePhase = keyof typeof COMPILE_PHASES
+
+export const STAGE_TO_PHASE: Record<string, CompilePhase> = {
+  'i420-compile-multi-01-extract-intent': 'extracting_intent',
+  'i420-compile-multi-02-plan-architecture': 'planning_architecture',
+  'i420-compile-multi-03-decompose-tasks': 'decomposing_tasks',
+  'i420-compile-multi-04-assemble-flow': 'assembling_flow',
+  'i420-compile-multi-05-validate-flow': 'validating_flow',
+  'i420-compile-multi-06-repair-flow': 'repairing_flow',
+}
 
 export function getAllowedNodeTypes(configuredTypes: Set<string>, hasMcpServers = false): string[] {
   const allowed = new Set<string>(ALWAYS_AVAILABLE_NODE_TYPES)

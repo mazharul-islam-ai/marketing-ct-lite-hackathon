@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const TRIGGER_SECRET_KEY = process.env.TRIGGER_SECRET_KEY ?? process.env.TRIGGER_API_KEY ?? "";
-const TRIGGER_API_URL = "https://api.trigger.dev/api/v3/tasks/execute-agent-run/trigger";
+const TRIGGER_API_URL = "https://api.trigger.dev/api/v3/tasks/i420-run-execute/trigger";
 
 function computeNextRunAt(cronExpression: string, from = new Date()): Date {
   const parts = cronExpression.trim().split(/\s+/);

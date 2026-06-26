@@ -252,6 +252,10 @@ export default function AgentBuilderSettings() {
   const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
   const [isSavingModels, setIsSavingModels] = useState(false);
 
+  // Compiler mode (single vs multi-stage)
+  const [compilerMode, setCompilerMode] = useState<"single" | "multi_stage">("single");
+  const [isSavingCompilerMode, setIsSavingCompilerMode] = useState(false);
+
   // Connected tools
   const [connectedTools, setConnectedTools] = useState<Set<string>>(new Set());
   const [isLoadingTools, setIsLoadingTools] = useState(true);
@@ -280,7 +284,56 @@ export default function AgentBuilderSettings() {
     loadConnectedTools();
     loadDataSourceSettings();
     loadPromptVersions();
+    loadCompilerSettings();
   }, []);
+
+  async function loadCompilerSettings() {
+    try {
+      const { data } = await supabase
+        .from("organization_integrations" as never)
+        .select("config")
+        .eq("integration_type" as never, "agent_builder_compiler")
+        .eq("is_active" as never, true)
+        .limit(1)
+        .maybeSingle() as { data: { config?: { mode?: string } } | null };
+
+      const mode = data?.config?.mode;
+      if (mode === "multi_stage") setCompilerMode("multi_stage");
+      else setCompilerMode("single");
+    } catch {
+      setCompilerMode("single");
+    }
+  }
+
+  async function saveCompilerMode(mode: "single" | "multi_stage") {
+    setIsSavingCompilerMode(true);
+    try {
+      const { data: existing } = await supabase
+        .from("organization_integrations" as never)
+        .select("id")
+        .eq("integration_type" as never, "agent_builder_compiler")
+        .limit(1)
+        .maybeSingle() as { data: { id: string } | null };
+
+      const config = { mode, repair_max_attempts: 2 };
+      if (existing?.id) {
+        await supabase
+          .from("organization_integrations" as never)
+          .update({ config, is_active: true } as never)
+          .eq("id" as never, existing.id);
+      } else {
+        await supabase
+          .from("organization_integrations" as never)
+          .insert({ integration_type: "agent_builder_compiler", config, is_active: true } as never);
+      }
+      setCompilerMode(mode);
+      toast.success(mode === "multi_stage" ? "Multi-stage compiler enabled" : "Single-stage compiler enabled");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save compiler mode");
+    } finally {
+      setIsSavingCompilerMode(false);
+    }
+  }
 
   async function loadProviderHealthAndModels() {
     try {
@@ -622,6 +675,26 @@ export default function AgentBuilderSettings() {
         {/* ── AI MODELS TAB ── */}
         {activeTab === "models" && (
           <div className="max-w-3xl space-y-4">
+            <div className={cn("rounded-xl border p-4 space-y-3", ab.surface, ab.border)}>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Compiler pipeline</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Single-stage compiles in one LLM call. Multi-stage uses intent → architecture → tasks → assembly (beta).
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground">Single</span>
+                  <Switch
+                    checked={compilerMode === "multi_stage"}
+                    disabled={isSavingCompilerMode}
+                    onCheckedChange={(checked) => saveCompilerMode(checked ? "multi_stage" : "single")}
+                  />
+                  <span className="text-xs text-muted-foreground">Multi-stage</span>
+                </div>
+              </div>
+            </div>
+
             <p className="text-xs text-slate-500">
               Select which AI model to use by default for each provider when building agents.
               Only providers with valid API keys configured in your environment are available.

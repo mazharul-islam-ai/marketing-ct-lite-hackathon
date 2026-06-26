@@ -71,7 +71,7 @@ async function compileWithStream(
   body: Record<string, unknown>,
   onStatus: (phase: string, label: string) => void,
 ): Promise<CompileResult> {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/compile-agent-flow`, {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/i420-compile`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

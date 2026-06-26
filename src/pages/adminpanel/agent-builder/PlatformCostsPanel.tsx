@@ -171,7 +171,7 @@ export function PlatformCostsPanel() {
           Agent and automation <strong>execution</strong> costs appear on each agent&apos;s Runtime and Logs tabs.
         </p>
         <pre className="text-[10px] leading-relaxed text-muted-foreground/90 whitespace-pre-wrap font-mono mt-2">
-{`User → compile-agent-flow → i420_platform_usage → Costs tab (here)
+{`User → i420-compile → i420_platform_usage → Costs tab (here)
 Agent runs / automations → agent_runs → Runtime / Logs (not here)`}
         </pre>
       </div>

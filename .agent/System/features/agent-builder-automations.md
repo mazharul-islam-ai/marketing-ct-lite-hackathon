@@ -1,24 +1,41 @@
 # i420 Studio & Automations
 
-Last updated: 2026-06-25
+Last updated: 2026-06-26
 
 ## Smart IDE architecture
 
 i420 Design chat is a **platform-integrated Smart IDE** (Cursor/Lovable-style): it compiles natural language into `flow_json` using live workspace context from Settings and Integrations Hub.
 
+### Compiler naming (`i420-compile-*`)
+
+| Mode | Entry edge function | Execution |
+|------|---------------------|-----------|
+| **Router (default)** | `i420-compile` | Reads `agent_builder_compiler.mode` → dispatches below |
+| **Single-stage** | `i420-compile-single` | One LLM call via `_shared/compiler/monolith.ts` |
+| **Multi-stage (beta)** | `i420-compile-multi-start` | Trigger.dev pipeline `i420-compile-multi-run` → stages 01–06 |
+
+Legacy alias: `compile-agent-flow` proxies to `i420-compile-single`.
+
+### Runtime naming (`i420-run-*`)
+
+| Role | New name | Legacy alias |
+|------|----------|--------------|
+| Start run (edge) | `i420-run-start` | `trigger-flow-run` |
+| Execute flow (Trigger) | `i420-run-execute` | `execute-agent-run` |
+
 ```
-Settings (persona, models, tools, MCP, data sources)
+Settings (persona, models, tools, MCP, data sources, compiler mode)
 Integrations Hub (Slack, Gmail, …)
         ↓
-compile-agent-flow
-  ├── Persona prefix (agent_builder_prompts — tone only)
-  ├── Compiler kernel (code — node catalog, config guidelines, structural rules, OUTPUT FORMAT)
-  ├── Always-on workspace toolchain (integrations, enabled tables, MCP tools)
-  └── LLM → { user_message, clarification_needed?, flow }
+i420-compile (router)
+  ├── single → i420-compile-single (monolith LLM)
+  └── multi_stage → i420-compile-multi-start → Trigger.dev:
+        01 extract-intent → 02 plan-architecture → 03 decompose-tasks
+        → 04 assemble-flow → 05 validate-flow → 06 repair-flow (loop)
         ↓
-Design chat (user_message) + canvas (flow_json)
+Design chat (user_message) + canvas (flow_json) + compile_artifacts
         ↓
-trigger-flow-run → execute-agent-run (fail-fast on failed nodes)
+i420-run-start → i420-run-execute (fail-fast on failed nodes)
 ```
 
 ### Persona vs kernel
@@ -26,7 +43,7 @@ trigger-flow-run → execute-agent-run (fail-fast on failed nodes)
 | Layer | Source | Editable? |
 |-------|--------|-----------|
 | Persona / tone | Settings → System Prompt (`agent_builder_prompts`) | Yes — v2.1 persona-only prompt seeded in `20260625110000_i420_persona_v2_1.sql` |
-| Node catalog, config guidelines, structural rules, compile protocol | `compile-agent-flow` kernel + `_shared/agent-builder-integrations.ts` | Code only |
+| Node catalog, config guidelines, structural rules, compile protocol | `_shared/compiler/monolith.ts` + `_shared/agent-builder-integrations.ts` | Code only |
 | Live workspace facts | Integrations, MCP catalog, enabled tables (always-on toolchain) | Settings tabs |
 
 Legacy v1 system prompts that embed JSON-only structural rules are **stripped** by `sanitizePersonaPrompt()` before compile.
@@ -74,7 +91,7 @@ Implemented in `_shared/agent-builder-integrations.ts`:
 
 ### Runtime fail-fast
 
-`execute-agent-run` aborts when any node returns `status: "failed"` (previously continued and allowed fake LLM output).
+`i420-run-execute` aborts when any node returns `status: "failed"` (previously continued and allowed fake LLM output).
 
 Structured Slack errors: `supabase/functions/_shared/runtime-errors.ts` + `trigger/agent-flow/runtime-errors.ts` map `not_in_channel` → actionable hint.
 
@@ -88,18 +105,18 @@ Automations scheduler (`computeNextRunAt`) interprets cron in **UTC**. Compiler 
 
 **i420 Studio** (`/i420`) is a first-class super-admin product for building agents and automations from natural language. It was formerly known as Agent Builder (`/adminpanel/agent-builder` — legacy URLs redirect to `/i420`).
 
-The AI compiler (`compile-agent-flow`) produces validated `flow_json` graphs stored in `agent_versions`.
+The AI compiler (`i420-compile` / `i420-compile-single`) produces validated `flow_json` graphs stored in `agent_versions` with optional `compile_artifacts` (spec, blueprint, tasks).
 
-**Automations** (`/i420/automations`) are published agents with active schedules in the `automations` table, executed by Trigger.dev (`automation-scheduler` + `execute-agent-run`).
+**Automations** (`/i420/automations`) are published agents with active schedules in the `automations` table, executed by Trigger.dev (`automation-scheduler` + `i420-run-execute`).
 
 ## Architecture
 
 ```
-User prompt → compile-agent-flow (integration-aware + SSE status)
-           → agent_versions.flow_json
+User prompt → i420-compile (single or multi-stage + SSE status)
+           → agent_versions.flow_json + compile_artifacts
            → Publish → automations table (if cron_trigger)
            → automation-scheduler (every minute)
-           → execute-agent-run → execute-flow-node per step
+           → i420-run-execute → execute-flow-node per step
 ```
 
 ### Agents vs Automations
@@ -112,7 +129,7 @@ User prompt → compile-agent-flow (integration-aware + SSE status)
 
 ## Integration-Aware Compiler
 
-Before generating flows, `compile-agent-flow`:
+Before generating flows, `i420-compile-single` / multi-stage pipeline:
 
 1. Loads `organization_integrations` where `is_active = true`
 2. Builds allowed node list via `_shared/agent-builder-integrations.ts`
@@ -173,7 +190,7 @@ manual_trigger → switch(mode)
 
 Chat-only agents use a linear flow (no mode switch): `manual_trigger → fetch/tools → LLM → dashboard_write`.
 
-**Compiler** (`compile-agent-flow` → `normalizeChatBranch`): clones missing fetch/tool nodes from report branch onto chat branch for `db_query`, `mcp_tool`, `slack_fetch_messages`, `gmail_fetch_unread`, `api_call`; standardizes chat LLM templates when `{{message}}` is absent.
+**Compiler** (`i420-compile-single` / `_shared/compiler/monolith.ts` → `normalizeChatBranch`): clones missing fetch/tool nodes from report branch onto chat branch for `db_query`, `mcp_tool`, `slack_fetch_messages`, `gmail_fetch_unread`, `api_call`; standardizes chat LLM templates when `{{message}}` is absent.
 
 **Runtime** (`trigger/agent-flow/chat-context.ts`, `execute-node.ts`):
 
@@ -225,7 +242,9 @@ See **Unified Chat + Run execution model** above. Dual-mode flows must fetch dat
 
 | Step | Command |
 |------|---------|
-| Compiler | `supabase functions deploy compile-agent-flow --project-ref <project-ref>` |
+| Compiler | `supabase functions deploy i420-compile i420-compile-single i420-compile-multi-start` |
+| Multi stages | `npx trigger.dev@latest deploy` |
+| Runtime | `supabase functions deploy i420-run-start` + Trigger redeploy |
 | Runtime | `npx trigger.dev@latest deploy` |
 | Frontend | `npm run dev` or production rebuild |
 | Agent (optional) | Recompile in studio so JSON shows chat `db_query` |
@@ -239,7 +258,7 @@ See **Unified Chat + Run execution model** above. Dual-mode flows must fetch dat
 | Empty `rows` in LLM step input | Enable table in i420 Studio → Settings → Data Sources; verify table has rows |
 | Report works, chat does not | Report path runs `db_query` in flow; chat needs Trigger.dev deploy for prefetch back-compat |
 
-**Deploy:** compiler changes → `supabase functions deploy compile-agent-flow`; runtime changes → Trigger.dev redeploy (`execute-agent-run`, `execute-flow-node`).
+**Deploy:** compiler → `supabase functions deploy i420-compile i420-compile-single i420-compile-multi-start`; multi-stage → `npx trigger.dev@latest deploy`; runtime → `i420-run-start` + `i420-run-execute`.
 
 Studio Design chat is for **editing the flow**; workspace chat is for **end-user interaction** with published agents.
 
@@ -274,10 +293,36 @@ Confirm dialogs explain side effects before unpublish, archive, or delete. Archi
 | `checking_provider` | Checking AI provider… |
 | `loading_integrations` | Checking configured tools… |
 | `loading_context` | Loading flow context… |
-| `thinking` | Thinking… |
-| `designing_flow` | Designing workflow… |
+| `extracting_intent` | Understanding requirements… (multi) |
+| `planning_architecture` | Planning workflow structure… (multi) |
+| `decomposing_tasks` | Breaking into steps… (multi) |
+| `assembling_flow` | Building workflow… (multi) |
+| `thinking` | Thinking… (single) |
+| `designing_flow` | Designing workflow… (single) |
 | `validating_flow` | Validating flow structure… |
+| `repairing_flow` | Fixing validation issues… (multi) |
 | `saving_version` | Saving new version… |
+
+Multi-stage jobs also update `compile_jobs.current_stage` for realtime polling.
+
+### Compiler mode toggle
+
+Settings → AI Models → **Compiler pipeline** switch (`agent_builder_compiler` integration config).
+
+Default: `single`. Enable `multi_stage` for staged Trigger.dev pipeline.
+
+## Key Files
+
+| Area | Path |
+|------|------|
+| Compile router | `supabase/functions/i420-compile/index.ts` |
+| Single compile | `supabase/functions/i420-compile-single/index.ts` |
+| Multi compile entry | `supabase/functions/i420-compile-multi-start/index.ts` |
+| Shared compiler | `supabase/functions/_shared/compiler/*` |
+| Multi Trigger tasks | `trigger/i420-compile/multi-*.ts` |
+| Legacy compile alias | `supabase/functions/compile-agent-flow/index.ts` (proxy) |
+| Run start | `supabase/functions/i420-run-start/index.ts` |
+| Run execute | `trigger/agent-flow/execute-agent-run.ts` (`i420-run-execute`) |
 
 ## Node Types & Integrations
 
@@ -388,7 +433,7 @@ Foundation patterns to reuse: `chief-of-staff-agent` + `agent-orchestrator.ts`.
 
 | Area | Path |
 |------|------|
-| Compiler | `supabase/functions/compile-agent-flow/index.ts` |
+| Compiler | `supabase/functions/i420-compile-single/index.ts` + `_shared/compiler/monolith.ts` |
 | Integration mapping | `supabase/functions/_shared/agent-builder-integrations.ts` |
 | Frontend mapping | `src/pages/adminpanel/agent-builder/integrationConfig.ts` |
 | UI theme tokens | `src/pages/adminpanel/agent-builder/agentBuilderTheme.ts` |
@@ -440,8 +485,8 @@ Two separate cost surfaces:
 
 | Cost type | What it tracks | Where to view |
 |-----------|----------------|---------------|
-| **Platform** | Design chat / `compile-agent-flow` LLM usage (+ future Settings AI) | `/i420/settings` → **Costs** tab |
+| **Platform** | Design chat / `i420-compile` LLM usage (+ future Settings AI) | `/i420/settings` → **Costs** tab |
 | **Execution** | Agent runs and cron automations (`agent_runs`, `run_steps`) | Agent list badges, Runtime, Logs, Automations logs |
 
-Platform usage is stored in `i420_platform_usage` (logged by `compile-agent-flow` using `cost-calculator.ts`). Execution costs are **not** duplicated on the Costs tab.
+Platform usage is stored in `i420_platform_usage` (logged by `i420-compile-single` and multi-stage tasks using `cost-calculator.ts`). Execution costs are **not** duplicated on the Costs tab.
 
