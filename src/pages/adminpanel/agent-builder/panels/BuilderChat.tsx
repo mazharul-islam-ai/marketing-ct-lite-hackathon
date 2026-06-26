@@ -174,7 +174,7 @@ export function BuilderChat({
     : "Describe or modify the workflow…";
 
   return (
-    <div className={cn("flex flex-col h-full border-r", ab.chatPanel)}>
+    <div className={cn("flex flex-col h-full border-r", ab.chatPanel)} data-tour="i420-tour-builder-chat">
       <div className={cn("px-3 py-3 border-b", ab.chatHeader)}>
         <div className="flex items-center gap-2">
           <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0", ab.accentBtn)}>
@@ -272,7 +272,7 @@ export function BuilderChat({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-tour="i420-tour-compiler-mode">
           <SegmentedControl
             value={chatMode}
             options={[

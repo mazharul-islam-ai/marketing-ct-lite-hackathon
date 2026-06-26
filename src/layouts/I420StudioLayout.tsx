@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { I420 } from "@/pages/adminpanel/agent-builder/i420Brand";
 import { ab } from "@/pages/adminpanel/agent-builder/agentBuilderTheme";
 import { I420_ROUTES, isI420StudioEditorPath } from "@/lib/i420Routes";
+import { I420TourProvider } from "@/features/i420-tour/I420TourProvider";
+import { I420TourHelpButton } from "@/components/i420/I420TourHelpButton";
 
 export default function I420StudioLayout() {
   const location = useLocation();
@@ -12,13 +14,16 @@ export default function I420StudioLayout() {
 
   if (isEditor) {
     return (
-      <div className={cn("min-h-screen i420-studio", ab.pageBg, ab.fontBody)}>
-        <Outlet />
-      </div>
+      <I420TourProvider>
+        <div className={cn("min-h-screen i420-studio", ab.pageBg, ab.fontBody)}>
+          <Outlet />
+        </div>
+      </I420TourProvider>
     );
   }
 
   return (
+    <I420TourProvider>
     <div className={cn("min-h-screen flex flex-col i420-studio", ab.pageBg, ab.fontBody)}>
       <header className={cn(ab.studioHeader, "justify-between gap-4")}>
         <div className="flex items-center gap-3 min-w-0">
@@ -37,7 +42,8 @@ export default function I420StudioLayout() {
           </span>
         </div>
 
-        <nav className="flex items-center gap-1 shrink-0">
+        <nav className="flex items-center gap-1 shrink-0" data-tour="i420-tour-header-nav">
+          <I420TourHelpButton />
           <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5" asChild>
             <NavLink
               to={I420_ROUTES.automations}
@@ -71,5 +77,6 @@ export default function I420StudioLayout() {
         </div>
       </main>
     </div>
+    </I420TourProvider>
   );
 }

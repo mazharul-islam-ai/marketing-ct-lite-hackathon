@@ -20,6 +20,7 @@ import { CanvasBackground } from "../three/CanvasBackground";
 import { useReducedMotion3d } from "../three/useReducedMotion3d";
 import { diffFlows, diffHighlightSets } from "../flowDiff";
 import { extractCronFromFlow } from "@/lib/automationSchedule";
+import { I420_TOUR_SET_CANVAS_VIEW } from "@/features/i420-tour/tourSteps";
 
 interface DesignTabProps {
   agentId: string | null;
@@ -212,6 +213,17 @@ export function DesignTab({
     }
   }, [canvasViewMode]);
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode: CanvasViewMode }>).detail?.mode;
+      if (mode === "card" || mode === "flow" || mode === "compare") {
+        setCanvasViewMode(mode);
+      }
+    };
+    window.addEventListener(I420_TOUR_SET_CANVAS_VIEW, handler);
+    return () => window.removeEventListener(I420_TOUR_SET_CANVAS_VIEW, handler);
+  }, []);
+
   const handleCanvasViewModeChange = useCallback(
     (mode: CanvasViewMode) => {
       setCanvasViewMode(mode);
@@ -372,7 +384,7 @@ export function DesignTab({
             />
           )}
 
-          <div className={cn("flex-1 overflow-hidden relative", ab.canvas)}>
+          <div className={cn("flex-1 overflow-hidden relative", ab.canvas)} data-tour="i420-tour-flow-canvas">
             <CanvasBackground
               variant="studio"
               running={isRunActive && !showAskEmptyCanvas}

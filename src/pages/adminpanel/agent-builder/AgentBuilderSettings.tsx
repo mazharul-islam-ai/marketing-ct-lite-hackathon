@@ -24,6 +24,10 @@ import type { AgentBuilderPrompt } from "./types";
 import { I420_ROUTES } from "@/lib/i420Routes";
 import { McpServersPanel } from "./McpServersPanel";
 import { PlatformCostsPanel } from "./PlatformCostsPanel";
+import {
+  I420_TOUR_OPEN_SETTINGS_TAB,
+  type I420SettingsTourTab,
+} from "@/features/i420-tour/tourEvents";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -285,6 +289,15 @@ export default function AgentBuilderSettings() {
     loadDataSourceSettings();
     loadPromptVersions();
     loadCompilerSettings();
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const tab = (event as CustomEvent<{ tab: I420SettingsTourTab }>).detail?.tab;
+      if (tab) setActiveTab(tab);
+    };
+    window.addEventListener(I420_TOUR_OPEN_SETTINGS_TAB, handler);
+    return () => window.removeEventListener(I420_TOUR_OPEN_SETTINGS_TAB, handler);
   }, []);
 
   async function loadCompilerSettings() {
@@ -651,7 +664,7 @@ export default function AgentBuilderSettings() {
         </div>
       </div>
 
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1 flex-wrap" data-tour="i420-tour-settings-tabs">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -867,12 +880,14 @@ export default function AgentBuilderSettings() {
 
         {/* ── MCP SERVERS TAB ── */}
         {activeTab === "mcp" && (
-          <McpServersPanel />
+          <div data-tour="i420-tour-mcp">
+            <McpServersPanel />
+          </div>
         )}
 
         {/* ── DATA SOURCES TAB ── */}
         {activeTab === "data" && (
-          <div className="max-w-3xl space-y-4">
+          <div className="max-w-3xl space-y-4" data-tour="i420-tour-data-sources">
             <div className="flex items-start justify-between">
               <p className="text-xs text-slate-500 max-w-xl">
                 Enable database tables that agents are allowed to query when running.
@@ -983,7 +998,7 @@ export default function AgentBuilderSettings() {
 
         {/* ── SYSTEM PROMPT TAB ── */}
         {activeTab === "system_prompt" && (
-          <div className="max-w-3xl space-y-6">
+          <div className="max-w-3xl space-y-6" data-tour="i420-tour-system-prompt">
             <p className="text-xs text-slate-500">
               Define the global <strong>persona and tone</strong> for i420 Design chat only. The compiler
               kernel (in code) automatically injects node catalog, config field guidelines, JSON output

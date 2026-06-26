@@ -91,7 +91,7 @@ export default function AutomationsList() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6" data-tour="i420-tour-automations-list">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">All Automations</h1>
@@ -99,7 +99,7 @@ export default function AutomationsList() {
             Published agents with active schedules
           </p>
         </div>
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="outline" size="sm" data-tour="i420-tour-automation-logs">
           <Link to={I420_ROUTES.automationLogs}>View Logs</Link>
         </Button>
       </div>
