@@ -1,3 +1,5 @@
+import type { WorkflowSpec } from "./types";
+
 export interface ConversationState {
   workflowHints: string[];
   workflowHint: string | null;
@@ -91,4 +93,40 @@ export function isChatDbOnlyIntent(state: ConversationState): boolean {
   const hasDb = state.workflowHints.includes("db");
   const wantsSlack = state.workflowHints.includes("slack") && !userExcludedIntegration(state, "slack");
   return hasChat && hasDb && !wantsSlack;
+}
+
+export function coerceSpecFromConversation(
+  spec: WorkflowSpec,
+  state: ConversationState,
+  enabledTables: string[],
+): WorkflowSpec {
+  const slackExcluded = userExcludedIntegration(state, "slack");
+  const chatDbOnly = isChatDbOnlyIntent(state);
+  const wantsChatDb =
+    chatDbOnly
+    || (state.workflowHints.includes("chat") && state.workflowHints.includes("db"))
+    || state.userExclusions.some((e) => /chat\s+and\s+db|db\s+and\s+chat/i.test(e));
+
+  if (!wantsChatDb && !slackExcluded) return spec;
+
+  const preferredTable =
+    enabledTables.find((t) => /client/i.test(t))
+    ?? spec.data_sources?.tables?.[0]
+    ?? enabledTables[0]
+    ?? "clients";
+
+  const tables = spec.data_sources?.tables?.length
+    ? spec.data_sources.tables
+    : [preferredTable];
+
+  return {
+    ...spec,
+    workflow_type: wantsChatDb ? "chat_agent" : spec.workflow_type,
+    modes: wantsChatDb ? { chat: true, report: false } : spec.modes,
+    integrations_required: (spec.integrations_required ?? []).filter((i) => !/slack/i.test(i)),
+    data_sources: {
+      tables,
+      excluded: false,
+    },
+  };
 }

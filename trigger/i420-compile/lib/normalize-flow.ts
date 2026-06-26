@@ -200,6 +200,66 @@ export function normalizeChatBranch(obj: Record<string, unknown>): void {
   }
 }
 
+const DEFAULT_LABELS: Record<string, string> = {
+  manual_trigger: "Start",
+  cron_trigger: "Schedule",
+  webhook_trigger: "Webhook",
+  db_query: "Query data",
+  db_write: "Write data",
+  openai_llm: "Chat response",
+  gemini_llm: "Chat response",
+  anthropic_llm: "Chat response",
+  custom_llm: "Chat response",
+  slack_notify: "Slack notify",
+  slack_fetch_messages: "Fetch Slack messages",
+  gmail_fetch_unread: "Fetch unread email",
+  condition: "Condition",
+  switch: "Switch",
+  delay: "Delay",
+  loop: "Loop",
+  report_generate: "Generate report",
+};
+
+function defaultLabelForType(type: string): string {
+  return DEFAULT_LABELS[type] ?? type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function ensureNodeIdsAndLabels(obj: Record<string, unknown>): void {
+  let nextId = 1;
+
+  if (obj.trigger && typeof obj.trigger === "object") {
+    const t = obj.trigger as Record<string, unknown>;
+    if (!t.id) t.id = `n${nextId}`;
+    nextId++;
+    if (!t.label) t.label = defaultLabelForType(String(t.type ?? "manual_trigger"));
+  }
+
+  if (Array.isArray(obj.steps)) {
+    obj.steps = (obj.steps as Record<string, unknown>[]).map((rawNode, index) => {
+      if (!rawNode || typeof rawNode !== "object") return rawNode;
+      const node = { ...rawNode };
+      if (!node.id) node.id = `n${nextId + index}`;
+      if (!node.label) node.label = defaultLabelForType(String(node.type ?? "step"));
+      return node;
+    });
+    const steps = obj.steps as Record<string, unknown>[];
+    const maxNum = steps.reduce((max, s) => {
+      const m = String(s.id ?? "").match(/^n(\d+)$/);
+      return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    nextId = maxNum + 1;
+  }
+
+  if (Array.isArray(obj.edges)) {
+    obj.edges = (obj.edges as Record<string, unknown>[]).map((e, i) => {
+      if (!e || typeof e !== "object") return e;
+      const edge = { ...e };
+      if (!edge.id) edge.id = `e${i + 1}`;
+      return edge;
+    });
+  }
+}
+
 export function normalizeFlowJSON(raw: unknown): FlowJSON {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { trigger: null, steps: [], edges: [] };
@@ -311,6 +371,7 @@ export function normalizeFlowJSON(raw: unknown): FlowJSON {
   }
 
   normalizeChatBranch(obj);
+  ensureNodeIdsAndLabels(obj);
 
   return {
     trigger: (obj.trigger as FlowJSON["trigger"]) ?? null,

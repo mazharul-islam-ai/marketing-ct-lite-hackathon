@@ -4,8 +4,11 @@ import { getServiceClient } from "./lib/supabase";
 import {
   loadPipelineContext,
   saveCompiledVersion,
+  runValidateFlow,
 } from "./lib/stages";
 import { finalizeCompiledFlow, buildFlowSummaryMessage } from "./lib/finalize-flow";
+import { coerceSpecFromConversation } from "./lib/conversation-state";
+import type { WorkflowSpec } from "./lib/types";
 import { i420CompileMulti01ExtractIntent } from "./multi-01-extract-intent";
 import { i420CompileMulti02PlanArchitecture } from "./multi-02-plan-architecture";
 import { i420CompileMulti03DecomposeTasks } from "./multi-03-decompose-tasks";
@@ -40,7 +43,22 @@ export const i420CompileMultiRun = task({
       return { success: false, needs_clarification: true, question: clarification };
     }
 
-    const spec = intentResult.output.spec!;
+    const spec = coerceSpecFromConversation(
+      intentResult.output.spec!,
+      ctx.conversationState,
+      ctx.enabledTables,
+    ) as WorkflowSpec;
+
+    const finalizeCtx = {
+      spec,
+      enabledTables: ctx.enabledTables,
+      allowedNodes: ctx.allowedNodes,
+      conversationState: ctx.conversationState,
+      configuredIntegrations: ctx.configuredTypes,
+    };
+
+    const applyFinalize = (rawFlow: FlowJSON) =>
+      finalizeCompiledFlow(rawFlow, finalizeCtx);
 
     // Stage 02: Plan architecture
     const archResult = await i420CompileMulti02PlanArchitecture.triggerAndWait({
@@ -71,10 +89,10 @@ export const i420CompileMultiRun = task({
       conversation_state: ctx.conversationState,
     });
     if (!assembleResult.ok) throw new Error(`Stage 04 failed: ${assembleResult.error}`);
-    let flow = assembleResult.output.flow as FlowJSON;
+    let flow = applyFinalize(assembleResult.output.flow as FlowJSON);
     let userMessage = assembleResult.output.user_message ?? "Flow updated.";
 
-    // Stage 05 + 06: Validate with repair loop
+    // Stage 05 + 06: Validate with repair loop (finalize runs before each validate)
     const { data: compilerCfg } = await supabase
       .from("organization_integrations")
       .select("config")
@@ -85,6 +103,8 @@ export const i420CompileMultiRun = task({
     const maxRepairs = (compilerCfg?.config as { repair_max_attempts?: number })?.repair_max_attempts ?? 2;
 
     for (let attempt = 0; attempt <= maxRepairs; attempt++) {
+      flow = applyFinalize(flow);
+
       const validateResult = await i420CompileMulti05ValidateFlow.triggerAndWait({
         compile_job_id: payload.compile_job_id,
         flow,
@@ -100,6 +120,19 @@ export const i420CompileMultiRun = task({
       }
 
       if (attempt >= maxRepairs) {
+        const chatOnly = spec.modes?.chat && !spec.modes?.report;
+        if (chatOnly) {
+          flow = applyFinalize(flow);
+          const fallback = runValidateFlow(flow, ctx.allowedNodes, {
+            spec,
+            enabledTables: ctx.enabledTables,
+          });
+          if (fallback.ok && fallback.data) {
+            flow = fallback.data;
+            break;
+          }
+        }
+
         const err = validateResult.output.error ?? "Validation failed";
         await supabase.from("compile_jobs").update({
           status: "failed",
@@ -118,16 +151,9 @@ export const i420CompileMultiRun = task({
         spec,
       });
       if (!repairResult.ok) throw new Error(`Stage 06 failed: ${repairResult.error}`);
-      flow = repairResult.output.flow as FlowJSON;
+      flow = applyFinalize(repairResult.output.flow as FlowJSON);
     }
 
-    flow = finalizeCompiledFlow(flow, {
-      spec,
-      enabledTables: ctx.enabledTables,
-      allowedNodes: ctx.allowedNodes,
-      conversationState: ctx.conversationState,
-      configuredIntegrations: ctx.configuredTypes,
-    });
     userMessage = buildFlowSummaryMessage(flow);
 
     const artifacts: CompileArtifacts = {

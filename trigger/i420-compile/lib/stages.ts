@@ -190,13 +190,15 @@ export function runValidateFlow(
   if (allNodes.length > 20) return { ok: false, error: "Flow exceeds maximum of 20 nodes" };
 
   const allowed = new Set(allowedNodes);
-  for (const node of allNodes) {
+  for (let i = 0; i < allNodes.length; i++) {
+    const node = allNodes[i];
     const type = String(node.type ?? "");
+    const nodeRef = i === 0 && normalized.trigger ? "Trigger" : `Step ${String(node.id ?? i + 1)}`;
     if (!allowed.has(type)) {
       return { ok: false, error: `Node type "${type}" is not allowed` };
     }
     if (!node.id || !node.label) {
-      return { ok: false, error: "Node missing id or label" };
+      return { ok: false, error: `${nodeRef} (${type || "unknown"}) missing id or label` };
     }
   }
 

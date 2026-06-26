@@ -124,11 +124,14 @@ Multi-stage (`trigger/i420-compile/`) mirrors single-stage post-LLM behavior so 
 |--------|------|
 | `lib/kernel-prompts.ts` | Monolith-grade extract/plan/assemble system prompts (structural rules, chat+DB pattern) |
 | `lib/conversation-state.ts` | Loads `builder_sessions.chat_history`; detects workflow hints and user exclusions ("no slack", "chat and db only") |
-| `lib/finalize-flow.ts` | After validate/repair: `enforceChatDbAgentShape`, `stampFlowExecutionMetadata`, `validateDbQueryTables` |
+| `lib/finalize-flow.ts` | Before each validate: `enforceChatDbAgentShape`, `stampFlowExecutionMetadata`, `validateDbQueryTables` |
+| `lib/normalize-flow.ts` | `ensureNodeIdsAndLabels()` auto-assigns missing node ids/labels from LLM output |
+
+**Pipeline order:** assemble → **finalize** → validate → repair (loop). `coerceSpecFromConversation()` runs after extract-intent when user wants chat+DB only.
 
 **Chat + DB target topology:** `manual_trigger` → `db_query` (e.g. `clients`) → LLM (`openai_llm` / `custom_llm`). LLM `config.prompt` includes `{{message}}` and `{{rows}}`.
 
-**Chat button on agent card** requires `manual_trigger` + an LLM node (`flowCapabilities.ts`). Multi-stage sets `flow.metadata.supports_chat` via `stampFlowExecutionMetadata()` only when the flow has an LLM step on a manual trigger path.
+**Chat button** appears on the **Agent Card** (Design tab, Card view) when the flow has `manual_trigger` + an LLM node. Multi-stage sets `flow.metadata.supports_chat` via `stampFlowExecutionMetadata()`.
 
 User corrections in chat history (e.g. "I didn't tell you slack") are passed into assemble + finalize so Slack nodes are stripped for chat-only DB agents.
 
@@ -286,7 +289,8 @@ See **Unified Chat + Run execution model** above. Dual-mode flows must fetch dat
 |---------|-----|
 | Multi-stage compile: HTML 404 / `i420-compile-multi-run` not found | Run `npx trigger.dev@latest deploy`; set `TRIGGER_SECRET_KEY` on Supabase edge secrets; edge functions use REST `POST /api/v1/tasks/{taskId}/trigger` (not `/api/v3/`) |
 | Multi-stage: `steps must be an array` after repair loop | Redeploy Trigger.dev after normalize-flow fix in `trigger/i420-compile/lib/normalize-flow.ts` |
-| No **Chat** button on agent card after multi-stage compile | Flow missing LLM node; redeploy Trigger after `finalize-flow.ts` parity fix; recompile with Build + Multi |
+| Multi-stage: `Node missing id or label` | Redeploy Trigger (`ensureNodeIdsAndLabels` + finalize-before-validate); recompile with Build + Multi |
+| No **Chat** button on agent card after multi-stage compile | Flow missing LLM node; redeploy Trigger; recompile — Chat pill/button is on Agent Card (Card view) |
 | Multi-stage adds Slack nodes for chat+DB prompt | Redeploy Trigger; `conversation-state` + `enforceChatDbAgentShape` strip Slack unless user asked for it |
 | "I don't have information about the first client" | Redeploy Trigger.dev; runtime prefetch + forced chat templates fix this for existing agents |
 | Chat run has only 2–3 steps (no `db_query`) | Recompile agent or rely on runtime prefetch after Trigger.dev deploy |
