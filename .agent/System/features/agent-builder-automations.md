@@ -546,6 +546,13 @@ If you rotate the key, re-save MCP server credentials in i420 Settings → MCP S
 
 **Node config:** `{ server_id, tool_name, arguments }` — arguments support `{{variable}}` templates from upstream steps.
 
+**MCP troubleshooting:**
+
+| Symptom | Fix |
+|---------|-----|
+| `list_okrs` / integer filter `NaN` | Runtime strips invalid args (`sanitizeMcpToolArguments`); redeploy Trigger.dev. Recompile agent so chat-branch `list_*` tools use `arguments: {}` for open-ended queries. |
+| `ENCRYPTION_KEY` not set | Set same key in Trigger.dev + Supabase; redeploy Trigger; re-save MCP server token in Settings. |
+
 **Test server:** Free Cloudflare Worker at `examples/mcp-test-server/` (authless, tools `echo` + `get_client_sample`). Deploy with `npm run deploy` in that folder, then use **Test connection** in MCP Servers settings before **Connect & sync tools**.
 
 ## Platform costs vs execution costs

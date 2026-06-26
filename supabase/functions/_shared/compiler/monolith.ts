@@ -437,6 +437,7 @@ STRUCTURAL RULES:
 9. Position nodes left-to-right: x increases by 220 per step; y=200 main path; y=400 YES branches; y=0 NO branches; y=600 loop bodies.
 10. Each node MUST include: id, type, label, config (object), position { x, y }.
 11. Use mcp_tool only when user intent requires MCP AND a matching tool exists in WORKSPACE TOOLCHAIN. Set config.server_id, config.tool_name, config.arguments.
+12. For MCP list tools (list_okrs, list_*): use config.arguments: {} unless the user explicitly provides filter IDs. Never invent integer IDs or template placeholders for cycle_id, company_id, employee_id, etc.
 12. NEVER use nodes requiring integrations not in CONFIGURED INTEGRATIONS.
 13. If the user needs a missing integration, set clarification_needed true with user_message explaining what to connect in Integrations Hub.
 14. For report+chat dual mode: switch with input_variable "mode"; edge conditions "report" and "chat"; cases { "report": "report", "chat": "chat" }.
@@ -729,6 +730,37 @@ function branchHasFetchType(
   )
 }
 
+const MCP_INTEGER_FILTER_KEYS = new Set([
+  'cycle_id', 'company_id', 'year', 'quarter', 'employee_id', 'pod_id', 'user_id', 'okr_id',
+])
+
+function mcpArgumentsHaveUnsafeTemplates(args: unknown): boolean {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return false
+  for (const [key, val] of Object.entries(args as Record<string, unknown>)) {
+    if (typeof val === 'string' && /\{\{[\w.]+\}\}/.test(val)) return true
+    if (MCP_INTEGER_FILTER_KEYS.has(key) && (val === null || val === undefined || val === '')) return true
+  }
+  return false
+}
+
+function sanitizeChatMcpNodeConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...config }
+  const toolName = String(out.tool_name ?? '')
+  const isListTool = toolName.startsWith('list_') || toolName === 'get_pm_compliance'
+  if (mcpArgumentsHaveUnsafeTemplates(out.arguments) && isListTool) {
+    out.arguments = {}
+  }
+  return out
+}
+
+function normalizeChatMcpSteps(steps: Record<string, unknown>[]): void {
+  for (const step of steps) {
+    if (String(step.type) !== 'mcp_tool') continue
+    const config = { ...(step.config as Record<string, unknown> ?? {}) }
+    step.config = sanitizeChatMcpNodeConfig(config)
+  }
+}
+
 /** Ensure chat branch mirrors report-branch fetch/tool nodes and standard LLM templates */
 function normalizeChatBranch(obj: Record<string, unknown>): void {
   if (!Array.isArray(obj.steps) || !Array.isArray(obj.edges)) return
@@ -752,6 +784,7 @@ function normalizeChatBranch(obj: Record<string, unknown>): void {
       }
       step.config = config
     }
+    normalizeChatMcpSteps(steps)
     return
   }
 
@@ -796,7 +829,9 @@ function normalizeChatBranch(obj: Record<string, unknown>): void {
       id: newId,
       type: fetchType,
       label: String(refNode.label ?? fetchType) + ' (chat)',
-      config: JSON.parse(JSON.stringify(refConfig)),
+      config: fetchType === 'mcp_tool'
+        ? sanitizeChatMcpNodeConfig(JSON.parse(JSON.stringify(refConfig)) as Record<string, unknown>)
+        : JSON.parse(JSON.stringify(refConfig)),
       position: {
         x: (chatPos?.x ?? refPos?.x ?? 440) - 220,
         y: chatPos?.y ?? refPos?.y ?? 600,
@@ -831,6 +866,9 @@ function normalizeChatBranch(obj: Record<string, unknown>): void {
     }
     step.config = config
   }
+
+  const chatBranchIdSet = new Set(chatBranchIds)
+  normalizeChatMcpSteps(steps.filter((s) => chatBranchIdSet.has(String(s.id)) || String(s.label ?? '').includes('(chat)')))
 }
 
 /** Stamp execution-mode metadata for UI (Chat / Run Report buttons) */

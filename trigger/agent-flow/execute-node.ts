@@ -10,7 +10,7 @@ import {
   CHAT_LLM_SYSTEM,
   type DbQueryNodeConfig,
 } from "./chat-context";
-import { decryptValue, executeMcpTool, type McpServerConnection } from "./mcp-client";
+import { decryptValue, executeMcpTool, mergeLlmToolArgsFromContext, sanitizeMcpToolArguments, type McpServerConnection } from "./mcp-client";
 import { enrichRuntimeError, formatRuntimeErrorMessage } from "./runtime-errors";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -435,7 +435,9 @@ export const executeFlowNode = task({
           const argRecord = (rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs))
             ? (rawArgs as Record<string, unknown>)
             : {};
-          const args = interpolateObjectTemplates(argRecord, input_data) as Record<string, unknown>;
+          const interpolated = interpolateObjectTemplates(argRecord, input_data) as Record<string, unknown>;
+          const merged = mergeLlmToolArgsFromContext(interpolated, input_data);
+          const args = sanitizeMcpToolArguments(merged);
 
           const connection: McpServerConnection = {
             url: server.url,

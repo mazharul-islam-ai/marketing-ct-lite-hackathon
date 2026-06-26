@@ -34,6 +34,16 @@ export function getChatDataDiagnostic(steps: RunStep[]): string | null {
         );
       }
       if (step.node_type === "mcp_tool") {
+        if (
+          stepError.includes("invalid input syntax for type integer")
+          || stepError.includes('"NaN"')
+          || /\bNaN\b/.test(stepError)
+        ) {
+          return (
+            "MCP tool received invalid filter arguments (e.g. NaN for an integer field). " +
+            "Try a simpler open-ended question, or recompile the agent in i420 Studio so list tools use empty filters."
+          );
+        }
         return "MCP tool call failed. Check i420 Settings → MCP Servers (server active, tools synced).";
       }
       if (step.node_type === "db_query") {
