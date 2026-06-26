@@ -14,7 +14,7 @@ interface CanvasToolbarProps {
 
 export function CanvasToolbar({ mode, onModeChange, isRunActive, showCompare, compareUnseen }: CanvasToolbarProps) {
   return (
-    <div className={cn(ab.canvasToolbar, "justify-between")}>
+    <div className={cn(ab.canvasToolbar, "justify-between")} data-tour="i420-tour-canvas-toolbar">
       <div className="flex items-center gap-0.5 bg-[hsl(40_20%_96%)] rounded-lg p-0.5">
         <button
           onClick={() => onModeChange("card")}
@@ -28,6 +28,7 @@ export function CanvasToolbar({ mode, onModeChange, isRunActive, showCompare, co
         </button>
         <button
           onClick={() => onModeChange("flow")}
+          data-tour="i420-tour-canvas-flow"
           className={cn(
             "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150",
             mode === "flow" ? ab.viewToggleActive : ab.viewToggleInactive,

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { I420 } from "@/pages/adminpanel/agent-builder/i420Brand";
 import { ab } from "@/pages/adminpanel/agent-builder/agentBuilderTheme";
 import { I420_ROUTES, isI420StudioEditorPath } from "@/lib/i420Routes";
+import { I420TourHelpButton } from "@/components/i420/I420TourHelpButton";
 
 export default function I420StudioLayout() {
   const location = useLocation();
@@ -37,7 +38,8 @@ export default function I420StudioLayout() {
           </span>
         </div>
 
-        <nav className="flex items-center gap-1 shrink-0">
+        <nav className="flex items-center gap-1 shrink-0" data-tour="i420-tour-header-nav">
+          <I420TourHelpButton />
           <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5" asChild>
             <NavLink
               to={I420_ROUTES.automations}

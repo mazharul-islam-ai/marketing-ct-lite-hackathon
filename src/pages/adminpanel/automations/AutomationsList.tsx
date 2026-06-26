@@ -91,7 +91,7 @@ export default function AutomationsList() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6" data-tour="i420-tour-automations-list">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">All Automations</h1>
@@ -99,7 +99,7 @@ export default function AutomationsList() {
             Published agents with active schedules
           </p>
         </div>
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="outline" size="sm" data-tour="i420-tour-automation-logs">
           <Link to={I420_ROUTES.automationLogs}>View Logs</Link>
         </Button>
       </div>
@@ -141,7 +141,12 @@ export default function AutomationsList() {
                     {automation?.cron_expression ?? "—"}
                   </span>
                   {automation?.next_run_at && (
-                    <span>Next: {new Date(automation.next_run_at).toLocaleString()}</span>
+                    <span className={cn(
+                      new Date(automation.next_run_at) < new Date() && automation.is_active && "text-amber-600 font-medium",
+                    )}>
+                      Next: {new Date(automation.next_run_at).toLocaleString()}
+                      {new Date(automation.next_run_at) < new Date() && automation.is_active && " (overdue)"}
+                    </span>
                   )}
                 </div>
               </div>
@@ -157,7 +162,7 @@ export default function AutomationsList() {
                     {lastRun.status === "completed" && <CheckCircle2 className="w-3 h-3" />}
                     {lastRun.status === "failed" && <XCircle className="w-3 h-3" />}
                     {(lastRun.status === "running" || lastRun.status === "queued") && <Loader2 className="w-3 h-3 animate-spin" />}
-                    {lastRun.status}
+                    {lastRun.trigger_type === "cron" ? "Scheduled" : "Manual"} · {lastRun.status}
                   </span>
                 )}
 

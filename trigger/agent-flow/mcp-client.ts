@@ -29,6 +29,82 @@ interface JsonRpcResponse {
 
 const IV_LENGTH = 12;
 
+const UNRESOLVED_TEMPLATE_RE = /^\{\{[\w.]+\}\}$/;
+
+function isInvalidMcpScalar(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "number" && Number.isNaN(value)) return true;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "" || trimmed === "NaN") return true;
+    if (UNRESOLVED_TEMPLATE_RE.test(trimmed)) return true;
+  }
+  return false;
+}
+
+function coerceMcpScalar(value: unknown): unknown | undefined {
+  if (isInvalidMcpScalar(value)) return undefined;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const n = Number(trimmed);
+      if (!Number.isNaN(n)) return Number.isInteger(n) ? parseInt(trimmed, 10) : n;
+    }
+  }
+  return value;
+}
+
+/** Strip NaN, empty strings, unresolved templates, and invalid numeric strings from MCP tool args. */
+export function sanitizeMcpToolArguments(args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const nested = sanitizeMcpToolArguments(value as Record<string, unknown>);
+      if (Object.keys(nested).length > 0) out[key] = nested;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      const arr = value
+        .map((item) => coerceMcpScalar(item))
+        .filter((item) => item !== undefined);
+      if (arr.length > 0) out[key] = arr;
+      continue;
+    }
+    const coerced = coerceMcpScalar(value);
+    if (coerced !== undefined) out[key] = coerced;
+  }
+  return out;
+}
+
+/** Merge tool filter args from upstream LLM JSON result when present. */
+export function mergeLlmToolArgsFromContext(
+  args: Record<string, unknown>,
+  inputData: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...args };
+  for (const [k, val] of Object.entries(inputData)) {
+    if (!k.endsWith("_output") || !val || typeof val !== "object") continue;
+    const record = val as Record<string, unknown>;
+    const result = record.result;
+    if (typeof result !== "string" || !result.trim().startsWith("{")) continue;
+    try {
+      const parsed = JSON.parse(result) as Record<string, unknown>;
+      const toolArgs = parsed.tool_args ?? parsed.arguments ?? parsed.filters;
+      if (toolArgs && typeof toolArgs === "object" && !Array.isArray(toolArgs)) {
+        Object.assign(merged, toolArgs as Record<string, unknown>);
+      } else if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const skip = new Set(["tool", "tool_name", "action", "reasoning", "message"]);
+        for (const [pk, pv] of Object.entries(parsed)) {
+          if (!skip.has(pk)) merged[pk] = pv;
+        }
+      }
+    } catch {
+      // not JSON — ignore
+    }
+  }
+  return merged;
+}
+
 async function deriveKey(keyString: string): Promise<CryptoKey> {
   const hash = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(keyString));
   return webcrypto.subtle.importKey("raw", hash, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);

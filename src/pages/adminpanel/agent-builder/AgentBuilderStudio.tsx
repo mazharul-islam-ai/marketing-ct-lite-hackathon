@@ -37,6 +37,13 @@ import type { Agent, AgentVersion, FlowJSON } from "./types";
 import { I420_ROUTES } from "@/lib/i420Routes";
 import { extractCronFromFlow, computeNextRunAt } from "@/lib/automationSchedule";
 import { getExecutionCapabilities } from "./flowCapabilities";
+import { I420TourHelpButton } from "@/components/i420/I420TourHelpButton";
+import {
+  I420_TOUR_OPEN_STUDIO_TAB,
+  I420_TOUR_OPEN_PUBLISH_MODAL,
+  I420_TOUR_CLOSE_PUBLISH_MODAL,
+  type I420StudioTourTab,
+} from "@/features/i420-tour/tourEvents";
 
 type StudioTab = "design" | "runtime" | "json" | "logs" | "versions";
 type LifecycleAction = "unpublish" | "archive" | "delete";
@@ -117,6 +124,26 @@ export default function AgentBuilderStudio() {
       setActiveTab("runtime");
     }
   }, [currentRun?.status]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const tab = (event as CustomEvent<{ tab: I420StudioTourTab }>).detail?.tab;
+      if (tab) setActiveTab(tab);
+    };
+    window.addEventListener(I420_TOUR_OPEN_STUDIO_TAB, handler);
+    return () => window.removeEventListener(I420_TOUR_OPEN_STUDIO_TAB, handler);
+  }, []);
+
+  useEffect(() => {
+    const open = () => setShowPublishModal(true);
+    const close = () => setShowPublishModal(false);
+    window.addEventListener(I420_TOUR_OPEN_PUBLISH_MODAL, open);
+    window.addEventListener(I420_TOUR_CLOSE_PUBLISH_MODAL, close);
+    return () => {
+      window.removeEventListener(I420_TOUR_OPEN_PUBLISH_MODAL, open);
+      window.removeEventListener(I420_TOUR_CLOSE_PUBLISH_MODAL, close);
+    };
+  }, []);
 
   const handleAgentCreated = useCallback((newAgentId: string, name: string) => {
     setLiveAgentId(newAgentId);
@@ -403,7 +430,8 @@ export default function AgentBuilderStudio() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0" data-tour="i420-tour-run-publish">
+          <I420TourHelpButton />
           <Button
             variant="ghost"
             size="sm"
@@ -555,7 +583,7 @@ export default function AgentBuilderStudio() {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StudioTab)} className="flex flex-col flex-1 min-h-0 h-full overflow-hidden">
-        <div className={ab.studioTabs}>
+        <div className={ab.studioTabs} data-tour="i420-tour-studio-tabs">
           <TabsList className="h-9 bg-transparent p-0 gap-1 overflow-x-auto">
             <TabsTrigger value="design" className={cn("text-xs data-[state=active]:bg-[hsl(18_35%_95%)] data-[state=active]:text-[hsl(18_45%_38%)]", ab.textMuted)}>Design</TabsTrigger>
             <TabsTrigger value="runtime" className={cn("text-xs data-[state=active]:bg-[hsl(18_35%_95%)] data-[state=active]:text-[hsl(18_45%_38%)]", ab.textMuted)}>

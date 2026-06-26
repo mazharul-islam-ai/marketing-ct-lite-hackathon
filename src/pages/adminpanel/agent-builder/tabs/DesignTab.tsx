@@ -20,6 +20,15 @@ import { CanvasBackground } from "../three/CanvasBackground";
 import { useReducedMotion3d } from "../three/useReducedMotion3d";
 import { diffFlows, diffHighlightSets } from "../flowDiff";
 import { extractCronFromFlow } from "@/lib/automationSchedule";
+import {
+  I420_TOUR_CLOSE_CARD_EDIT,
+  I420_TOUR_EXPAND_CHAT_PANEL,
+  I420_TOUR_OPEN_CARD_EDIT,
+  I420_TOUR_SELECT_FIRST_NODE,
+  I420_TOUR_DESELECT_NODE,
+  I420_TOUR_SET_CANVAS_VIEW,
+  type I420CanvasViewMode,
+} from "@/features/i420-tour/tourEvents";
 
 interface DesignTabProps {
   agentId: string | null;
@@ -212,6 +221,48 @@ export function DesignTab({
     }
   }, [canvasViewMode]);
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode: I420CanvasViewMode }>).detail?.mode;
+      if (mode === "card" || mode === "flow" || mode === "compare") {
+        setCanvasViewMode(mode);
+      }
+    };
+    window.addEventListener(I420_TOUR_SET_CANVAS_VIEW, handler);
+    return () => window.removeEventListener(I420_TOUR_SET_CANVAS_VIEW, handler);
+  }, []);
+
+  useEffect(() => {
+    const expandChat = () => {
+      leftPanelRef.current?.expand();
+      setLeftCollapsed(false);
+    };
+    const selectFirst = () => {
+      setCanvasViewMode("flow");
+      const first = flowJsonRef.current?.steps?.[0];
+      if (first) setSelectedNode(first);
+    };
+    const deselect = () => setSelectedNode(null);
+    const openEdit = () => {
+      setCanvasViewMode("card");
+      setCardEditOpen(true);
+    };
+    const closeEdit = () => setCardEditOpen(false);
+
+    window.addEventListener(I420_TOUR_EXPAND_CHAT_PANEL, expandChat);
+    window.addEventListener(I420_TOUR_SELECT_FIRST_NODE, selectFirst);
+    window.addEventListener(I420_TOUR_DESELECT_NODE, deselect);
+    window.addEventListener(I420_TOUR_OPEN_CARD_EDIT, openEdit);
+    window.addEventListener(I420_TOUR_CLOSE_CARD_EDIT, closeEdit);
+    return () => {
+      window.removeEventListener(I420_TOUR_EXPAND_CHAT_PANEL, expandChat);
+      window.removeEventListener(I420_TOUR_SELECT_FIRST_NODE, selectFirst);
+      window.removeEventListener(I420_TOUR_DESELECT_NODE, deselect);
+      window.removeEventListener(I420_TOUR_OPEN_CARD_EDIT, openEdit);
+      window.removeEventListener(I420_TOUR_CLOSE_CARD_EDIT, closeEdit);
+    };
+  }, []);
+
   const handleCanvasViewModeChange = useCallback(
     (mode: CanvasViewMode) => {
       setCanvasViewMode(mode);
@@ -372,7 +423,7 @@ export function DesignTab({
             />
           )}
 
-          <div className={cn("flex-1 overflow-hidden relative", ab.canvas)}>
+          <div className={cn("flex-1 overflow-hidden relative", ab.canvas)} data-tour="i420-tour-flow-canvas">
             <CanvasBackground
               variant="studio"
               running={isRunActive && !showAskEmptyCanvas}
@@ -402,7 +453,7 @@ export function DesignTab({
                       {isEmptyStudio ? (
                         <StudioWelcomeCanvas onExampleClick={handleExampleClick} />
                       ) : (
-                        <div className="flex flex-col items-center justify-start pt-6 pb-8 px-8 min-h-full">
+                        <div className="flex flex-col items-center justify-start pt-6 pb-8 px-8 min-h-full" data-tour="i420-tour-agent-card">
                           {isAutomation ? (
                             <AutomationCard {...cardSharedProps} />
                           ) : (
@@ -468,6 +519,7 @@ export function DesignTab({
               "transition-transform duration-200 ease-in-out",
               selectedNode ? "translate-x-0" : "translate-x-full",
             )}
+            data-tour="i420-tour-node-inspector"
           >
             <NodeInspector
               node={selectedNode}

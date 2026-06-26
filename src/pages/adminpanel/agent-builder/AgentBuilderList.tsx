@@ -293,7 +293,7 @@ export default function AgentBuilderList() {
         </Button>
       </div>
 
-      <div className={cn(ab.composerCompact, ab.surfaceElevated, "space-y-3")}>
+      <div className={cn(ab.composerCompact, ab.surfaceElevated, "space-y-3")} data-tour="i420-tour-composer">
         <div className="flex items-center justify-between gap-3">
           <h2 className={cn("text-sm font-semibold", ab.textForeground)}>Create a new workflow</h2>
           <button
@@ -335,7 +335,7 @@ export default function AgentBuilderList() {
 
         <p className={cn("text-[10px]", ab.textMuted)}>Enter to build · Shift+Enter for new line</p>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" data-tour="i420-tour-templates">
           <p className={cn("text-[10px] uppercase tracking-wide font-medium", ab.textMuted)}>Try an idea</p>
           <div className={ab.templateStrip}>
             {PROMPT_TEMPLATES.map((t) => {
@@ -364,7 +364,7 @@ export default function AgentBuilderList() {
         </div>
       </div>
 
-      <div>
+      <div data-tour="i420-tour-agent-grid">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <h2 className={cn("text-base font-semibold", ab.fontHeading, ab.textForeground)}>Your workflows</h2>

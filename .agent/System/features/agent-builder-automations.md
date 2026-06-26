@@ -449,6 +449,49 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via i420 Stu
 - **Archive** → sets `automations.is_active = false`
 - **Trigger.dev** `automation-scheduler` runs every minute, triggers due automations
 
+### Scheduler requirements
+
+For a cron automation to run without manual **Run**:
+
+| Requirement | Where |
+|-------------|--------|
+| Agent `status = published` | `agents` table |
+| Flow contains `cron_trigger` | `agent_versions.flow_json` |
+| `automations.is_active = true`, `trigger_type = cron` | `automations` table |
+| `next_run_at <= now` | Set on publish; advanced after each successful scheduler tick |
+| Trigger.dev prod env vars | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TRIGGER_SECRET_KEY`, `ENCRYPTION_KEY` |
+| `automation-scheduler` deployed | `trigger/automation-scheduler.ts` |
+
+Cron context (`automation_id`) is passed in the **`input_context`** field on the `i420-run-execute` payload — not as an `agent_runs` column.
+
+### Scheduler troubleshooting (ops checklist)
+
+| Symptom | Likely cause | Action |
+|---------|--------------|--------|
+| **Automation Logs** empty | No `agent_runs` with `trigger_type = cron` | Check Trigger.dev `automation-scheduler` runs |
+| **Next run** overdue (past date) | Scheduler never completed for that automation | Fix scheduler; `next_run_at` only updates after successful tick |
+| Card shows **Manual · completed** but logs empty | Last run was manual, not scheduled | Use **Scheduled** badge on Automations list; check Logs page |
+| Trigger.dev run **Queued** / Never started | Worker backlog or deployment | Cancel stale queued runs; redeploy latest version |
+| Log: `Automation trigger failed` | Per-automation error in scheduler loop | Read `error` property (should be readable message after fix) |
+| Log: `Failed to create run record` | Invalid `agent_runs` insert or RLS | Compare insert fields with `i420-run-start` |
+| Log: `Trigger.dev API error` | Bad `TRIGGER_SECRET_KEY` or task name | Verify secret matches Supabase edge functions |
+| Log: `pgmq_send error` | PGMQ not installed or RPC failure | Fallback path; check `poll-agent-run-queue` task |
+
+**Deploy scheduler changes:**
+
+```bash
+npx trigger.dev@latest deploy
+```
+
+`trigger.config.ts` syncs `ENCRYPTION_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `TRIGGER_SECRET_KEY` when present in the deploy environment.
+
+**Verify after deploy (within ~2 min):**
+
+1. Trigger.dev: `automation-scheduler` → **COMPLETED**, output `{ triggered: N }`
+2. Supabase: new `agent_runs` row with `trigger_type = 'cron'`
+3. `automations.next_run_at` advanced
+4. `/i420/automations/logs` shows the run
+
 ## UI Routes
 
 | Route | Page |
@@ -464,6 +507,19 @@ Demo agent ID: `9cc32d7c-f6ee-4512-aa97-630c007e6c22` — recompile via i420 Stu
 Legacy `/adminpanel/agent-builder/*` and `/adminpanel/automations/*` URLs redirect to the matching `/i420/*` path.
 
 Super admins also reach i420 Studio from the root sidebar (**i420 Studio** button above Admin Panel) and the dashboard hero on `/`.
+
+## Guided site tour (onboarding)
+
+Multi-route **driver.js** tour for super admins (`src/features/i420-tour/`). Provider lives in `App.tsx` so the tour survives navigation to `/ai-agents`.
+
+| Trigger | Behavior |
+|---------|----------|
+| First visit `/i420` | Auto-starts once per user (`localStorage` key `i420-tour-completed-v2:{userId}`) |
+| Help button | i420 layout + studio headers — full tour, section jumps, troubleshooting guide |
+
+**Phases:** Dashboard → Settings → Studio (card Edit/Chat/Run, Flow view, node inspector, publish modal) → Workspace (`/ai-agents`, chat at demo agent `1a4ba421-f3cb-4501-9fe1-3fef53d10d84`) → Automations → Troubleshooting finale.
+
+Studio demo agent for tour: `9cc32d7c-f6ee-4512-aa97-630c007e6c22`. Tour uses custom events (`i420-tour:*` in `tourEvents.ts`) to switch settings tabs, canvas views, open publish modal, and select nodes without user clicks.
 
 ## UI Conventions
 
@@ -545,6 +601,13 @@ i420 Studio acts as an **MCP client**: registered servers expose tools that comp
 If you rotate the key, re-save MCP server credentials in i420 Settings → MCP Servers.
 
 **Node config:** `{ server_id, tool_name, arguments }` — arguments support `{{variable}}` templates from upstream steps.
+
+**MCP troubleshooting:**
+
+| Symptom | Fix |
+|---------|-----|
+| `list_okrs` / integer filter `NaN` | Runtime strips invalid args (`sanitizeMcpToolArguments`); redeploy Trigger.dev. Recompile agent so chat-branch `list_*` tools use `arguments: {}` for open-ended queries. |
+| `ENCRYPTION_KEY` not set | Set same key in Trigger.dev + Supabase; redeploy Trigger; re-save MCP server token in Settings. |
 
 **Test server:** Free Cloudflare Worker at `examples/mcp-test-server/` (authless, tools `echo` + `get_client_sample`). Deploy with `npm run deploy` in that folder, then use **Test connection** in MCP Servers settings before **Connect & sync tools**.
 

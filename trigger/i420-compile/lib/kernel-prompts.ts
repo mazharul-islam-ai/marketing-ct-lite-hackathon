@@ -24,7 +24,8 @@ const STRUCTURAL_RULES = `STRUCTURAL RULES:
 4. Do NOT add Slack nodes for chat+database requests unless user explicitly asked for Slack.
 5. db_query config.table MUST be one of the enabled tables listed.
 6. Chat-path LLM config.prompt MUST include {{message}} and upstream data e.g. {{rows}}.
-7. Maximum 20 nodes.`;
+7. Maximum 20 nodes.
+8. MCP list tools (list_okrs, list_*): use config.arguments: {} unless user provides explicit filter IDs. Never use {{template}} placeholders for integer filters.`;
 
 const CHAT_DB_EXAMPLE = `CHAT + DB EXAMPLE (3 nodes):
 manual_trigger (n1) → db_query table "clients" (n2) → openai_llm (n3)
@@ -82,6 +83,7 @@ export function buildAssembleSystemPrompt(
   if (chatOnly) {
     parts.push(
       "This is CHAT-ONLY: build manual_trigger → db_query → LLM only. No slack_notify, slack_fetch_messages, or report_generate.",
+      "For MCP list tools (list_okrs, list_*): use config.arguments: {} unless user provides explicit filter IDs.",
     );
   }
   if (resolved) parts.push(resolved);

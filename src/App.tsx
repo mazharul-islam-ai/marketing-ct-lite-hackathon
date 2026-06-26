@@ -123,6 +123,7 @@ import ImageAnalyticsDashboard from "./pages/adminpanel/image-analytics/ImageAna
 import EstimateListPage from "./pages/quotes/EstimateListPage";
 import EstimateBuilderPage from "./pages/quotes/EstimateBuilderPage";
 import EstimateViewPage from "./pages/quotes/EstimateViewPage";
+import { I420TourProvider } from "@/features/i420-tour/I420TourProvider";
 
 const ProjectKnowledgeBase = lazy(() => import("./pages/ProjectKnowledgeBase"));
 
@@ -158,6 +159,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <I420TourProvider>
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
@@ -578,6 +580,7 @@ const App = () => (
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </I420TourProvider>
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>

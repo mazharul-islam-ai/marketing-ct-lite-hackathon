@@ -215,7 +215,7 @@ export function AgentCard({
         )
       }
       footer={
-        <>
+        <div data-tour="i420-tour-card-actions" className="flex items-center gap-2">
           <Button
             variant={isEditOpen ? "default" : "outline"}
             size="sm"
@@ -279,7 +279,7 @@ export function AgentCard({
               )}
             </>
           )}
-        </>
+        </div>
       }
     />
   );

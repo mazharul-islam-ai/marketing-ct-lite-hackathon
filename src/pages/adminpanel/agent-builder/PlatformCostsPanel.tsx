@@ -163,7 +163,7 @@ export function PlatformCostsPanel() {
   }
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="max-w-5xl space-y-6" data-tour="i420-tour-costs">
       <div className="rounded-lg border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground space-y-2">
         <p className="font-medium text-foreground">i420 platform costs</p>
         <p>
