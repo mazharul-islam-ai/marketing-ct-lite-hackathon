@@ -113,7 +113,7 @@ async function decryptValue(ciphertext: string): Promise<string> {
 }
 ```
 
-**Setup Guide:** See `ACTIVECOLLAB_ENCRYPTION_SETUP.md`
+**Setup Guide:** See `.agent/SOP/activecollab-encryption-setup.md`
 
 ### API Operations
 
@@ -427,7 +427,7 @@ category_id       UUID REFERENCES knowledge_base_categories(id)
 auto_sync         BOOLEAN DEFAULT true
 ```
 
-**Setup Guide:** See `docs/google-drive-integration.md`
+**Setup Guide:** See `.agent/SOP/integrations/google-drive-oauth-setup.md`
 
 ---
 
@@ -519,7 +519,7 @@ async function fetchGAMetrics(brandId: string, startDate: string, endDate: strin
 5. Store credentials in `brand_analytics_integrations` table
 6. Configure property ID
 
-**Setup Guide:** See `docs/n8n-google-analytics-setup.md`
+**Setup Guide:** See `.agent/SOP/integrations/n8n-google-analytics-setup.md`
 
 ---
 
@@ -683,8 +683,8 @@ async function triggerN8NAnalytics(brandId: string) {
 ```
 
 **Setup Guides:**
-- `docs/n8n-eod-workflow-setup.md`
-- `docs/n8n-google-analytics-setup.md`
+- `.agent/SOP/integrations/n8n-eod-workflow-setup.md`
+- `.agent/SOP/integrations/n8n-google-analytics-setup.md`
 
 ---
 

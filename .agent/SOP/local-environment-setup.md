@@ -196,8 +196,7 @@ sj-marketing-ai/
 ├── supabase/
 │   ├── functions/      # Deno Edge Functions (63 functions)
 │   └── migrations/     # Database migrations
-├── .agent/             # AI agent documentation
-├── docs/               # Operational documentation
+├── .agent/             # Canonical project documentation
 └── public/             # Static assets
 ```
 
