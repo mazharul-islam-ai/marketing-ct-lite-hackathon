@@ -61,7 +61,7 @@ cd sj-marketing-ai
 npm install
 ```
 
-**Note**: The project includes both `package-lock.json` and `bun.lockb`. Use npm for consistency with CI/CD.
+**Note**: Use npm (`package-lock.json`) for consistency with CI/CD.
 
 ### Step 3: Configure Environment Variables
 
