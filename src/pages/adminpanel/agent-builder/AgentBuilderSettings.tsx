@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft, Settings2, Brain, Wrench, Database,
   CheckCircle2, AlertCircle, ExternalLink, Loader2,
-  Lock, Unlock, ChevronDown, ChevronRight,
+  ChevronRight,
   Zap, Globe2, MessageSquare, BarChart3, FolderOpen, Users, Briefcase,
   FileText, Save, History, CircleDot, Mail, Plug, DollarSign,
 } from "lucide-react";
@@ -24,6 +24,7 @@ import type { AgentBuilderPrompt } from "./types";
 import { I420_ROUTES } from "@/lib/i420Routes";
 import { McpServersPanel } from "./McpServersPanel";
 import { PlatformCostsPanel } from "./PlatformCostsPanel";
+import { DataSourcesPanel } from "./DataSourcesPanel";
 import {
   I420_TOUR_OPEN_SETTINGS_TAB,
   type I420SettingsTourTab,
@@ -48,12 +49,6 @@ interface ToolDef {
   integrationKey: string;
   category: string;
   icon: React.ReactNode;
-}
-
-interface DataTableDef {
-  name: string;
-  description: string;
-  category: string;
 }
 
 // ── Static definitions ────────────────────────────────────────────────────────
@@ -181,66 +176,6 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-const DATA_TABLE_GROUPS: { category: string; tables: DataTableDef[] }[] = [
-  {
-    category: "CRM & Clients",
-    tables: [
-      { name: "clients", description: "Client accounts and contact info", category: "CRM" },
-      { name: "contacts", description: "Individual contacts and leads", category: "CRM" },
-      { name: "deals", description: "Sales pipeline and deal data", category: "CRM" },
-      { name: "brands", description: "Brand profiles and settings", category: "CRM" },
-      { name: "projects", description: "Active and completed projects", category: "CRM" },
-    ],
-  },
-  {
-    category: "Content",
-    tables: [
-      { name: "generated_posts", description: "All AI-generated social posts", category: "Content" },
-      { name: "brand_generated_posts", description: "Brand-specific generated posts", category: "Content" },
-      { name: "seo_blog_content", description: "SEO blog articles and metadata", category: "Content" },
-    ],
-  },
-  {
-    category: "Analytics",
-    tables: [
-      { name: "brand_analytics_data", description: "Brand performance metrics", category: "Analytics" },
-      { name: "content_performance_metrics", description: "Content engagement data", category: "Analytics" },
-    ],
-  },
-  {
-    category: "Knowledge Base",
-    tables: [
-      { name: "knowledge_base", description: "Organizational knowledge entries", category: "Knowledge" },
-      { name: "knowledge_base_files", description: "Uploaded knowledge files", category: "Knowledge" },
-      { name: "brand_knowledge_files", description: "Brand-specific knowledge files", category: "Knowledge" },
-    ],
-  },
-  {
-    category: "Team & HR",
-    tables: [
-      { name: "team_members", description: "Team member profiles", category: "Team" },
-      { name: "employees", description: "Employee records from ActiveCollab", category: "Team" },
-      { name: "pods", description: "Team pods and groups", category: "Team" },
-      { name: "team_eod_submissions", description: "End-of-day activity logs", category: "Team" },
-    ],
-  },
-  {
-    category: "AI Agents",
-    tables: [
-      { name: "ai_agents", description: "Configured AI agent definitions", category: "Agents" },
-      { name: "ai_agent_runs", description: "Agent execution history", category: "Agents" },
-      { name: "agent_memories", description: "Persistent agent memory store", category: "Agents" },
-    ],
-  },
-  {
-    category: "ActiveCollab Sync",
-    tables: [
-      { name: "activecollab_task_data", description: "Synced tasks from ActiveCollab", category: "AC" },
-      { name: "activecollab_sync_logs", description: "Sync operation history", category: "AC" },
-    ],
-  },
-];
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AgentBuilderSettings() {
@@ -264,13 +199,6 @@ export default function AgentBuilderSettings() {
   const [connectedTools, setConnectedTools] = useState<Set<string>>(new Set());
   const [isLoadingTools, setIsLoadingTools] = useState(true);
 
-  // Data source enabled tables
-  const [enabledTables, setEnabledTables] = useState<Set<string>>(new Set());
-  const [isSavingData, setIsSavingData] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    new Set(DATA_TABLE_GROUPS.map((g) => g.category)),
-  );
-
   // System Prompt versioning
   const [promptText, setPromptText] = useState("");
   const [activePrompt, setActivePrompt] = useState<AgentBuilderPrompt | null>(null);
@@ -286,7 +214,6 @@ export default function AgentBuilderSettings() {
     loadProviderHealthAndModels();
     loadSavedModelDefaults();
     loadConnectedTools();
-    loadDataSourceSettings();
     loadPromptVersions();
     loadCompilerSettings();
   }, []);
@@ -437,18 +364,6 @@ export default function AgentBuilderSettings() {
     }
   }
 
-  async function loadDataSourceSettings() {
-    const { data } = await supabase
-      .from("organization_integrations" as never)
-      .select("config")
-      .eq("integration_type", "agent_builder_data_sources")
-      .maybeSingle() as { data: { config: { enabled_tables: string[] } } | null };
-
-    if (data?.config?.enabled_tables) {
-      setEnabledTables(new Set(data.config.enabled_tables));
-    }
-  }
-
   // ── Save handlers ─────────────────────────────────────────────────────────
 
   const saveModelDefaults = useCallback(async () => {
@@ -477,33 +392,6 @@ export default function AgentBuilderSettings() {
       setIsSavingModels(false);
     }
   }, [selectedModels]);
-
-  const saveDataSources = useCallback(async (tables: Set<string>) => {
-    setIsSavingData(true);
-    try {
-      const config = { enabled_tables: Array.from(tables) };
-      const { data: existing } = await supabase
-        .from("organization_integrations" as never)
-        .select("id")
-        .eq("integration_type", "agent_builder_data_sources")
-        .maybeSingle() as { data: { id: string } | null };
-
-      if (existing?.id) {
-        await supabase
-          .from("organization_integrations" as never)
-          .update({ config, is_active: true } as never)
-          .eq("id", existing.id);
-      } else {
-        await supabase
-          .from("organization_integrations" as never)
-          .insert({ integration_type: "agent_builder_data_sources", config, is_active: true } as never);
-      }
-    } catch {
-      toast.error("Failed to save data source settings");
-    } finally {
-      setIsSavingData(false);
-    }
-  }, []);
 
   async function loadPromptVersions() {
     setIsLoadingPrompts(true);
@@ -610,23 +498,6 @@ export default function AgentBuilderSettings() {
     } finally {
       setIsActivatingPrompt(null);
     }
-  }
-
-  function toggleTable(name: string) {
-    setEnabledTables((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name); else next.add(name);
-      saveDataSources(next);
-      return next;
-    });
-  }
-
-  function toggleGroup(category: string) {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(category)) next.delete(category); else next.add(category);
-      return next;
-    });
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -886,110 +757,7 @@ export default function AgentBuilderSettings() {
         )}
 
         {/* ── DATA SOURCES TAB ── */}
-        {activeTab === "data" && (
-          <div className="max-w-3xl space-y-4" data-tour="i420-tour-data-sources">
-            <div className="flex items-start justify-between">
-              <p className="text-xs text-slate-500 max-w-xl">
-                Enable database tables that agents are allowed to query when running.
-                Disabled tables cannot be accessed even if an agent flow includes a DB Query node.
-                Enabled tables are always visible to the i420 compiler; the agent only uses them when your prompt requires database access.
-                {isSavingData && <span className="ml-2 text-slate-400 inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Saving…</span>}
-              </p>
-              <div className="flex gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-7"
-                  onClick={() => {
-                    const all = new Set(DATA_TABLE_GROUPS.flatMap((g) => g.tables.map((t) => t.name)));
-                    setEnabledTables(all);
-                    saveDataSources(all);
-                  }}
-                >
-                  Enable all
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-7"
-                  onClick={() => {
-                    setEnabledTables(new Set());
-                    saveDataSources(new Set());
-                  }}
-                >
-                  Disable all
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {DATA_TABLE_GROUPS.map((group) => {
-                const expanded = expandedGroups.has(group.category);
-                const enabledCount = group.tables.filter((t) => enabledTables.has(t.name)).length;
-
-                return (
-                  <div key={group.category} className="rounded-xl border border-[hsl(35_15%_88%)] bg-[hsl(40_25%_99%)] overflow-hidden shadow-sm">
-                    {/* Group header */}
-                    <button
-                      onClick={() => toggleGroup(group.category)}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-[hsl(40_20%_97%)] transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-700">{group.category}</span>
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                          {enabledCount}/{group.tables.length} enabled
-                        </span>
-                      </div>
-                      {expanded
-                        ? <ChevronDown className="w-4 h-4 text-slate-400" />
-                        : <ChevronRight className="w-4 h-4 text-slate-400" />
-                      }
-                    </button>
-
-                    {/* Table rows */}
-                    {expanded && (
-                      <div className="divide-y divide-slate-100">
-                        {group.tables.map((table) => {
-                          const enabled = enabledTables.has(table.name);
-                          return (
-                            <div
-                              key={table.name}
-                              className={cn(
-                                "flex items-center gap-3 px-4 py-3 transition-colors",
-                                !enabled && "bg-[hsl(40_20%_97%)]/50",
-                              )}
-                            >
-                              <div className={cn(
-                                "w-6 h-6 rounded-md flex items-center justify-center shrink-0",
-                                enabled ? cn(ab.accentMuted, ab.accentText) : "bg-[hsl(40_20%_96%)] text-[hsl(30_6%_45%)]",
-                              )}>
-                                {enabled
-                                  ? <Unlock className="w-3 h-3" />
-                                  : <Lock className="w-3 h-3" />
-                                }
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={cn("text-xs font-mono font-semibold", enabled ? "text-slate-800" : "text-slate-400")}>
-                                  {table.name}
-                                </p>
-                                <p className="text-[11px] text-slate-400 mt-0.5">{table.description}</p>
-                              </div>
-                              <Switch
-                                checked={enabled}
-                                onCheckedChange={() => toggleTable(table.name)}
-                                className="shrink-0"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {activeTab === "data" && <DataSourcesPanel />}
 
         {/* ── COSTS TAB ── */}
         {activeTab === "costs" && (
