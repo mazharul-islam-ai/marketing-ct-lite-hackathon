@@ -15,7 +15,7 @@ import { Loader2, Play, FileText, X, Copy, Download, Save, Check, Upload, Code }
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { MarkdownRenderer } from "@/components/documentation/MarkdownRenderer";
+import ReactMarkdown from "react-markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
@@ -243,7 +243,7 @@ export function DocumentationGeneratorPanel({ brandId, onClose }: DocumentationG
               
               <TabsContent value="preview" className="mt-4">
                 <div className="prose prose-sm dark:prose-invert max-w-none border rounded-lg p-6 bg-muted/30 max-h-[600px] overflow-y-auto">
-                  <MarkdownRenderer content={result.formatted_output} />
+                  <ReactMarkdown>{result.formatted_output}</ReactMarkdown>
                 </div>
               </TabsContent>
               
