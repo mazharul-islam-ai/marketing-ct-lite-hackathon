@@ -283,7 +283,7 @@ Generates and sends weekly project summaries to clients based on ActiveCollab ta
 - `OPENAI_KEY`
 - `ACTIVECOLLAB_API_URL`
 
-**Related Documentation:** [Weekly Client Email Agent Plan](../../docs/weekly-client-email-agent-plan.md)
+**Related Documentation:** See the Weekly Client Email Agent section in this catalog.
 
 ---
 

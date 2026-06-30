@@ -17,7 +17,7 @@ Set the following environment variables in your Supabase Edge Functions:
 1. Go to Supabase Dashboard → Settings → Edge Functions → Secrets
 2. Add these two secrets:
    - Name: `CONTROL_TOWER_API_URL`
-   - Value: `https://ttlmdbgptqlvjswtcrnq.supabase.co/functions/v1` (Control Tower Edge Functions URL)
+   - Value: `https://your-control-tower-project.supabase.co/functions/v1` (Control Tower Edge Functions URL)
 
    - Name: `CONTROL_TOWER_API_KEY`
    - Value: Your Control Tower API key (e.g., `sk_...`)
@@ -26,7 +26,7 @@ Set the following environment variables in your Supabase Edge Functions:
 **OR** use the Supabase CLI:
 
 ```bash
-supabase secrets set CONTROL_TOWER_API_URL=https://ttlmdbgptqlvjswtcrnq.supabase.co/functions/v1
+supabase secrets set CONTROL_TOWER_API_URL=https://your-control-tower-project.supabase.co/functions/v1
 supabase secrets set CONTROL_TOWER_API_KEY=sk_your-control-tower-api-key
 ```
 
@@ -134,7 +134,7 @@ If you continue to have issues:
 2. Verify both environment variables are set correctly
 3. Test API credentials with a direct curl request to Control Tower:
    ```bash
-   curl "https://ttlmdbgptqlvjswtcrnq.supabase.co/functions/v1/api-v1-zoom-files?limit=5" \
+   curl "https://your-control-tower-project.supabase.co/functions/v1/api-v1-zoom-files?limit=5" \
      -H "Authorization: Bearer sk_your-api-key"
    ```
 4. Contact your Control Tower administrator for API access

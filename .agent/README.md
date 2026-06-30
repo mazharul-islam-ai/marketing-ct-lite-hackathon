@@ -115,11 +115,16 @@ Documentation about the current state of the system - architecture, tech stack, 
 - **[role-settings.md](./System/features/role-settings.md)** - Role-based permissions system
 - **[task-management-system.md](./System/features/task-management-system.md)** - Task management (NEW - Jan 16, 2026)
 - **[agent-builder-automations.md](./System/features/agent-builder-automations.md)** - Agent Builder, automations, integration-aware compiler (Jun 18, 2026)
-  - My Tasks view with 3 view modes (Assigned, Delegated, All)
-  - Task creation, editing, commenting
-  - Searchable assignee selector
-  - URL detection and linking in descriptions
-  - Real-time cache invalidation
+- **[agent-builder.md](./System/features/agent-builder.md)** - Agent Builder software design document
+- **[brand-knowledge-flowchart.md](./System/features/brand-knowledge-flowchart.md)** - Brand knowledge base flowchart
+- **[linkedin-content-backend.md](./System/features/linkedin-content-backend.md)** - LinkedIn content generation backend
+- **[content-section.md](./System/features/content-section.md)** - Content section feature catalog
+
+#### API Documentation
+
+**System/api/** - API contracts and reference
+
+- **[seo-hub-api-contract.md](./System/api/seo-hub-api-contract.md)** - SEO Hub API contract
 
 ---
 
@@ -176,6 +181,7 @@ Best practices and step-by-step guides for common development tasks.
 #### Operations & Maintenance
 
 - **[knowledge-base-maintenance.md](./SOP/knowledge-base-maintenance.md)** - Best practices for managing knowledge base data
+- **[admin-settings-error-logs.md](./SOP/admin-settings-error-logs.md)** - Admin settings error logs guide
 - **[activecollab-encryption-setup.md](./SOP/activecollab-encryption-setup.md)** - Setup guide for encrypted ActiveCollab credentials
 - **[external-api-integration-validation-guide.md](./SOP/external-api-integration-validation-guide.md)** - Comprehensive guide for validating and preventing errors when integrating external APIs (Control Tower case study)
 
@@ -186,6 +192,8 @@ Best practices and step-by-step guides for common development tasks.
 - **[google-drive-oauth-setup.md](./SOP/integrations/google-drive-oauth-setup.md)** - Google Drive OAuth 2.0 setup
 - **[admin-google-drive-setup.md](./SOP/integrations/admin-google-drive-setup.md)** - Admin-level Google Drive integration
 - **[n8n-eod-workflow-setup.md](./SOP/integrations/n8n-eod-workflow-setup.md)** - n8n workflow setup for EOD integration
+- **[n8n-google-analytics-setup.md](./SOP/integrations/n8n-google-analytics-setup.md)** - n8n Google Analytics integration setup
+- **[control-tower-meetings-setup.md](./SOP/integrations/control-tower-meetings-setup.md)** - Control Tower Meetings API setup
 
 #### Recommended SOPs to Create
 

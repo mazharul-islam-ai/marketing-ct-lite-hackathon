@@ -436,6 +436,5 @@ All components from the original implementation are complete. Recent updates inc
 - ⚠️ **Google Drive**: Requires secret configuration in Supabase Edge Functions
 
 ### Documentation
-- ✅ Complete user guide at `/docs/features/project-knowledge-base.md`
+- ✅ Complete user guide in `.agent/System/features/knowledge-base-system.md`
 - ✅ Technical implementation details in this document
-- ✅ Integration with documentation portal at `/adminpanel/documentation`

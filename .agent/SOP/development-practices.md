@@ -858,7 +858,7 @@ npx tsc --noEmit
 - [AGENTS.md](./AGENTS.md) - Guidelines for AI coding agents
 - [README.md](./README.md) - Project overview
 - [QUICKSTART.md](./QUICKSTART.md) - Quick setup guide
-- [public/docs/](./public/docs/) - Feature documentation
+- [.agent/README.md](../README.md) - Canonical project documentation
 - [Supabase Documentation](https://supabase.com/docs)
 - [React Query Documentation](https://tanstack.com/query/latest/docs/react/overview)
 - [shadcn/ui Documentation](https://ui.shadcn.com/)

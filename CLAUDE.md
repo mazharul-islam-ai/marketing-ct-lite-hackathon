@@ -310,7 +310,7 @@ Always check user roles before showing UI or calling protected endpoints. Use `u
 - Knowledge base uploads are restricted to `.txt` and `.md` files only
 - PDF files are processed using `unpdf` library in edge functions for text extraction
 - File validation occurs at both frontend and backend levels
-- See `KNOWLEDGE_BASE_DATA_CLEANUP_GUIDE.md` for data management best practices
+- See `.agent/SOP/knowledge-base-maintenance.md` for data management best practices
 
 **Brand Knowledge Management:**
 - Super admins can view "All Brand Files" tab in knowledge base
@@ -325,7 +325,7 @@ The platform integrates with multiple external services:
 - Project, task, and time tracking synchronization
 - Encrypted API credentials with `encryption.ts` utilities
 - Scheduled automatic syncs via `activecollab-scheduled-sync`
-- See `ACTIVECOLLAB_ENCRYPTION_SETUP.md` for configuration
+- See `.agent/SOP/activecollab-encryption-setup.md` for configuration
 
 **Google Drive:**
 - OAuth 2.0 authentication flow
@@ -333,7 +333,7 @@ The platform integrates with multiple external services:
 - Admin-level Google Drive integration for knowledge base
 - Routes: `/google-drive-callback` for OAuth callback
 - Functions: `google-drive-oauth-init`, `google-drive-oauth-callback`, `admin-google-drive-sync`
-- See `docs/google-drive-integration.md` for setup
+- See `.agent/SOP/integrations/google-drive-oauth-setup.md` for setup
 
 **Google Analytics:**
 - Direct API integration for brand metrics
@@ -350,7 +350,7 @@ The platform integrates with multiple external services:
 - EOD workflow automation
 - Analytics data pipeline
 - Function: `n8n-analytics-manage`
-- See `docs/n8n-eod-workflow-setup.md` and `docs/n8n-google-analytics-setup.md`
+- See `.agent/SOP/integrations/n8n-eod-workflow-setup.md` and `.agent/SOP/integrations/n8n-google-analytics-setup.md`
 
 **GoHighLevel:**
 - CRM integration
@@ -440,7 +440,7 @@ Comprehensive synchronization with ActiveCollab project management:
 
 **Configuration:**
 - Encrypted API credentials stored in database
-- See `ACTIVECOLLAB_ENCRYPTION_SETUP.md` for setup details
+- See `.agent/SOP/activecollab-encryption-setup.md` for setup details
 
 ## Common Patterns
 

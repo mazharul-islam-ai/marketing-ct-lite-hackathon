@@ -17,7 +17,7 @@ Compatible with:
 ## Local development
 
 ```bash
-cd examples/mcp-test-server
+cd examples/i420-mcp-test-server
 npm install
 npm start
 # → http://localhost:8788/mcp

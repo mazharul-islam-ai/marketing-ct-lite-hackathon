@@ -129,8 +129,6 @@ const ProjectKnowledgeBase = lazy(() => import("./pages/ProjectKnowledgeBase"));
 
 const queryClient = new QueryClient();
 
-// Lazy load Documentation
-const Documentation = lazy(() => import("./pages/admin/Documentation"));
 const AnalyticsIntegration = lazy(() => import("./pages/admin/AnalyticsIntegration"));
 
 // Smart redirect component based on user role
@@ -391,16 +389,6 @@ const App = () => (
                 element={
                   <ProtectedRoute requiredRole="super_admin">
                     <KPIConfigurator />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="documentation"
-                element={
-                  <ProtectedRoute requiredRole="super_admin">
-                    <React.Suspense fallback={<div>Loading...</div>}>
-                      <Documentation />
-                    </React.Suspense>
                   </ProtectedRoute>
                 }
               />

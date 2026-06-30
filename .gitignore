@@ -26,5 +26,10 @@ dist-ssr
 *.sw?
 supabase/.temp/
 .trigger
-examples/mcp-test-server/node_modules
-examples/mcp-test-server/.wrangler
+tmpclaude-*
+bun.lock
+bun.lockb
+.supabase-migration/
+.lovable/
+examples/i420-mcp-test-server/node_modules
+examples/i420-mcp-test-server/.wrangler
