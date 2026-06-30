@@ -4,6 +4,7 @@ import {
   dispatchCanvasView,
   dispatchClosePublishModal,
   dispatchExpandChatPanel,
+  dispatchOpenDataSourcesSubTab,
   dispatchOpenPublishModal,
   dispatchOpenSettingsTab,
   dispatchOpenStudioTab,
@@ -27,12 +28,12 @@ export type TourSection =
 export const TOUR_SECTION_START: Record<Exclude<TourSection, "full" | "debug">, number> = {
   dashboard: 0,
   settings: 5,
-  studio: 10,
-  workspace: 21,
-  automations: 24,
+  studio: 11,
+  workspace: 22,
+  automations: 25,
 };
 
-const DEBUG_STEP_INDEX = 26;
+const DEBUG_STEP_INDEX = 27;
 
 export interface TourStepContext {
   navigate: (path: string) => void;
@@ -200,7 +201,7 @@ export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
       popover: {
         title: "i420 Settings",
         description:
-          "Org-wide configuration for the compiler: AI models, integration tools, MCP servers, database tables, system prompt persona, and platform costs.",
+          "Org-wide configuration for the compiler: AI models, integration tools, MCP servers, SQL tables, vector knowledge bases, system prompt persona, and platform costs.",
         side: "bottom",
         popoverClass: popoverClass(),
       },
@@ -209,12 +210,28 @@ export function buildTourSteps(ctx: TourStepContext): DriveStep[] {
       element: tourSelector("i420-tour-data-sources"),
       onHighlightStarted: (_el, _step, { driver }) => {
         dispatchOpenSettingsTab("data");
+        dispatchOpenDataSourcesSubTab("tables");
         requestAnimationFrame(() => driver.refresh());
       },
       popover: {
-        title: "Data sources",
+        title: "Data tables",
         description:
-          "Enable tables before db_query nodes can read data. Disabled tables are invisible to the compiler even if your prompt mentions them.",
+          "Enable SQL tables before db_query nodes can read data. Disabled tables are invisible to the compiler even if your prompt mentions them.",
+        side: "top",
+        popoverClass: popoverClass(),
+      },
+    },
+    {
+      element: tourSelector("i420-tour-kb-sources"),
+      onHighlightStarted: (_el, _step, { driver }) => {
+        dispatchOpenSettingsTab("data");
+        dispatchOpenDataSourcesSubTab("kb");
+        requestAnimationFrame(() => driver.refresh());
+      },
+      popover: {
+        title: "Knowledge bases (KB)",
+        description:
+          "Vector collections backed by pgvector for semantic search. Enable company categories, brand docs, or project knowledge for future RAG nodes.",
         side: "top",
         popoverClass: popoverClass(),
       },

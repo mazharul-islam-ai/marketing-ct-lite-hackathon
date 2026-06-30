@@ -95,7 +95,6 @@ export const KNOWN_DATA_TABLES = [
   'clients', 'contacts', 'deals', 'brands', 'projects',
   'generated_posts', 'brand_generated_posts', 'seo_blog_content',
   'brand_analytics_data', 'content_performance_metrics',
-  'knowledge_base', 'knowledge_base_files', 'brand_knowledge_files',
   'team_members', 'employees', 'pods', 'team_eod_submissions',
   'ai_agents', 'ai_agent_runs', 'agent_memories',
   'activecollab_task_data', 'activecollab_sync_logs',

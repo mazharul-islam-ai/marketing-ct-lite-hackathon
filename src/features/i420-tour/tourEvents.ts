@@ -26,6 +26,16 @@ export const I420_TOUR_OPEN_CARD_EDIT = "i420-tour:open-card-edit";
 export const I420_TOUR_CLOSE_CARD_EDIT = "i420-tour:close-card-edit";
 export const I420_TOUR_EXPAND_CHAT_PANEL = "i420-tour:expand-chat-panel";
 
+export const I420_TOUR_OPEN_DATA_SOURCES_SUBTAB = "i420-tour:open-data-sources-subtab";
+
+export type I420DataSourcesSubTab = "tables" | "kb";
+
+export function dispatchOpenDataSourcesSubTab(subTab: I420DataSourcesSubTab): void {
+  window.dispatchEvent(
+    new CustomEvent(I420_TOUR_OPEN_DATA_SOURCES_SUBTAB, { detail: { subTab } }),
+  );
+}
+
 export function dispatchOpenSettingsTab(tab: I420SettingsTourTab): void {
   window.dispatchEvent(
     new CustomEvent(I420_TOUR_OPEN_SETTINGS_TAB, { detail: { tab } }),
